@@ -1009,8 +1009,7 @@
   }
 
   .copy-info.visible {
-    opacity: 1;
-    transform: translate(0, 0%);
+    transform: translate(0);
   }
 
 
@@ -1273,6 +1272,7 @@
   @media (max-width: 479px) {
     .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   }
+
 
 
 
