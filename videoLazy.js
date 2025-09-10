@@ -119,6 +119,33 @@ document.addEventListener("DOMContentLoaded", () => {
     if (video.dataset.fetching === 'true' || video.dataset.loaded) return;
     video.dataset.fetching = 'true';
     const url = video.dataset.src;
+    // Если источник кросс-доменный — НЕ используем fetch (избежим CORS), подключаем напрямую
+    try {
+      const urlObj = new URL(url, window.location.href);
+      const sameOrigin = urlObj.origin === window.location.origin;
+      if (!sameOrigin) {
+        const source = document.createElement('source');
+        source.src = url;
+        source.type = 'video/mp4';
+        video.appendChild(source);
+        video.preload = 'auto';
+        try { video.load(); } catch(e) {}
+        video.dataset.loaded = 'true';
+        delete video.dataset.fetching;
+        return;
+      }
+    } catch (_) {
+      // В случае ошибок парсинга URL — подключаем напрямую
+      const source = document.createElement('source');
+      source.src = url;
+      source.type = 'video/mp4';
+      video.appendChild(source);
+      video.preload = 'auto';
+      try { video.load(); } catch(e) {}
+      video.dataset.loaded = 'true';
+      delete video.dataset.fetching;
+      return;
+    }
     try {
       const response = await fetch(url, { credentials: 'omit', cache: 'default' });
       if (!response.ok) throw new Error('Failed to fetch video');
@@ -238,6 +265,11 @@ document.addEventListener("DOMContentLoaded", () => {
       video.setAttribute("preload", "none");
       const sources = Array.from(video.querySelectorAll("source"));
       sources.forEach(s => s.remove());
+      // освобождаем blob URL если использовался
+      if (video.dataset && video.dataset.blobUrl) {
+        try { URL.revokeObjectURL(video.dataset.blobUrl); } catch(_) {}
+        try { delete video.dataset.blobUrl; } catch(_) {}
+      }
       try { video.removeAttribute("src"); } catch(e) {}
       try { delete video.dataset.loaded; } catch(e) {}
       try { video.load(); } catch(e) {}
