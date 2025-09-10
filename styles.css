@@ -67,7 +67,7 @@
     src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
     font-weight: 50 900;
     font-style: normal;
-    font-display: swap;
+    font-display: block;
   }
 
   @font-face {
@@ -75,7 +75,7 @@
     src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
     font-weight: 50 900;
     font-style: italic;
-    font-display: swap;
+    font-display: block;
   }
 
   @media (max-width: 479px) {
@@ -1268,4 +1268,5 @@
   .fw--587 { font-variation-settings: "wght" 587, "slnt" 0, "ital" 0 !important; }
 
   .fw--600 { font-variation-settings: "wght" 600, "slnt" 0, "ital" 0 !important; }
+
 
