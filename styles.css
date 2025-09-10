@@ -64,7 +64,7 @@
 
   @font-face {
     font-family: "TT Hoves Pro Variable";
-    src: url("https://cdn.prod.website-files.com/6800dc2169a743aa195e2353/68b04399c87e844ffa02d110_TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
+    src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
     font-weight: 50 900;
     font-style: normal;
     font-display: swap;
@@ -72,7 +72,7 @@
 
   @font-face {
     font-family: "TT Hoves Pro Variable";
-    src: url("https://cdn.prod.website-files.com/6800dc2169a743aa195e2353/68b04399c87e844ffa02d110_TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
+    src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
     font-weight: 50 900;
     font-style: italic;
     font-display: swap;
@@ -1268,3 +1268,4 @@
   .fw--587 { font-variation-settings: "wght" 587, "slnt" 0, "ital" 0 !important; }
 
   .fw--600 { font-variation-settings: "wght" 600, "slnt" 0, "ital" 0 !important; }
+
