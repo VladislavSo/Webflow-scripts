@@ -1,4 +1,5 @@
-document.addEventListener("DOMContentLoaded", () => {
+(function() {
+  function initVideoLazy() {
   const items = document.querySelectorAll(".cases-grid__item");
   const itemsArray = Array.from(items);
   const indexByItem = new Map(itemsArray.map((el, i) => [el, i]));
@@ -317,4 +318,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Инициализация — подгружаем видео активного блока (если есть)
   updateActiveVideos();
-});
+  }
+  if (document.readyState === "complete") {
+    initVideoLazy();
+  } else {
+    window.addEventListener("load", initVideoLazy);
+  }
+})();
