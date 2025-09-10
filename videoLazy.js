@@ -35,7 +35,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function loadPostersForItem(item) {
     const videos = getPosterVideosByPlatform(item);
-    const urls = videos.map(v => v.getAttribute('poster')).filter(Boolean);
+    const urls = [];
+    videos.forEach(video => {
+      let poster = video.getAttribute('poster');
+      if (!poster && video.dataset && video.dataset.poster) {
+        try { video.setAttribute('poster', video.dataset.poster); } catch(e) {}
+        poster = video.dataset.poster;
+      }
+      if (poster) urls.push(poster);
+    });
     const waits = urls.map(src => new Promise(resolve => {
       const img = new Image();
       img.onload = () => resolve();
@@ -72,12 +80,13 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!head) return;
       const videos = Array.from(head.querySelectorAll('video'));
       videos.forEach(video => {
-        // постер
-        const poster = video.getAttribute('poster');
-        if (poster) {
-          const img = new Image();
-          img.src = poster;
+        // постер: создаём из data-poster при необходимости
+        let poster = video.getAttribute('poster');
+        if (!poster && video.dataset && video.dataset.poster) {
+          try { video.setAttribute('poster', video.dataset.poster); } catch(e) {}
+          poster = video.dataset.poster;
         }
+        if (poster) { const img = new Image(); img.src = poster; }
         // видео ресурсы
         if (video.dataset && video.dataset.src && !video.dataset.loaded) {
           const source = document.createElement('source');
