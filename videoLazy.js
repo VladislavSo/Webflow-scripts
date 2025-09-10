@@ -1,5 +1,4 @@
-(function() {
-  function initVideoLazy() {
+document.addEventListener("DOMContentLoaded", () => {
   const items = document.querySelectorAll(".cases-grid__item");
   const itemsArray = Array.from(items);
   const indexByItem = new Map(itemsArray.map((el, i) => [el, i]));
@@ -30,6 +29,7 @@
   function getPosterVideosByPlatform(item) {
     const container = item.querySelector(isDesktop ? ".cases-grid__item__container" : ".story-track");
     if (!container) return [];
+    // постеры talking-head НЕ учитываем — по требованию постеры строго по платформе
     return Array.from(container.querySelectorAll('video')).filter(v => !v.closest('.cases-grid__item__container__wrap__talking-head'));
   }
 
@@ -289,9 +289,10 @@
     // 4) Остальные постеры грузит стартовавшая цепочка startPosterPriorityChain
   }
 
-  // Перед стартом — чистим нерелевантные контейнеры и грузим talking-head
+  // (poster не трогаем до DOMContentLoaded, так как используется data-poster в разметке)
+
+  // Чистим нерелевантные контейнеры, но без создания sources
   cleanupIrrelevantContainers();
-  loadTalkingHeadAssetsImmediately();
 
   // Следим за изменением класса active
   const observer = new MutationObserver((mutations) => {
@@ -316,12 +317,16 @@
   });
   items.forEach(item => observer.observe(item, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
 
-  // Инициализация — подгружаем видео активного блока (если есть)
-  updateActiveVideos();
+  // Дожидаемся полной загрузки страницы, чтобы включить подгрузку ассетов
+  function enableAssetsAfterLoad() {
+    // talking-head — грузим сразу после полной загрузки
+    loadTalkingHeadAssetsImmediately();
+    // Стартуем очередь постеров и подгрузку активных видео
+    updateActiveVideos();
   }
-  if (document.readyState === "complete") {
-    initVideoLazy();
+  if (document.readyState === 'complete') {
+    enableAssetsAfterLoad();
   } else {
-    window.addEventListener("load", initVideoLazy);
+    window.addEventListener('load', enableAssetsAfterLoad, { once: true });
   }
-})();
+});
