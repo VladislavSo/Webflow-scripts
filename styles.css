@@ -914,7 +914,7 @@
   }
 
   [brand-data="mv-mini-view"] > div > a > div:nth-child(2) > svg > path { fill: #ff0100 !important; }
-  [brand-data="sm-mini-view"] > div > a > div:nth-child(2) > svg > path { fill: #2b1ffd !important; }
+  [brand-data="sm-mini-view"] > div > a > div:nth-child(2) > svg > path { fill: #3834fe !important; }
   [brand-data="vi-mini-view"] > div > a > div:nth-child(2) > svg > path { fill: #d60000 !important; }
   [brand-data="pt-mini-view"] > div > a > div:nth-child(2) > svg > path { fill: #febc00 !important; }
   [brand-data="store-mini-view"] > div > a > div:nth-child(2) > svg > path { fill: #0a0a0a !important; }
@@ -937,7 +937,7 @@
   [brand-data="ks-mini-view"] > div > a > div:nth-child(2) > svg > path { fill: #000 !important; }
 
   [brand-data="mv-mini-view"] > div > a > div:nth-child(1) { color: #ff0100 !important; }
-  [brand-data="sm-mini-view"] > div > a > div:nth-child(1) { color: #2b1ffd !important; }
+  [brand-data="sm-mini-view"] > div > a > div:nth-child(1) { color: #3834fe !important; }
   [brand-data="vi-mini-view"] > div > a > div:nth-child(1) { color: #d60000 !important; }
   [brand-data="pt-mini-view"] > div > a > div:nth-child(1) { color: #febc00 !important; }
   [brand-data="store-mini-view"] > div > a > div:nth-child(1) { color: #0a0a0a !important; }
@@ -1272,5 +1272,6 @@
   @media (max-width: 479px) {
     .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   }
+
 
 
