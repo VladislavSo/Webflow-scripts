@@ -105,16 +105,47 @@ document.addEventListener("DOMContentLoaded", () => {
   function loadVideos(item, prefetchOnly = false) {
     const videos = getPlatformVideos(item, true);
     videos.forEach(video => {
-      if (!video.dataset.loaded) {
-        const source = document.createElement("source");
-        source.src = video.dataset.src;
-        source.type = "video/mp4";
-        video.appendChild(source);
-        video.preload = prefetchOnly ? "metadata" : "auto";
-        video.load();
-        video.dataset.loaded = "true";
+      if (video.dataset.loaded) return;
+      if (prefetchOnly) {
+        // для prefetch соседей не создаём source, чтобы не сбить poster
+        return;
       }
+      attachSourceAfterFetch(video);
     });
+  }
+
+  async function attachSourceAfterFetch(video) {
+    if (!video || !video.dataset || !video.dataset.src) return;
+    if (video.dataset.fetching === 'true' || video.dataset.loaded) return;
+    video.dataset.fetching = 'true';
+    const url = video.dataset.src;
+    try {
+      const response = await fetch(url, { credentials: 'omit', cache: 'default' });
+      if (!response.ok) throw new Error('Failed to fetch video');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const source = document.createElement('source');
+      source.src = blobUrl;
+      source.type = 'video/mp4';
+      video.appendChild(source);
+      video.preload = 'auto';
+      try { video.load(); } catch(e) {}
+      video.dataset.loaded = 'true';
+      video.dataset.blobUrl = blobUrl;
+    } catch (e) {
+      // Фолбэк: если fetch недоступен (CORS и т.п.), подключаем источник напрямую
+      try {
+        const source = document.createElement('source');
+        source.src = url;
+        source.type = 'video/mp4';
+        video.appendChild(source);
+        video.preload = 'auto';
+        try { video.load(); } catch(err) {}
+        video.dataset.loaded = 'true';
+      } catch (_) {}
+    } finally {
+      try { delete video.dataset.fetching; } catch(_) {}
+    }
   }
 
   // Применяем состояние звука при активации слайда
