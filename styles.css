@@ -845,7 +845,7 @@
 
   /* Card Styles */
   .mv-card-style { background-color: #ff0100 !important; }
-  .sm-card-style { background-color: #2b1ffd !important; }
+  .sm-card-style { background-color: #3834fe !important; }
   .vi-card-style { background-color: #d60000 !important; }
   .pt-card-style { background-color: #febc00 !important; }
   .pt-card-style > div > div:nth-child(2) > div:nth-child(1),
@@ -1272,6 +1272,7 @@
   @media (max-width: 479px) {
     .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   }
+
 
 
 
