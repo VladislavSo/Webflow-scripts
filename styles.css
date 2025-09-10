@@ -61,7 +61,7 @@
       font-size: 4.071246819338422vw;
     }
   }
-
+/*
   @font-face {
     font-family: "TT Hoves Pro Variable";
     src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
@@ -77,11 +77,8 @@
     font-style: italic;
     font-display: swap;
   }
-
-  @media (max-width: 479px) {
-    .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
-  }
-
+*/
+  
   /* Typography | Headings */
   .heading-1 {
     color: #e2dddd;
@@ -1266,8 +1263,12 @@
   .fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   .fw--520 { font-variation-settings: "wght" 520, "slnt" 0, "ital" 0 !important; }
   .fw--587 { font-variation-settings: "wght" 587, "slnt" 0, "ital" 0 !important; }
-
   .fw--600 { font-variation-settings: "wght" 600, "slnt" 0, "ital" 0 !important; }
+
+@media (max-width: 479px) {
+    .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
+  }
+
 
 
 
