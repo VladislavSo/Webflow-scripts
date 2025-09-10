@@ -1,0 +1,22 @@
+  @font-face {
+    font-family: "TT Hoves Pro Variable";
+    src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
+    font-weight: 50 900;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  @font-face {
+    font-family: "TT Hoves Pro Variable";
+    src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
+    font-weight: 50 900;
+    font-style: italic;
+    font-display: swap;
+  }
+
+  html, body {
+    font-family: 'TT Hoves Pro Variable', Arial, sans-serif;
+    font-style: normal;
+    font-synthesis: none;
+    font-variation-settings: "wght" 400, "slnt" 0, "ital" 0;
+  }
