@@ -1008,6 +1008,11 @@
     text-underline-position: under;
   }
 
+  .copy-info.visible {
+    opacity: 1;
+    transform: translate(0, 0%);
+  }
+
 
 
   /* Form modal */
@@ -1265,9 +1270,10 @@
   .fw--587 { font-variation-settings: "wght" 587, "slnt" 0, "ital" 0 !important; }
   .fw--600 { font-variation-settings: "wght" 600, "slnt" 0, "ital" 0 !important; }
 
-@media (max-width: 479px) {
+  @media (max-width: 479px) {
     .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   }
+
 
 
 
