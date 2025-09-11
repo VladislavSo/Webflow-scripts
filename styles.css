@@ -989,8 +989,8 @@
     transform: scale(1.2, 1.2);
   }
 
-  .footer-wrapper__inner__contacts__item__nav:hover > div:nth-child(2),  
-  .footer-wrapper__inner__contacts__item__links-wrap__link:hover > div:nth-child(2) {
+  #footer-tg:hover > div:nth-child(2),  
+  #footer-address:hover > div:nth-child(2) {
     opacity: 1;
     transform: scale(1);
   }
@@ -1278,6 +1278,7 @@
   @media (max-width: 479px) {
     .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   }
+
 
 
 
