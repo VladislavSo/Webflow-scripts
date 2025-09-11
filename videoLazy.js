@@ -4,6 +4,105 @@ document.addEventListener("DOMContentLoaded", () => {
   const indexByItem = new Map(itemsArray.map((el, i) => [el, i]));
   let prioritySequenceId = 0;
 
+  // --- Полоса-наблюдатель для play/pause внутри активного слайда ---
+  let playbandEl = null;                // DOM-элемент полосы-наблюдателя
+  let playbandActiveItem = null;        // Текущий активный .cases-grid__item для playband
+  let playbandVideos = [];              // Видео внутри .cases-grid__item__container (без talking-head)
+  let playbandRafPending = false;       // Флаг для rAF батчинга
+
+  function ensurePlayband() {
+    if (playbandEl && document.body.contains(playbandEl)) return playbandEl;
+    const el = document.createElement('div');
+    el.id = 'cases-playband-observer';
+    el.setAttribute('aria-hidden', 'true');
+    el.style.position = 'fixed';
+    el.style.left = '0';
+    el.style.right = '0';
+    el.style.height = '0.5625rem'; // 9px при базовом 16px, 1rem = font-size
+    el.style.top = '27vh';         // 27% от высоты окна
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '2147483647';
+    el.style.background = 'transparent'; // невидимый маркер
+    document.body.appendChild(el);
+    playbandEl = el;
+    return el;
+  }
+
+  function getContainerForPlayband(item) {
+    // По требованию ищем видео ТОЛЬКО внутри .cases-grid__item__container
+    return item ? item.querySelector('.cases-grid__item__container') : null;
+  }
+
+  function collectPlaybandVideos(item) {
+    const container = getContainerForPlayband(item);
+    if (!container) return [];
+    const all = Array.from(container.querySelectorAll('video'));
+    return all.filter(v => !v.closest('.cases-grid__item__container__wrap__talking-head'));
+  }
+
+  function isOverlappingPlayband(element) {
+    if (!playbandEl) return false;
+    const bandRect = playbandEl.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    return (rect.bottom > bandRect.top) && (rect.top < bandRect.bottom);
+  }
+
+  function updatePlaybandPlayback() {
+    if (!playbandActiveItem) return;
+    const isActive = playbandActiveItem.classList.contains('active');
+    for (const video of playbandVideos) {
+      const shouldPlay = isActive && isOverlappingPlayband(video);
+      if (shouldPlay) {
+        try { if (video.paused) video.play().catch(() => {}); } catch (_) {}
+      } else {
+        try { video.pause(); } catch (_) {}
+      }
+    }
+  }
+
+  function onScrollOrResize() {
+    if (playbandRafPending) return;
+    playbandRafPending = true;
+    requestAnimationFrame(() => {
+      playbandRafPending = false;
+      updatePlaybandPlayback();
+    });
+  }
+
+  function attachPlaybandToItem(item) {
+    if (!item) return;
+    ensurePlayband();
+    // если уже прикреплено к этому же item — просто обновим список и состояние
+    if (playbandActiveItem && playbandActiveItem !== item) {
+      detachPlayband();
+    }
+    playbandActiveItem = item;
+    playbandVideos = collectPlaybandVideos(item);
+    window.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize);
+    // первичное применение состояния
+    updatePlaybandPlayback();
+  }
+
+  function detachPlayband(itemLosingActive = null) {
+    if (!playbandActiveItem) return;
+    if (itemLosingActive && itemLosingActive !== playbandActiveItem) return;
+    window.removeEventListener('scroll', onScrollOrResize);
+    window.removeEventListener('resize', onScrollOrResize);
+    // При отключении ставим все видео на паузу
+    for (const v of playbandVideos) {
+      try { v.pause(); } catch (_) {}
+    }
+    playbandActiveItem = null;
+    playbandVideos = [];
+  }
+
+  function attachPlaybandToCurrentActive() {
+    const active = itemsArray.find(i => i.classList.contains('active'));
+    if (active) attachPlaybandToItem(active);
+  }
+
   // Определяем платформу: мобильная (≤ 479px) или десктопная
   const isMobile = !!(window.matchMedia && window.matchMedia("(max-width: 479px)").matches);
   const isDesktop = !isMobile;
@@ -206,6 +305,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const tryPlay = () => {
         if (!item.classList.contains("active")) return;
+        const useBand = (playbandActiveItem === item) && !!playbandEl;
+        if (useBand) {
+          const shouldPlay = isOverlappingPlayband(video);
+          if (shouldPlay) {
+            try { if (video.paused) video.play().catch(()=>{}); } catch(e) {}
+          } else {
+            try { video.pause(); } catch(e) {}
+          }
+          return;
+        }
         try { if (video.paused) video.play().catch(()=>{}); } catch(e) {}
       };
 
@@ -381,9 +490,13 @@ document.addEventListener("DOMContentLoaded", () => {
           if (index !== -1) indexByItem.set(item, index);
         }
         if (index > -1) startPrioritySequence(index);
+        // Подключаем полосу-наблюдатель к активному элементу
+        attachPlaybandToItem(item);
       } else if (wasActive && !isActive) {
         // Элемент потерял active: останавливаем, сбрасываем и гарантируем muted
         disableAutoplayAndReset(item);
+        // Отвязываем полосу-наблюдатель от ушедшего active
+        detachPlayband(item);
       }
     });
   });
@@ -395,6 +508,8 @@ document.addEventListener("DOMContentLoaded", () => {
     loadTalkingHeadAssetsImmediately();
     // Стартуем очередь постеров и подгрузку активных видео
     updateActiveVideos();
+    // Инициализируем полосу-наблюдатель для текущего active
+    attachPlaybandToCurrentActive();
   }
   if (document.readyState === 'complete') {
     enableAssetsAfterLoad();
