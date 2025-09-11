@@ -852,7 +852,7 @@
   .pt-card-style > div > div:nth-child(2) > div:nth-child(2) {
     color: #434041 !important;
   }
-  .pt-card-style > div > div:nth-child(1) > img {
+  .pt-card-style > div > div:nth-child(1) {
     border: .09375rem solid #0000000d !important;
   }
   .store-card-style { background-color: #0a0a0a !important; }
@@ -868,7 +868,7 @@
   .uv-card-style > div > div:nth-child(2) > div:nth-child(2) {
     color: #000 !important;
   }
-  .uv-card-style > div > div:nth-child(1) > img {
+  .uv-card-style > div > div:nth-child(1) {
     border: .09375rem solid #0000000d !important;
   }
   .uvm-card-style { background-color: #f9d400 !important; }
@@ -881,7 +881,7 @@
   .ath-card-style > div > div:nth-child(2) > div:nth-child(2) {
     color: #181818 !important;
   }
-  .ath-card-style > div > div:nth-child(1) > img {
+  .ath-card-style > div > div:nth-child(1) {
     border: .09375rem solid #0000000d !important;
   }
   .ekf-card-style { background-color: #db0811 !important; }
@@ -890,7 +890,7 @@
   .stz-card-style > div > div:nth-child(2) > div:nth-child(2) {
     color: #413630 !important;
   }
-  .stz-card-style > div > div:nth-child(1) > img {
+  .stz-card-style > div > div:nth-child(1) {
     border: .09375rem solid #0000000d !important;
   }
   .vb-card-style { background-color: #f7531c !important; }
@@ -914,7 +914,7 @@
   .ks-card-style > div > div:nth-child(2) > div:nth-child(2) {
     color: #000 !important;
   }
-  .ks-card-style > div > div:nth-child(1) > img {
+  .ks-card-style > div > div:nth-child(1) {
     border: .09375rem solid #0000000d !important;
   }
 
@@ -1278,6 +1278,7 @@
   @media (max-width: 479px) {
     .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   }
+
 
 
 
