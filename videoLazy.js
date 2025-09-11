@@ -51,12 +51,21 @@ document.addEventListener("DOMContentLoaded", () => {
   function updatePlaybandPlayback() {
     if (!playbandActiveItem) return;
     const isActive = playbandActiveItem.classList.contains('active');
+    let anyPlayed = false;
     for (const video of playbandVideos) {
       const shouldPlay = isActive && isOverlappingPlayband(video);
       if (shouldPlay) {
         try { if (video.paused) video.play().catch(() => {}); } catch (_) {}
+        anyPlayed = true;
       } else {
         try { video.pause(); } catch (_) {}
+      }
+    }
+    // Фолбэк: если ни одно подходящее видео не в зоне полосы — снимаем паузу у первого
+    if (!anyPlayed && isActive) {
+      const fallback = playbandVideos[0] || playbandActiveItem.querySelector('video');
+      if (fallback) {
+        try { if (fallback.paused) fallback.play().catch(() => {}); } catch (_) {}
       }
     }
   }
