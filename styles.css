@@ -868,10 +868,16 @@
   .uv-card-style > div > div:nth-child(2) > div:nth-child(2) {
     color: #000 !important;
   }
+  .uv-card-style > div > img {
+    border: .09375rem solid #0000000d !important;
+  }
   .uvm-card-style { background-color: #f9d400 !important; }
   .uvm-card-style > div > div:nth-child(2) > div:nth-child(1),
   .uvm-card-style > div > div:nth-child(2) > div:nth-child(2) {
     color: #000 !important;
+  }
+  .uvm-card-style > div > img {
+    border: .09375rem solid #0000000d !important;
   }
   .ath-card-style { background-color: #fff !important; }
   .ath-card-style > div > div:nth-child(2) > div:nth-child(1),
@@ -1275,6 +1281,7 @@
   @media (max-width: 479px) {
     .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
   }
+
 
 
 
