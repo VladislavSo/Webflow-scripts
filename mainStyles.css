@@ -58,7 +58,7 @@
     }
     .main-container__stack-wrap__wrapper__list__item > div > div:nth-child(2) > div:nth-child(1),
     .main-container__stack-wrap__wrapper__list__item > div > div:nth-child(2) > div:nth-child(2) {
-      transition: color .3s ease;
+      transition: all .3s ease;
     }
     .main-container__stack-wrap__wrapper__list__item.current > div > div:nth-child(2) > div:nth-child(1) {
       font-size: 2rem;
@@ -457,6 +457,7 @@
       bottom: -0.25rem;
     }
   }
+
 
 
 
