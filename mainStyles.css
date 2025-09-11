@@ -69,7 +69,7 @@
     .main-container__stack-wrap__wrapper__list__item.current > div > div:nth-child(2) > div:nth-child(2) {
       opacity: .5 !important;
     }
-    .main-container__stack-wrap__wrapper__list__item.current > div > img {
+    .main-container__stack-wrap__wrapper__list__item.current > div > div:nth-child(1) > img {
       width: 5.625rem;
       height: 5.625rem;
       border: .09375rem solid #fff4;
@@ -307,7 +307,7 @@
 
     /* .main-container__stack-wrap.open > div:nth-child(2) > div:nth-child(1) > div { padding: 0.8125rem; min-height: 5.625rem; } */
 
-    .main-container__stack-wrap.open > div:nth-child(2) > div:nth-child(1) > div > div > img {
+    .main-container__stack-wrap.open > div:nth-child(2) > div:nth-child(1) > div > div > div:nth-child(1) > img {
       width: 4rem;
       height: 4rem;
     }
@@ -337,7 +337,7 @@
       min-height: 11.75rem;
     }
 
-    .main-container__stack-wrap.open .main-container__stack-wrap__wrapper__list__item.current > div > img {
+    .main-container__stack-wrap.open .main-container__stack-wrap__wrapper__list__item.current > div > div:nth-child(1) > img {
       height: 3.75rem;
       width: 3.75rem;
     }
@@ -429,4 +429,5 @@
     pointer-events: none;
     transition: transform 0.15s ease-out;
     will-change: transform;
+
   }
