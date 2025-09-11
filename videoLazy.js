@@ -302,18 +302,33 @@ document.addEventListener("DOMContentLoaded", () => {
   function enableAutoplayAndPlay(item) {
     const videos = getPlatformVideos(item, false);
     videos.forEach(video => {
-      // Автозапуск выключаем — старт вручную после полной буферизации
-      if (video.autoplay) {
-        video.autoplay = false;
+      const isTalkingHead = !!video.closest('.cases-grid__item__container__wrap__talking-head');
+      if (isTalkingHead) {
+        // Для talking-head возвращаем autoplay при активном слайде
+        if (item.classList.contains('active')) {
+          try { video.autoplay = true; } catch(_) {}
+          try { if (!video.hasAttribute('autoplay')) video.setAttribute('autoplay', ''); } catch(_) {}
+        }
+        // talking-head всегда буферизуем
+        video.preload = 'auto';
+      } else {
+        // Для остальных — автозапуск выключаем; стартуем вручную/по полосе
+        if (video.autoplay) {
+          video.autoplay = false;
+        }
+        if (video.hasAttribute("autoplay")) {
+          video.removeAttribute("autoplay");
+        }
+        // Гарантируем буферизацию активного
+        video.preload = "auto";
       }
-      if (video.hasAttribute("autoplay")) {
-        video.removeAttribute("autoplay");
-      }
-      // Гарантируем буферизацию активного
-      video.preload = "auto";
 
       const tryPlay = () => {
         if (!item.classList.contains("active")) return;
+        if (isTalkingHead) {
+          try { if (video.paused) video.play().catch(()=>{}); } catch(e) {}
+          return;
+        }
         const useBand = (playbandActiveItem === item) && !!playbandEl;
         if (useBand) {
           const shouldPlay = isOverlappingPlayband(video);
