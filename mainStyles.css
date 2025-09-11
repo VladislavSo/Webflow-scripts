@@ -42,7 +42,7 @@
       -webkit-mask-composite: xor;
       mask-composite: exclude;
       pointer-events: none;
-      border-radius: inherit;
+      border-radius: 1.4625rem;
     }
     .main-container__stack-wrap__wrapper__list__item.current {
       min-height: 15.25rem;
@@ -457,6 +457,7 @@
       bottom: -0.25rem;
     }
   }
+
 
 
 
