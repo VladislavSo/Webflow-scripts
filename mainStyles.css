@@ -22,13 +22,10 @@
     }
 
     /* Main Container Styles */
-    .main-container__stack-wrap__wrapper__list__item {
-      border-radius: 1.5rem;
-      backdrop-filter: blur(1.5rem);
-    }
     .main-container__stack-wrap__wrapper__list__item.current {
       min-height: 15.25rem;
       padding: 1.25rem;
+      border: 0.0625rem solid rgba(26, 26, 26, 0);
     }
     .main-container__stack-wrap__wrapper__list__item > div > div:nth-child(2) {
       transition: bottom .3s cubic-bezier(0.25, 0.1, 0.25, 1), left .3s cubic-bezier(0.25, 0.1, 0.25, 1);
@@ -439,6 +436,7 @@
       bottom: -0.25rem;
     }
   }
+
 
 
 
