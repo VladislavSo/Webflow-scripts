@@ -26,24 +26,6 @@
       border-radius: 1.5rem;
       backdrop-filter: blur(1.5rem);
     }
-    .main-container__stack-wrap__wrapper__list__item::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      padding: 0.0375rem;
-      background: linear-gradient(
-        98deg,
-        rgba(253, 253, 255, 0.16) 7.73%,
-        rgba(167, 167, 174, 0.16) 86.17%
-      );
-      -webkit-mask:
-        linear-gradient(#fff 0 0) content-box,
-        linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-      pointer-events: none;
-      border-radius: 1.4625rem;
-    }
     .main-container__stack-wrap__wrapper__list__item.current {
       min-height: 15.25rem;
       padding: 1.25rem;
@@ -457,6 +439,7 @@
       bottom: -0.25rem;
     }
   }
+
 
 
 
