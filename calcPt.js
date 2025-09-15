@@ -26,7 +26,7 @@
     const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
-    if (wrapper) {
+    if (clampedPx >= (maxPaddingPx - 0.5) && wrapper) {
       wrapper.style.setProperty('margin-top', `calc(16.5rem + ${titlePx}px)`, 'important');
     }
   }
