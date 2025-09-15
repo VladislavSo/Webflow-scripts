@@ -1127,7 +1127,7 @@ body {
 }
 .form-modal__form-block__container__wrap__form-block__form__inputs__item > input,
 .form-modal__form-block__container__wrap__form-block__form__inputs__item > textarea {
-  caret-color: #c9c7c5;
+  caret-color: #e40046;
 }
 .form-modal__form-block__container__wrap__form-block__form__inputs__item.is-error > label,
 .form-modal__form-block__container__wrap__form-block__form__inputs__item.is-error > input + label,
@@ -1209,7 +1209,7 @@ body {
   position: absolute;
   left: 0;
   top: 1rem;
-  color: #e2dddd;
+  color: #c9c7c5;
   font-size: 3rem;
   font-variation-settings: "wght" 480, "slnt" 0, "ital" 0;
   line-height: 116%;
@@ -1292,6 +1292,7 @@ body {
 @media (max-width: 479px) {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
+
 
 
 
