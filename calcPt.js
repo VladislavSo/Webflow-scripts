@@ -19,7 +19,7 @@
     const addPx = 2.25 * ns.metrics.root;
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
-    const minPaddingPx = 10 * ns.metrics.root; // минимальный padding-top = 10rem
+    const minPaddingPx = 7.5 * ns.metrics.root; // минимальный padding-top = 7.5rem
     const listTopViewportPx = listEl.getBoundingClientRect().top;
     const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
@@ -77,4 +77,5 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
