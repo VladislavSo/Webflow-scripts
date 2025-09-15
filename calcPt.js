@@ -26,8 +26,13 @@
     const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
-    if (clampedPx >= (maxPaddingPx - 0.5) && wrapper) {
-      wrapper.style.setProperty('margin-top', `calc(16.5rem + ${titlePx}px)`, 'important');
+    if (stackWrap && wrapper) {
+      const wrapHeightPx = stackWrap.clientHeight || 0;
+      const wrapperHeightPx = wrapper.clientHeight || 0;
+      const availablePx = Math.max(0, wrapHeightPx - wrapperHeightPx);
+      const usedPaddingPx = Math.max(0, Math.round(paddingTopPx));
+      const marginBottomPx = Math.max(0, Math.min(availablePx, availablePx - usedPaddingPx));
+      wrapper.style.setProperty('margin-bottom', `${marginBottomPx}px`, 'important');
     }
   }
   
