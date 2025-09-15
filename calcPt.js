@@ -64,7 +64,7 @@
     const t = deltaPx / maxPaddingPx; // 0..1
 
     const currentMarginPx = startMarginPx + (endMarginPx - startMarginPx) * t;
-    wrapper.style.setProperty('margin-top', `${currentMarginPx}px`, 'important');
+    wrapper.style.setProperty('margin-bottom', `${currentMarginPx}px`, 'important');
 
     // Диагностика
     // eslint-disable-next-line no-console
