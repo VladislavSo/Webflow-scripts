@@ -11,35 +11,12 @@
     try { return el.closest('.cases-grid__item') || null; } catch(_) { return null; }
   }
 
-  function findTalkingHeadVideoEl(caseEl){
-    if(!caseEl) return null;
+  function findCaseVideos(caseEl){
+    if (!caseEl) return [];
     try {
-      const wrap = caseEl.querySelector('.cases-grid__item__container__wrap__talking-head__video');
-      return wrap ? (wrap.querySelector('video') || null) : null;
-    } catch(_) { return null; }
-  }
-
-  // Дополнительно: получить список talking-head видео в слайде
-  function getTalkingHeadVideos(caseEl){
-    if(!caseEl) return [];
-    try {
-      const head = caseEl.querySelector('.cases-grid__item__container__wrap__talking-head');
-      return head ? $all('video', head) : [];
+      var list = caseEl.querySelectorAll('.cases-grid__item__container video, .cases-grid__item__container__wrap__talking-head__video video');
+      return Array.prototype.slice.call(list);
     } catch(_) { return []; }
-  }
-
-  // Платформенный контейнер: desktop → .cases-grid__item__container, mobile → .story-track
-  function selectPlatformContainer(caseEl){
-    try {
-      var isMobile = !!(window.matchMedia && window.matchMedia('(max-width: 479px)').matches);
-      return caseEl ? caseEl.querySelector(isMobile ? '.story-track' : '.cases-grid__item__container') : null;
-    } catch(_) { return null; }
-  }
-
-  // Все видео внутри платформенного контейнера (без разделения по talking-head)
-  function getPlatformVideos(caseEl){
-    var cont = selectPlatformContainer(caseEl);
-    return cont ? $all('video', cont) : [];
   }
 
   // Внутри кнопки два икон-элемента. По индексу 0 — mute, по индексу 1 — unmute
@@ -60,35 +37,22 @@
   }
 
   function applySoundStateToCase(caseEl){
-    if (!caseEl) return;
-
-    // все релевантные видео в рамках слайда
-    var platformVideos = getPlatformVideos(caseEl);
-    var headVideos = getTalkingHeadVideos(caseEl);
-    var allVideos = platformVideos.concat(headVideos);
-
+    var videos = findCaseVideos(caseEl);
+    if (!videos || !videos.length) return;
     // звук доступен только когда слайд активен
     if (!caseEl.classList.contains('active')){
-      allVideos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
+      videos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
       return;
     }
-
     if (window.CasesAudio.soundOn){
-      // talking-head — размьютить, сбросить в начало и попытаться воспроизвести
-      headVideos.forEach(function(v){
-        try { v.muted = false; } catch(_){}
-        try { v.currentTime = 0; } catch(_){}
-        try { v.volume = 1; } catch(_){}
+      videos.forEach(function(v){
+        try { v.muted = false; } catch(_){ }
+        try { v.currentTime = 0; } catch(_){ }
+        try { v.volume = 1; } catch(_){ }
         try { if (v.paused) v.play().catch(function(){}); } catch(_){ }
       });
-
-      // платформенные видео — только размьютить, без форс-плея (логику старта ведёт videoLazy/playband)
-      platformVideos.forEach(function(v){
-        try { v.muted = false; } catch(_){}
-        try { v.volume = 1; } catch(_){}
-      });
     } else {
-      allVideos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
+      videos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
     }
   }
 
@@ -130,12 +94,12 @@
         var wasActive = (m.oldValue || '').split(/\s+/).indexOf('active') !== -1;
         var isActive = item.classList.contains('active');
         if (!wasActive && isActive){
-          // Слайд стал активным: применить текущее состояние звука ко всем видео
+          // Слайд стал активным: если глобально включен звук, запускаем с начала; иначе оставляем muted
           applySoundStateToCase(item);
         } else if (wasActive && !isActive){
-          // Слайд потерял active: гарантированно выключить звук у всех видео
-          var vids = getPlatformVideos(item).concat(getTalkingHeadVideos(item));
-          vids.forEach(function(v){ try { v.muted = true; } catch(_){ } });
+          // Слайд потерял active: вернуть muted для всех видео в кейсе
+          var videos = findCaseVideos(item);
+          videos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
         }
       });
     });
