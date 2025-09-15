@@ -27,8 +27,6 @@
     casesContainer.style.paddingTop = `${clampedPx}px`;
     if (clampedPx === Math.round(maxPaddingPx)) {
       listEl.style.marginTop = '16.5rem';
-    } else {
-      listEl.style.marginTop = '';
     }
   }
   
