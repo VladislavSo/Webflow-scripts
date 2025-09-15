@@ -1,4 +1,15 @@
+// Режим ручного восстановления позиции скролла — как можно раньше
+try { if ("scrollRestoration" in history) { history.scrollRestoration = "manual"; } } catch (_) {}
+
+// При возврате из bfcache и на показ страницы — закрепляем top=0
+window.addEventListener("pageshow", () => {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+});
+
 document.addEventListener("DOMContentLoaded", () => {
+  // Всегда стартуем со скроллом в самый верх
   try { if ("scrollRestoration" in history) { history.scrollRestoration = "manual"; } } catch (_) {}
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   document.documentElement.scrollTop = 0;
