@@ -19,13 +19,21 @@
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
     const stackWrap = listEl.closest('.main-container__stack-wrap');
+    console.log('[StackUI] stackWrap found:', !!stackWrap);
     const listTopRelativePx = stackWrap
       ? (listEl.getBoundingClientRect().top - stackWrap.getBoundingClientRect().top)
       : listEl.getBoundingClientRect().top;
     const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
+    console.log('[StackUI] metrics', {
+      listTopRelativePx,
+      paddingTopPx,
+      clampedPx,
+      maxPaddingPx
+    });
     casesContainer.style.paddingTop = `${clampedPx}px`;
     if (clampedPx >= (maxPaddingPx - 0.5)) {
+      console.log('[StackUI] setting listEl margin-top to 16.5rem');
       listEl.style.setProperty('margin-top', '16.5rem', 'important');
     }
   }
