@@ -1,4 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
+  try { if ("scrollRestoration" in history) { history.scrollRestoration = "manual"; } } catch (_) {}
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
+
   const preloader = document.querySelector(".preloader-wrapper");
   const logotype = document.querySelector(".preloader-wrapper__logotype");
   const progressBar = document.querySelector(".preloader-wrapper__progress-bar");
@@ -39,6 +44,10 @@ document.addEventListener("DOMContentLoaded", () => {
         setTimeout(() => {
           preloader.style.display = "none";
           document.body.style.overflow = ""; // Разблокируем скролл
+          // Дополнительно закрепим положение в самом верху после скрытия прелоадера
+          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
         }, 300);
       }, 300);
     }, { once: true });
