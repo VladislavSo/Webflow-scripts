@@ -1150,7 +1150,7 @@ body {
   border-bottom: solid 0.0625rem #0000001a;
   background-color: transparent;
   padding: 2rem 0 0.75rem 0;
-  height: 6.25rem;
+  /*height: 6.25rem;*/
   transition: all 0.3s ease;
   width: 100%;
   resize: none;
@@ -1293,6 +1293,7 @@ body {
 @media (max-width: 479px) {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
+
 
 
 
