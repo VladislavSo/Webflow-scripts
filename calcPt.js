@@ -29,9 +29,9 @@
     if (stackWrap && wrapper) {
       const wrapHeightPx = stackWrap.clientHeight || 0;
       const wrapperHeightPx = wrapper.clientHeight || 0;
-      const availablePx = Math.max(0, wrapHeightPx - wrapperHeightPx);
-      const usedPaddingPx = Math.max(0, Math.round(paddingTopPx));
-      const marginBottomPx = Math.max(0, Math.min(availablePx, availablePx - usedPaddingPx));
+      const oneRemPx = ns.metrics.root;
+      const usedPaddingPx = Math.max(0, paddingTopPx);
+      const marginBottomPx = Math.max(0, wrapHeightPx - usedPaddingPx - oneRemPx - wrapperHeightPx - oneRemPx);
       wrapper.style.setProperty('margin-bottom', `${marginBottomPx}px`, 'important');
     }
   }
@@ -70,6 +70,10 @@
 
     const currentMarginPx = startMarginPx + (endMarginPx - startMarginPx) * t;
     wrapper.style.setProperty('margin-bottom', `${currentMarginPx}px`, 'important');
+    console.log(currentMarginPx);
+    console.log(startMarginPx);
+    console.log(endMarginPx);
+    console.log(startMarginPx);
 
     // Диагностика
     // eslint-disable-next-line no-console
