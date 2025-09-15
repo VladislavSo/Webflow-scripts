@@ -13,6 +13,7 @@
     const casesContainer = ns.dom.casesContainer;
     const listEl = ns.dom.container;
     const casesGrid = ns.dom.casesGrid;
+    const wrapperEl = ns.dom.wrapper;
     if (!casesContainer || !listEl || !casesGrid) return;
   
     const addPx = 2.25 * ns.metrics.root;
@@ -23,6 +24,17 @@
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
     console.log(paddingTopPx);
+
+    // Начальное позиционирование wrapper: margin-bottom
+    // Формула: высота .main-container__stack-wrap + 2rem - clampedPx - высота wrapper
+    const stackEl = document.querySelector('.main-container__stack-wrap');
+    if (wrapperEl && stackEl) {
+      const stackHeightPx = stackEl.getBoundingClientRect().height;
+      const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
+      const twoRemPx = 2 * ns.metrics.root;
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx + twoRemPx - clampedPx - wrapperHeightPx));
+      wrapperEl.style.marginBottom = `${marginBottomPx}px`;
+    }
   }
   
   const onResize = function() { updateCasesContainerPaddingTop(ns); };
