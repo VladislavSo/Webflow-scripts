@@ -1231,6 +1231,10 @@ body {
   transition: color 0.3s ease;
 }
 
+.form-modal__form-block__container__text-block > a > div:nth-child(1) > svg > path:nth-child(1) {
+  transition: fill 0.3s ease;
+}
+
 /* Colors | Text */
 .color--primary { color: #e2dddd; }
 .color--secondary { color: #585858; }
@@ -1293,6 +1297,7 @@ body {
 @media (max-width: 479px) {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
+
 
 
 
