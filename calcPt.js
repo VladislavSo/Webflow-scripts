@@ -34,6 +34,12 @@
       const twoRemPx = 2 * ns.metrics.root;
       const marginBottomPx = Math.max(0, Math.round(stackHeightPx + twoRemPx - clampedPx - wrapperHeightPx));
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
+      console.log(marginBottomPx);
+      console.log("stackHeightPx + twoRemPx - clampedPx - wrapperHeightPx");
+      console.log(stackHeightPx);
+      console.log(twoRemPx);
+      console.log(clampedPx);
+      console.log(wrapperHeightPx);
     }
   }
   
