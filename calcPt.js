@@ -64,7 +64,7 @@
     if (!wrapperEl || !stackEl) return;
     const stackHeightPx = stackEl.getBoundingClientRect().height;
     const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-    const targetPx = Math.max(0, Math.round((stackHeightPx - wrapperHeightPx) / 2));
+    const targetPx = Math.max(0, Math.round((stackHeightPx - wrapperHeightPx) / 2 - ns.metrics.root));
     const basePx = Number.isFinite(ns.state && ns.state.baseMarginBottomPx)
       ? ns.state.baseMarginBottomPx
       : (parseFloat(getComputedStyle(wrapperEl).marginBottom) || 0);
@@ -77,3 +77,4 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
