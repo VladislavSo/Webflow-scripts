@@ -1098,7 +1098,6 @@ body {
   visibility: visible;
   pointer-events: auto;
 }
-
 #form-contact-text {
   opacity: 1;
   visibility: visible;
@@ -1109,11 +1108,9 @@ body {
   visibility: hidden;
   pointer-events: none;
 }
-
 #modal-privacy.open {
   transform: translate(0%);
 }
-
 .form-modal__form-block__container,
 .form-modal__privacy-block {
   scroll-behavior: smooth;
@@ -1124,17 +1121,14 @@ body {
 .form-modal__privacy-block::-webkit-scrollbar {
   display: none;
 }
-
 .form-modal__form-block__container__wrap__form-block__form__inputs__item {
   position: relative;
   display: block;
 }
-
 .form-modal__form-block__container__wrap__form-block__form__inputs__item > input,
 .form-modal__form-block__container__wrap__form-block__form__inputs__item > textarea {
-  caret-color: #E40046;
+  caret-color: #c9c7c5;
 }
-
 .form-modal__form-block__container__wrap__form-block__form__inputs__item.is-error > label,
 .form-modal__form-block__container__wrap__form-block__form__inputs__item.is-error > input + label,
 .form-modal__form-block__container__wrap__form-block__form__inputs__item.is-error > textarea + label,
@@ -1144,7 +1138,6 @@ body {
 .form-modal__form-block__container__wrap__form-block__form__inputs__item.is-error--email input:focus + label {
   color: #E40046 !important;
 }
-
 .form-modal__form-block__container__wrap__form-block__form__inputs__item textarea {
   color: #000;
   font-size: 3rem;
@@ -1299,6 +1292,7 @@ body {
 @media (max-width: 479px) {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
+
 
 
 
