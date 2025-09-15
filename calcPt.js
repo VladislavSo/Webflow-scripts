@@ -27,7 +27,7 @@
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
     if (clampedPx >= (maxPaddingPx - 0.5) && wrapper) {
-      wrapper.style.setProperty('margin-top', `calc(16.5rem + ${titlePx}px)`, 'important');
+      wrapper.style.setProperty('margin-top', `calc(16.5rem + ${titlePx}px)`);
     }
   }
   
@@ -36,3 +36,4 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
