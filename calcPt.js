@@ -28,16 +28,6 @@
     casesContainer.style.paddingTop = `${clampedPx}px`;
     if (clampedPx >= (maxPaddingPx - 0.5) && wrapper) {
       wrapper.style.setProperty('margin-top', `calc(16.5rem + ${titlePx}px)`, 'important');
-      if (ns.state) {
-        if (ns.state.wrapperAnimStartScrollY == null) {
-          const sy = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
-          ns.state.wrapperAnimStartScrollY = sy;
-          // eslint-disable-next-line no-console
-          console.log('[StackUI][interp] start at scrollY=', sy);
-        }
-      }
-    } else if (ns.state) {
-      ns.state.wrapperAnimStartScrollY = null;
     }
   }
   
@@ -58,8 +48,12 @@
     const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
 
-    // Начинаем анимацию только после фиксации точки старта (когда достигнут лимит)
-    if (!ns.state || ns.state.wrapperAnimStartScrollY == null) return;
+    // Инициализируем точку старта на первом скролле, без привязки к порогу casesContainer
+    if (ns.state && ns.state.wrapperAnimStartScrollY == null) {
+      const sy0 = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+      ns.state.wrapperAnimStartScrollY = sy0;
+    }
+    if (!ns.state) return;
 
     const startMarginPx = (16.5 * ns.metrics.root) + titlePx;
     const endMarginPx = Math.max(0, (stackWrap.clientHeight - wrapper.clientHeight) / 2);
