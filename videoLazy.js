@@ -526,6 +526,12 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   items.forEach(item => observer.observe(item, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
 
+  // Ранняя инициализация на DOMContentLoaded для мгновенного старта
+  attachPlaybandToCurrentActive();
+  updateActiveVideos();
+  // Принудительно обновляем состояние полосы без скролла
+  onScrollOrResize();
+
   // Дожидаемся полной загрузки страницы, чтобы включить подгрузку ассетов
   function enableAssetsAfterLoad() {
     // talking-head — грузим сразу после полной загрузки
@@ -534,6 +540,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateActiveVideos();
     // Инициализируем полосу-наблюдатель для текущего active
     attachPlaybandToCurrentActive();
+    // Принудительно обновляем состояние полосы без скролла
+    onScrollOrResize();
   }
   if (document.readyState === 'complete') {
     enableAssetsAfterLoad();
