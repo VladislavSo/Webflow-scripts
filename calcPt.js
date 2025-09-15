@@ -22,9 +22,6 @@ function updateCasesContainerPaddingTop(ns) {
   const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
   const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
   casesContainer.style.paddingTop = `${clampedPx}px`;
-  console.log(clampedPx);
-  console.log(listTopViewportPx);
-  console.log(titlePx);
 }
 
 function throttle(fn, wait) {
@@ -53,3 +50,4 @@ window.addEventListener('resize', onResize);
 ns.layout = ns.layout || {};
 ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
 })(window.StackUI);
+
