@@ -205,46 +205,13 @@
     }
   }
 
-  function updateWrapperMarginByWindowScroll(ns) {
-    const m = ns.metrics;
-    const y = Math.max(0, window.scrollY || window.pageYOffset || 0);
-    const progress = m.wrapperScrollEndPx > 0
-    ? Math.min(1, Math.max(0, y / m.wrapperScrollEndPx))
-    : 0;
-
-    const listHeightPx = m.listHeightStartPx +
-          (m.listHeightEndPx - m.listHeightStartPx) * progress;
-    ns.dom.container.style.height = `${listHeightPx}px`;
-
-    // Назначать margin-top только после завершения прогресса (progress === 1)
-    if (progress >= 1) {
-      try {
-        const stackWrapEl = document.querySelector('.main-container__stack-wrap');
-        const wrapperEl = ns.dom.wrapper || document.querySelector('.main-container__stack-wrap__wrapper');
-        if (stackWrapEl && wrapperEl) {
-          const stackWrapHeight = stackWrapEl.getBoundingClientRect().height || 0;
-          const wrapperHeight = wrapperEl.getBoundingClientRect().height || 0;
-          const marginTopPx = Math.max(0, (stackWrapHeight - wrapperHeight) / 2);
-          wrapperEl.style.marginTop = `${marginTopPx}px`;
-        }
-      } catch (_) {}
-    } else {
-      try {
-        const wrapperEl = ns.dom.wrapper || document.querySelector('.main-container__stack-wrap__wrapper');
-        if (wrapperEl) {
-          wrapperEl.style.marginTop = '0px';
-        }
-      } catch (_) {}
-    }
-  }
+  
 
   // Единый rAF-цикл: один кадр — один набор замеров и применений.
   function scheduleFrameUpdate(ns) {
     if (ns.state.tickingFrame) return;
     ns.state.tickingFrame = true;
     requestAnimationFrame(() => {
-      ns.effects.updateWrapperMarginByWindowScroll(ns);
-
       const containerRect = ns.dom.container.getBoundingClientRect();
       const cardRects = ns.collections.cards.map(c => c.getBoundingClientRect());
       const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
@@ -263,7 +230,6 @@
   ns.effects = {
     updateZIndexes,
     updateListItemEffects,
-    updateWrapperMarginByWindowScroll,
     scheduleFrameUpdate
   };
 })(window.StackUI);
