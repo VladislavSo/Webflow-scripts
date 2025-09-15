@@ -65,10 +65,9 @@
     const endMarginPx = Math.max(0, (stackWrap.clientHeight - wrapper.clientHeight) / 2);
 
     const sy = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
-    const deltaPx = Math.abs(sy - ns.state.wrapperAnimStartScrollY);
-    const periodPx = 2 * maxPaddingPx;               // вперёд и назад
-    const cycle = (deltaPx % periodPx) / maxPaddingPx; // 0..2
-    const t = cycle <= 1 ? cycle : 2 - cycle;          // 0..1..0
+    const rawDeltaPx = sy - ns.state.wrapperAnimStartScrollY;
+    const deltaPx = Math.max(0, Math.min(maxPaddingPx, rawDeltaPx));
+    const t = deltaPx / maxPaddingPx; // 0..1
 
     const currentMarginPx = startMarginPx + (endMarginPx - startMarginPx) * t;
     wrapper.style.setProperty('margin-top', `${currentMarginPx}px`, 'important');
@@ -78,6 +77,7 @@
     console.log('[StackUI][interp]', {
       startScrollY: ns.state.wrapperAnimStartScrollY,
       scrollY: sy,
+      rawDeltaPx,
       deltaPx,
       startMarginPx,
       endMarginPx,
