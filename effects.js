@@ -216,7 +216,7 @@
           (m.listHeightEndPx - m.listHeightStartPx) * progress;
     ns.dom.container.style.height = `${listHeightPx}px`;
 
-    // Назначать margin-bottom только после завершения прогресса (progress === 1)
+    // Назначать margin-top только после завершения прогресса (progress === 1)
     if (progress >= 1) {
       try {
         const stackWrapEl = document.querySelector('.main-container__stack-wrap');
@@ -224,15 +224,15 @@
         if (stackWrapEl && wrapperEl) {
           const stackWrapHeight = stackWrapEl.getBoundingClientRect().height || 0;
           const wrapperHeight = wrapperEl.getBoundingClientRect().height || 0;
-          const marginBottomPx = Math.max(0, (stackWrapHeight - wrapperHeight) / 2);
-          wrapperEl.style.marginBottom = `${marginBottomPx}px`;
+          const marginTopPx = Math.max(0, (stackWrapHeight - wrapperHeight) / 2);
+          wrapperEl.style.marginTop = `${marginTopPx}px`;
         }
       } catch (_) {}
     } else {
       try {
         const wrapperEl = ns.dom.wrapper || document.querySelector('.main-container__stack-wrap__wrapper');
         if (wrapperEl) {
-          wrapperEl.style.marginBottom = '0px';
+          wrapperEl.style.marginTop = '0px';
         }
       } catch (_) {}
     }
