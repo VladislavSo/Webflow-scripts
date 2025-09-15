@@ -28,6 +28,16 @@
     casesContainer.style.paddingTop = `${clampedPx}px`;
     if (clampedPx >= (maxPaddingPx - 0.5) && wrapper) {
       wrapper.style.setProperty('margin-top', `calc(16.5rem + ${titlePx}px)`, 'important');
+      if (ns.state) {
+        if (ns.state.wrapperAnimStartScrollY == null) {
+          const sy = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+          ns.state.wrapperAnimStartScrollY = sy;
+          // eslint-disable-next-line no-console
+          console.log('[StackUI][interp] start at scrollY=', sy);
+        }
+      }
+    } else if (ns.state) {
+      ns.state.wrapperAnimStartScrollY = null;
     }
   }
   
@@ -48,18 +58,17 @@
     const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
 
-    // Начинаем анимацию только когда достигнут лимит padding-top у casesContainer
-    if (clampedPx < (maxPaddingPx - 0.5)) return;
+    // Начинаем анимацию только после фиксации точки старта (когда достигнут лимит)
+    if (!ns.state || ns.state.wrapperAnimStartScrollY == null) return;
 
     const startMarginPx = (16.5 * ns.metrics.root) + titlePx;
     const endMarginPx = Math.max(0, (stackWrap.clientHeight - wrapper.clientHeight) / 2);
 
-    // Переполнение относительно лимита (сколько «проскроллили» сверх 17.5rem)
-    const overflowPx = Math.max(0, Math.round(paddingTopPx) - maxPaddingPx);
-    // Пинг-понг от 0 до 1 и обратно, период 2*maxPaddingPx
-    const periodPx = 2 * maxPaddingPx;
-    const cycle = (overflowPx % periodPx) / maxPaddingPx; // 0..2
-    const t = cycle <= 1 ? cycle : 2 - cycle;              // 0..1..0
+    const sy = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+    const deltaPx = Math.abs(sy - ns.state.wrapperAnimStartScrollY);
+    const periodPx = 2 * maxPaddingPx;               // вперёд и назад
+    const cycle = (deltaPx % periodPx) / maxPaddingPx; // 0..2
+    const t = cycle <= 1 ? cycle : 2 - cycle;          // 0..1..0
 
     const currentMarginPx = startMarginPx + (endMarginPx - startMarginPx) * t;
     wrapper.style.setProperty('margin-top', `${currentMarginPx}px`, 'important');
@@ -67,9 +76,9 @@
     // Диагностика
     // eslint-disable-next-line no-console
     console.log('[StackUI][interp]', {
-      listTopRelativePx,
-      paddingTopPx,
-      clampedPx,
+      startScrollY: ns.state.wrapperAnimStartScrollY,
+      scrollY: sy,
+      deltaPx,
       startMarginPx,
       endMarginPx,
       currentMarginPx,
