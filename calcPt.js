@@ -19,19 +19,20 @@
     const addPx = 2.25 * ns.metrics.root;
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
+    const minPaddingPx = 10 * ns.metrics.root; // минимальный padding-top = 10rem
     const listTopViewportPx = listEl.getBoundingClientRect().top;
     const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
-    const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
+    const clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
     console.log(paddingTopPx);
 
     // Начальное позиционирование wrapper: margin-bottom
-    // Формула: высота .main-container__stack-wrap - clampedPx - высота wrapper - (titlePx + addPx)
+    // Формула: высота .main-container__stack-wrap - clampedPx - высота wrapper - titlePx
     const stackEl = document.querySelector('.main-container__stack-wrap');
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - (titlePx + addPx)));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx));
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
     }
   }
