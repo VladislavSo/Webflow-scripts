@@ -1056,6 +1056,7 @@ body {
 #area-form-modal {
   padding: 0.5rem 0.5rem 0.5rem 2.1875rem;
   cursor: auto;
+  z-index: 11;
 }
 
 .form-wrapper {
@@ -1292,6 +1293,7 @@ body {
 @media (max-width: 479px) {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
+
 
 
 
