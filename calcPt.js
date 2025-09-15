@@ -31,28 +31,7 @@
     }
   }
   
-  function throttle(fn, wait) {
-    let last = 0;
-    let timer = null;
-    return function() {
-      const now = Date.now();
-      const remaining = wait - (now - last);
-      if (remaining <= 0) {
-        if (timer) { clearTimeout(timer); timer = null; }
-        last = now;
-        fn.apply(this, arguments);
-      } else if (!timer) {
-        timer = setTimeout(() => {
-          last = Date.now();
-          timer = null;
-          fn.apply(this, arguments);
-        }, remaining);
-      }
-    };
-  }
-  
-  const onResize = throttle(function() { updateCasesContainerPaddingTop(ns); }, 50);
-  window.addEventListener('resize', onResize);
+  window.addEventListener('resize', function() { updateCasesContainerPaddingTop(ns); });
   
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
