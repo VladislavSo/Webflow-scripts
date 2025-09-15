@@ -63,6 +63,18 @@
 
     const currentMarginPx = startMarginPx + (endMarginPx - startMarginPx) * t;
     wrapper.style.setProperty('margin-top', `${currentMarginPx}px`, 'important');
+
+    // Диагностика
+    // eslint-disable-next-line no-console
+    console.log('[StackUI][interp]', {
+      listTopRelativePx,
+      paddingTopPx,
+      clampedPx,
+      startMarginPx,
+      endMarginPx,
+      currentMarginPx,
+      t
+    });
   }
   
   window.addEventListener('resize', function() { updateCasesContainerPaddingTop(ns); });
