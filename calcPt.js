@@ -18,90 +18,35 @@
     const addPx = 2.25 * ns.metrics.root;
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
-    const stackWrap = listEl.closest('.main-container__stack-wrap');
-    const wrapper = listEl.closest('.main-container__stack-wrap__wrapper');
-    const listTopRelativePx = stackWrap
-      ? (listEl.getBoundingClientRect().top - stackWrap.getBoundingClientRect().top)
-      : listEl.getBoundingClientRect().top;
-    const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
+    const listTopViewportPx = listEl.getBoundingClientRect().top;
+    const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
-    if (stackWrap && wrapper) {
-      const wrapHeightPx = stackWrap.clientHeight || 0;
-      const wrapperHeightPx = wrapper.clientHeight || 0;
-      const oneRemPx = ns.metrics.root;
-      const usedPaddingPx = Math.max(0, paddingTopPx);
-      const marginBottomPx = Math.max(0, wrapHeightPx - usedPaddingPx - oneRemPx - wrapperHeightPx - oneRemPx);
-      wrapper.style.setProperty('margin-bottom', `${marginBottomPx}px`, 'important');
-    }
   }
   
-  // Плавная интерполяция margin-top для wrapper при скролле окна
-  function interpolateWrapperMarginOnScroll(ns) {
-    const listEl = ns.dom.container;
-    const stackWrap = listEl && listEl.closest('.main-container__stack-wrap');
-    const wrapper = listEl && listEl.closest('.main-container__stack-wrap__wrapper');
-    if (!stackWrap || !wrapper) return;
-
-    const addPx = 2.25 * ns.metrics.root;
-    const titlePx = 12.75 * ns.metrics.root;
-    const maxPaddingPx = 17.5 * ns.metrics.root;
-
-    const listTopRelativePx = listEl
-      ? (listEl.getBoundingClientRect().top - stackWrap.getBoundingClientRect().top)
-      : 0;
-    const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
-    const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
-
-    // Инициализируем точку старта на первом скролле, без привязки к порогу casesContainer
-    if (ns.state && ns.state.wrapperAnimStartScrollY == null) {
-      const sy0 = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
-      ns.state.wrapperAnimStartScrollY = sy0;
-    }
-    if (!ns.state) return;
-
-    const startMarginPx = (16.5 * ns.metrics.root) + titlePx;
-    const endMarginPx = Math.max(0, (stackWrap.clientHeight - wrapper.clientHeight) / 2);
-
-    const sy = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
-    const rawDeltaPx = sy - ns.state.wrapperAnimStartScrollY;
-    const deltaPx = Math.max(0, Math.min(maxPaddingPx, rawDeltaPx));
-    const t = deltaPx / maxPaddingPx; // 0..1
-
-    const currentMarginPx = startMarginPx + (endMarginPx - startMarginPx) * t;
-    wrapper.style.setProperty('margin-bottom', `${currentMarginPx}px`, 'important');
-    console.log(currentMarginPx);
-    console.log(startMarginPx);
-    console.log(endMarginPx);
-    console.log(startMarginPx);
-
-    // Диагностика
-    // eslint-disable-next-line no-console
-    console.log('[StackUI][interp]', {
-      startScrollY: ns.state.wrapperAnimStartScrollY,
-      scrollY: sy,
-      rawDeltaPx,
-      deltaPx,
-      startMarginPx,
-      endMarginPx,
-      currentMarginPx,
-      t
-    });
+  function throttle(fn, wait) {
+    let last = 0;
+    let timer = null;
+    return function() {
+      const now = Date.now();
+      const remaining = wait - (now - last);
+      if (remaining <= 0) {
+        if (timer) { clearTimeout(timer); timer = null; }
+        last = now;
+        fn.apply(this, arguments);
+      } else if (!timer) {
+        timer = setTimeout(() => {
+          last = Date.now();
+          timer = null;
+          fn.apply(this, arguments);
+        }, remaining);
+      }
+    };
   }
   
-  window.addEventListener('resize', function() { updateCasesContainerPaddingTop(ns); });
-  
-  // Обработчик скролла с rAF-гардингом через ns.state.tickingFrame
-  window.addEventListener('scroll', function() {
-    if (ns.state && ns.state.tickingFrame) return;
-    if (ns.state) ns.state.tickingFrame = true;
-    requestAnimationFrame(function() {
-      if (ns.state) ns.state.tickingFrame = false;
-      interpolateWrapperMarginOnScroll(ns);
-    });
-  }, { passive: true });
+  const onResize = throttle(function() { updateCasesContainerPaddingTop(ns); }, 50);
+  window.addEventListener('resize', onResize);
   
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
-  ns.layout.interpolateWrapperMarginOnScroll = interpolateWrapperMarginOnScroll;
   })(window.StackUI);
