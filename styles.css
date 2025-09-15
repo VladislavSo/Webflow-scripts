@@ -1226,6 +1226,11 @@ body {
   pointer-events: none;
 }
 
+.form-modal__form-block__container__text-block > div,
+.form-modal__form-block__container__text-block > a > div:nth-child(2) {
+  transition: color 0.3s ease;
+}
+
 /* Colors | Text */
 .color--primary { color: #e2dddd; }
 .color--secondary { color: #585858; }
@@ -1288,6 +1293,7 @@ body {
 @media (max-width: 479px) {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
+
 
 
 
