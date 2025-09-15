@@ -1114,7 +1114,7 @@ body {
 }
 .form-modal__form-block__container,
 .form-modal__privacy-block {
-  scroll-behavior: smooth;
+  /*scroll-behavior: smooth;*/
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -1293,6 +1293,7 @@ body {
 @media (max-width: 479px) {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
+
 
 
 
