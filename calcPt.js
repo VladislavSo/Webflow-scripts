@@ -26,20 +26,13 @@
     console.log(paddingTopPx);
 
     // Начальное позиционирование wrapper: margin-bottom
-    // Формула: высота .main-container__stack-wrap + 2rem - clampedPx - высота wrapper
+    // Формула: высота .main-container__stack-wrap - clampedPx - высота wrapper - (titlePx + addPx)
     const stackEl = document.querySelector('.main-container__stack-wrap');
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const twoRemPx = 2 * ns.metrics.root;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx + twoRemPx - clampedPx - wrapperHeightPx));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - (titlePx + addPx)));
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
-      console.log(marginBottomPx);
-      console.log(stackHeightPx "+" twoRemPx "-" clampedPx "-" wrapperHeightPx);
-      console.log(stackHeightPx);
-      console.log(twoRemPx);
-      console.log(clampedPx);
-      console.log(wrapperHeightPx);
     }
   }
   
