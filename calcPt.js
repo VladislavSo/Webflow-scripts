@@ -12,6 +12,7 @@
   function updateCasesContainerPaddingTop(ns) {
     const casesContainer = ns.dom.casesContainer;
     const listEl = ns.dom.container;
+    console.log(listEl);
     const casesGrid = ns.dom.casesGrid;
     if (!casesContainer || !listEl || !casesGrid) return;
   
