@@ -34,13 +34,46 @@
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
       const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - ns.metrics.root));
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
+      // Сохраняем базовое значение для последующей интерполяции по скроллу
+      if (!ns.state) ns.state = {};
+      ns.state.baseMarginBottomPx = marginBottomPx;
     }
+  }
+
+  // Создаёт функцию прогресса скролла от 0 до 1 на отрезке 17.5rem
+  function createScrollProgress(ns) {
+    const distancePx = 17.5 * ns.metrics.root;
+    let startScrollY = window.scrollY || window.pageYOffset || 0;
+    return function getProgress() {
+      const currentScrollY = window.scrollY || window.pageYOffset || 0;
+      const delta = currentScrollY - startScrollY;
+      if (distancePx <= 0) return 1;
+      const p = delta / distancePx;
+      return Math.max(0, Math.min(1, p));
+    };
   }
   
   const onResize = function() { updateCasesContainerPaddingTop(ns); };
   window.addEventListener('resize', onResize);
   
+  // Привязка margin-bottom wrapper к прогрессу скролла на 17.5rem
+  const getScrollProgress = createScrollProgress(ns);
+  const onScroll = function() {
+    const wrapperEl = ns.dom.wrapper;
+    const stackEl = document.querySelector('.main-container__stack-wrap');
+    if (!wrapperEl || !stackEl) return;
+    const stackHeightPx = stackEl.getBoundingClientRect().height;
+    const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
+    const targetPx = Math.max(0, Math.round((stackHeightPx - wrapperHeightPx) / 2));
+    const basePx = Number.isFinite(ns.state && ns.state.baseMarginBottomPx)
+      ? ns.state.baseMarginBottomPx
+      : (parseFloat(getComputedStyle(wrapperEl).marginBottom) || 0);
+    const p = getScrollProgress();
+    const currentPx = Math.round(basePx + (targetPx - basePx) * p);
+    wrapperEl.style.marginBottom = `${currentPx}px`;
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
-
