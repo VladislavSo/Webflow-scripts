@@ -12,7 +12,6 @@
   function updateCasesContainerPaddingTop(ns) {
     const casesContainer = ns.dom.casesContainer;
     const listEl = ns.dom.container;
-    console.log(listEl);
     const casesGrid = ns.dom.casesGrid;
     if (!casesContainer || !listEl || !casesGrid) return;
   
@@ -26,8 +25,8 @@
     const paddingTopPx = (listTopRelativePx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(0, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
-    if (clampedPx === Math.round(maxPaddingPx)) {
-      listEl.style.marginTop = '16.5rem';
+    if (clampedPx >= (maxPaddingPx - 0.5)) {
+      listEl.style.setProperty('margin-top', '16.5rem', 'important');
     }
   }
   
