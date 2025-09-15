@@ -20,6 +20,8 @@
     const maxPaddingPx = 17.5 * ns.metrics.root;
     const stackWrap = listEl.closest('.main-container__stack-wrap');
     console.log('[StackUI] stackWrap found:', !!stackWrap);
+    const wrapper = listEl.closest('.main-container__stack-wrap__wrapper');
+    console.log('[StackUI] wrapper found:', !!wrapper);
     const listTopRelativePx = stackWrap
       ? (listEl.getBoundingClientRect().top - stackWrap.getBoundingClientRect().top)
       : listEl.getBoundingClientRect().top;
@@ -32,9 +34,11 @@
       maxPaddingPx
     });
     casesContainer.style.paddingTop = `${clampedPx}px`;
-    if (clampedPx >= (maxPaddingPx - 0.5)) {
-      console.log('[StackUI] setting listEl margin-top to 16.5rem');
-      listEl.style.setProperty('margin-top', '16.5rem', 'important');
+    if (clampedPx >= (maxPaddingPx - 0.5) && wrapper) {
+      console.log('[StackUI] setting wrapper margin-top to 16.5rem');
+      wrapper.style.setProperty('margin-top', '16.5rem', 'important');
+    } else if (clampedPx >= (maxPaddingPx - 0.5)) {
+      console.warn('[StackUI] wrapper not found for setting margin-top');
     }
   }
   
