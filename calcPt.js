@@ -64,13 +64,16 @@
     };
   }
   
+  // Вызываем onResize после завершения resize (debounce)
+  let resizeTimeout;
   const onResize = function() { 
-    setTimeout(function() {
-      updateCasesContainerPaddingTop(ns); 
-      setTimeout(onScroll, 50); // с задержкой 50ms вызовем onScroll
-    }, 1000);
+    updateCasesContainerPaddingTop(ns); 
+    setTimeout(onScroll, 50); // с задержкой 50ms вызовем onScroll
   };
-  window.addEventListener('resize', onResize);
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(onResize, 100); // вызываем onResize после завершения resize
+  });
   // Вызываем перерасчёт при входе/выходе из полноэкранного режима и при смене видимости вкладки (например, minimize/restore)
   document.addEventListener('fullscreenchange', onResize);
   document.addEventListener('visibilitychange', onResize);
@@ -107,6 +110,7 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
 
 
