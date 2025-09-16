@@ -10,7 +10,6 @@
   //   Формула: (top списка от окна + 2.25rem) - (высота title-block + 2.25rem)
   //   Примечание: 2.25rem взаимно сокращаются; оставлено для наглядности.
   function updateCasesContainerPaddingTop(ns) {
-    debugger
     const casesContainer = ns.dom.casesContainer;
     const listEl = ns.dom.container;
     const casesGrid = ns.dom.casesGrid;
@@ -21,17 +20,21 @@
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
     const minPaddingPx = 7.5 * ns.metrics.root; // минимальный padding-top = 7.5rem
-    const stackHeightPx = document.querySelector('.main-container__stack-wrap').getBoundingClientRect().height;
-    const wrapperHeightPx = ns.dom.wrapper.getBoundingClientRect().height;
-    const listTopViewportPx = stackHeightPx - wrapperHeightPx;
-    const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
-    const clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
+    // Новый расчёт padding-top: высота stack - высота wrapper - titlePx - addPx
+    const stackEl = document.querySelector('.main-container__stack-wrap');
+    let paddingTopPx = 0;
+    let clampedPx = minPaddingPx;
+    if (wrapperEl && stackEl) {
+      const stackHeightPxForPadding = stackEl.getBoundingClientRect().height;
+      const wrapperHeightPxForPadding = wrapperEl.getBoundingClientRect().height;
+      paddingTopPx = stackHeightPxForPadding - wrapperHeightPxForPadding - titlePx - addPx;
+      clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
+    }
     casesContainer.style.paddingTop = `${clampedPx}px`;
     console.log(paddingTopPx);
 
     // Начальное позиционирование wrapper: margin-bottom
     // Формула: высота .main-container__stack-wrap - clampedPx - высота wrapper - titlePx
-    const stackEl = document.querySelector('.main-container__stack-wrap');
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
@@ -94,5 +97,3 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
-
-
