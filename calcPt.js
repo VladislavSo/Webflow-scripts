@@ -60,11 +60,11 @@
   const onResize = function() { updateCasesContainerPaddingTop(ns); };
   window.addEventListener('resize', onResize);
   // Вызов onResize при входе/выходе из полноэкранного режима и сворачивании вкладки
-  document.addEventListener('fullscreenchange', onResize);
-  document.addEventListener('webkitfullscreenchange', onResize);
-  document.addEventListener('mozfullscreenchange', onResize);
-  document.addEventListener('MSFullscreenChange', onResize);
-  document.addEventListener('visibilitychange', onResize);
+  document.addEventListener('fullscreenchange', function() { onResize(); onScroll(); });
+  document.addEventListener('webkitfullscreenchange', function() { onResize(); onScroll(); });
+  document.addEventListener('mozfullscreenchange', function() { onResize(); onScroll(); });
+  document.addEventListener('MSFullscreenChange', function() { onResize(); onScroll(); });
+  document.addEventListener('visibilitychange', function() { onResize(); onScroll(); });
   
   // Привязка margin-bottom wrapper к прогрессу скролла на 17.5rem
   const getScrollProgress = createScrollProgress(ns);
@@ -94,4 +94,5 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
