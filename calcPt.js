@@ -66,9 +66,9 @@
       updateCasesContainerPaddingTop(ns);
       if (typeof onScroll === 'function') {
         if (deferredScrollTimer) clearTimeout(deferredScrollTimer);
-        deferredScrollTimer = setTimeout(() => { onScroll(); }, 50);
+        deferredScrollTimer = setTimeout(() => { onScroll(); }, 100);
       }
-    }, 50);
+    }, 500);
   };
   window.addEventListener('resize', onResize);
   // Вызов onResize при входе/выходе из полноэкранного режима и сворачивании вкладки
