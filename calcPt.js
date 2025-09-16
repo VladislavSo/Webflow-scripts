@@ -57,16 +57,7 @@
     };
   }
   
-  const onResize = function() {
-    updateCasesContainerPaddingTop(ns);
-    if (typeof onScroll === 'function') {
-      if (typeof requestAnimationFrame === 'function') {
-        requestAnimationFrame(() => onScroll());
-      } else {
-        onScroll();
-      }
-    }
-  };
+  const onResize = function() { updateCasesContainerPaddingTop(ns); if (typeof onScroll === 'function') { onScroll(); } };
   window.addEventListener('resize', onResize);
   // Вызов onResize при входе/выходе из полноэкранного режима и сворачивании вкладки
   document.addEventListener('fullscreenchange', onResize);
@@ -99,8 +90,6 @@
     listEl.style.height = `${listHeightPx}px`;
   };
   window.addEventListener('scroll', onScroll, { passive: true });
-  // Выполнить начальный пересчёт после инициализации обработчиков
-  onResize();
   
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
