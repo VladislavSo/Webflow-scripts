@@ -99,11 +99,9 @@
     listEl.style.height = `${listHeightPx}px`;
   };
   window.addEventListener('scroll', onScroll, { passive: true });
+  // Выполнить начальный пересчёт после инициализации обработчиков
+  onResize();
   
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
-
-
-
-
