@@ -21,7 +21,9 @@
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
     const minPaddingPx = 7.5 * ns.metrics.root; // минимальный padding-top = 7.5rem
-    const listTopViewportPx = Math.max(0, Math.round(stackHeightPx - wrapperHeightPx + 2 * ns.metrics.root));
+    const stackHeightPx = document.querySelector('.main-container__stack-wrap').getBoundingClientRect().height;
+    const wrapperHeightPx = ns.dom.wrapper.getBoundingClientRect().height;
+    const listTopViewportPx = stackHeightPx - wrapperHeightPx + 2 * ns.metrics.root;
     const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
@@ -92,3 +94,4 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
