@@ -67,15 +67,31 @@
   let resizeTimeout;
   const onResize = function() { 
     updateCasesContainerPaddingTop(ns); 
+    // Обновляем последние известные размеры вьюпорта
+    lastViewportWidth = window.innerWidth;
+    lastViewportHeight = window.innerHeight;
     setTimeout(onScroll, 50); // с задержкой 50ms вызовем onScroll
   };
   window.addEventListener('resize', function() {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(onResize, 100); // вызываем onResize после завершения resize
   });
-  // Вызываем перерасчёт при входе/выходе из полноэкранного режима и при смене видимости вкладки (например, minimize/restore)
+  // Трек текущих размеров вьюпорта, чтобы не вызывать onResize при простом переключении вкладок
+  let lastViewportWidth = window.innerWidth;
+  let lastViewportHeight = window.innerHeight;
+
+  // Вызываем перерасчёт при входе/выходе из полноэкранного режима
   document.addEventListener('fullscreenchange', onResize);
-  document.addEventListener('visibilitychange', onResize);
+  // При смене видимости вызываем onResize только если реально изменились размеры
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (w !== lastViewportWidth || h !== lastViewportHeight) {
+        onResize();
+      }
+    }
+  });
   document.addEventListener('webkitfullscreenchange', onResize);
   document.addEventListener('mozfullscreenchange', onResize);
   document.addEventListener('MSFullscreenChange', onResize);
@@ -108,5 +124,3 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
-
-
