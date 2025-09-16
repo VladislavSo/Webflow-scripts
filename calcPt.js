@@ -57,7 +57,19 @@
     };
   }
   
-  const onResize = function() { updateCasesContainerPaddingTop(ns); if (typeof onScroll === 'function') { onScroll(); } };
+  // Таймеры отложенных вызовов после resize/fullscreen/visibility
+  let deferredResizeTimer = null;
+  let deferredScrollTimer = null;
+  const onResize = function() {
+    if (deferredResizeTimer) clearTimeout(deferredResizeTimer);
+    deferredResizeTimer = setTimeout(() => {
+      updateCasesContainerPaddingTop(ns);
+      if (typeof onScroll === 'function') {
+        if (deferredScrollTimer) clearTimeout(deferredScrollTimer);
+        deferredScrollTimer = setTimeout(() => { onScroll(); }, 50);
+      }
+    }, 50);
+  };
   window.addEventListener('resize', onResize);
   // Вызов onResize при входе/выходе из полноэкранного режима и сворачивании вкладки
   document.addEventListener('fullscreenchange', onResize);
