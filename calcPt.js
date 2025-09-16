@@ -1,7 +1,7 @@
 (function(ns) {
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
-  debugger;
+  
   // Что делает:
   //   Выставляет padding-top контейнеру кейсов так, чтобы верх списка карточек
   //   оказался ровно под заголовком кейсов.
@@ -64,6 +64,7 @@
   }
   
   const onResize = function() { 
+    debugger;
     updateCasesContainerPaddingTop(ns); 
     setTimeout(onScroll, 50); // с задержкой 50ms вызовем onScroll
   };
@@ -103,6 +104,7 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
 
 
