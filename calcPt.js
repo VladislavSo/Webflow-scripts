@@ -16,22 +16,21 @@
     const wrapperEl = ns.dom.wrapper;
     if (!casesContainer || !listEl || !casesGrid) return;
   
-    const addPx = 2.25 * ns.metrics.root;
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
     const minPaddingPx = 7.5 * ns.metrics.root; // минимальный padding-top = 7.5rem
-    const listTopViewportPx = listEl.getBoundingClientRect().top;
-    const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
-    const clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
-    casesContainer.style.paddingTop = `${clampedPx}px`;
-    console.log(paddingTopPx);
-
-    // Начальное позиционирование wrapper: margin-bottom
-    // Формула: высота .main-container__stack-wrap - clampedPx - высота wrapper - titlePx
+    // Формула padding-top: wrapperHeight + 2rem - stackHeight
+    // И начальное позиционирование wrapper: margin-bottom
     const stackEl = document.querySelector('.main-container__stack-wrap');
     if (wrapperEl && stackEl) {
-      const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
+      const stackHeightPx = stackEl.getBoundingClientRect().height;
+      const paddingTopPx = wrapperHeightPx + (2 * ns.metrics.root) - stackHeightPx;
+      const clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
+      casesContainer.style.paddingTop = `${clampedPx}px`;
+      console.log(paddingTopPx);
+
+      // Формула: высота .main-container__stack-wrap - clampedPx - высота wrapper - titlePx - 1rem
       const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - ns.metrics.root));
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
       // Сохраняем базовое значение для последующей интерполяции по скроллу
@@ -66,9 +65,9 @@
       updateCasesContainerPaddingTop(ns);
       if (typeof onScroll === 'function') {
         if (deferredScrollTimer) clearTimeout(deferredScrollTimer);
-        deferredScrollTimer = setTimeout(() => { onScroll(); }, 100);
+        deferredScrollTimer = setTimeout(() => { onScroll(); }, 50);
       }
-    }, 500);
+    }, 50);
   };
   window.addEventListener('resize', onResize);
   // Вызов onResize при входе/выходе из полноэкранного режима и сворачивании вкладки
