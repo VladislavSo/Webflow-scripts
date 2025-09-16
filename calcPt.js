@@ -65,7 +65,7 @@
   
   const onResize = function() { 
     updateCasesContainerPaddingTop(ns); 
-    setTimeout(onScroll, 50); // с задержкой 50ms вызовем onScroll
+    setTimeout(onScroll, 300); // с задержкой 50ms вызовем onScroll
   };
   window.addEventListener('resize', onResize);
   // Вызываем перерасчёт при входе/выходе из полноэкранного режима и при смене видимости вкладки (например, minimize/restore)
@@ -103,3 +103,4 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
