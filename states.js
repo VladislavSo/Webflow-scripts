@@ -58,7 +58,7 @@
       topIndex2EndRem: -2.75,
 
       // Нижняя полоса влияния (управляет i+2 и i+3)
-      bottomBandStartRem: 10.625,
+      bottomBandStartRem: 10.125,
       bottomBandEndRem: 18,
       bottomIndex2StartRem: -1.5,
       bottomIndex2EndRem: 0,
@@ -120,4 +120,5 @@
     };
 
   })(window.StackUI);
+
 
