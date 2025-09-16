@@ -38,6 +38,10 @@
       if (!ns.state) ns.state = {};
       ns.state.baseMarginBottomPx = marginBottomPx;
     }
+
+    // Начальная высота списка по прогрессу (p=0 → 36rem)
+    const listHeightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
+    listEl.style.height = `${Math.round(listHeightStartPx)}px`;
   }
 
   // Создаёт функцию прогресса скролла от 0 до 1 на отрезке 17.5rem
@@ -60,8 +64,9 @@
   const getScrollProgress = createScrollProgress(ns);
   const onScroll = function() {
     const wrapperEl = ns.dom.wrapper;
+    const listEl = ns.dom.container;
     const stackEl = document.querySelector('.main-container__stack-wrap');
-    if (!wrapperEl || !stackEl) return;
+    if (!wrapperEl || !stackEl || !listEl) return;
     const stackHeightPx = stackEl.getBoundingClientRect().height;
     const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
     const targetPx = Math.max(0, Math.round((stackHeightPx - wrapperHeightPx) / 2 - ns.metrics.root));
@@ -71,11 +76,15 @@
     const p = getScrollProgress();
     const currentPx = Math.round(basePx + (targetPx - basePx) * p);
     wrapperEl.style.marginBottom = `${currentPx}px`;
+
+    // Интерполяция высоты списка: 36rem → 43.875rem по progress
+    const heightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
+    const heightEndPx = ns.metrics.listHeightEndPx || (43.875 * ns.metrics.root);
+    const listHeightPx = Math.round(heightStartPx + (heightEndPx - heightStartPx) * p);
+    listEl.style.height = `${listHeightPx}px`;
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
-
-
