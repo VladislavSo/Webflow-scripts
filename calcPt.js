@@ -10,6 +10,7 @@
   //   Формула: (top списка от окна + 2.25rem) - (высота title-block + 2.25rem)
   //   Примечание: 2.25rem взаимно сокращаются; оставлено для наглядности.
   function updateCasesContainerPaddingTop(ns) {
+    debugger
     const casesContainer = ns.dom.casesContainer;
     const listEl = ns.dom.container;
     const casesGrid = ns.dom.casesGrid;
@@ -20,9 +21,7 @@
     const titlePx = 12.75 * ns.metrics.root;
     const maxPaddingPx = 17.5 * ns.metrics.root;
     const minPaddingPx = 7.5 * ns.metrics.root; // минимальный padding-top = 7.5rem
-    console.log(stackHeightPx, wrapperHeightPx);
     const listTopViewportPx = Math.max(0, Math.round(stackHeightPx - wrapperHeightPx + 2 * ns.metrics.root));
-    console.log(listTopViewportPx);
     const paddingTopPx = (listTopViewportPx + addPx) - (titlePx + addPx);
     const clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
     casesContainer.style.paddingTop = `${clampedPx}px`;
