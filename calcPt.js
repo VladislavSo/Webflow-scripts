@@ -68,22 +68,12 @@
     }
   };
   window.addEventListener('resize', onResize);
-  // Вызов пересчёта при входе/выходе из полноэкранного режима и сворачивании вкладки
-  const onFullscreenOrVisibilityChange = function() {
-    onResize();
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => { if (typeof onScroll === 'function') onScroll(); });
-      });
-    } else {
-      setTimeout(() => { if (typeof onScroll === 'function') onScroll(); }, 0);
-    }
-  };
-  document.addEventListener('fullscreenchange', onFullscreenOrVisibilityChange);
-  document.addEventListener('webkitfullscreenchange', onFullscreenOrVisibilityChange);
-  document.addEventListener('mozfullscreenchange', onFullscreenOrVisibilityChange);
-  document.addEventListener('MSFullscreenChange', onFullscreenOrVisibilityChange);
-  document.addEventListener('visibilitychange', onFullscreenOrVisibilityChange);
+  // Вызов onResize при входе/выходе из полноэкранного режима и сворачивании вкладки
+  document.addEventListener('fullscreenchange', onResize);
+  document.addEventListener('webkitfullscreenchange', onResize);
+  document.addEventListener('mozfullscreenchange', onResize);
+  document.addEventListener('MSFullscreenChange', onResize);
+  document.addEventListener('visibilitychange', onResize);
   
   // Привязка margin-bottom wrapper к прогрессу скролла на 17.5rem
   const getScrollProgress = createScrollProgress(ns);
