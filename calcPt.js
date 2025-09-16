@@ -63,11 +63,17 @@
     };
   }
   
-  const onResize = function() { updateCasesContainerPaddingTop(ns); };
+  const onResize = function() { 
+    updateCasesContainerPaddingTop(ns); 
+    setTimeout(onScroll, 50); // с задержкой 50ms вызовем onScroll
+  };
   window.addEventListener('resize', onResize);
   // Вызываем перерасчёт при входе/выходе из полноэкранного режима и при смене видимости вкладки (например, minimize/restore)
   document.addEventListener('fullscreenchange', onResize);
   document.addEventListener('visibilitychange', onResize);
+  document.addEventListener('webkitfullscreenchange', onResize);
+  document.addEventListener('mozfullscreenchange', onResize);
+  document.addEventListener('MSFullscreenChange', onResize);
   
   // Привязка margin-bottom wrapper к прогрессу скролла на 17.5rem
   const getScrollProgress = createScrollProgress(ns);
