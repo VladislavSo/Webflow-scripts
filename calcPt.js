@@ -1,7 +1,7 @@
 (function(ns) {
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
-  
+  debugger;
   // Что делает:
   //   Выставляет padding-top контейнеру кейсов так, чтобы верх списка карточек
   //   оказался ровно под заголовком кейсов.
@@ -38,7 +38,7 @@
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - ns.metrics.root));
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
       // Сохраняем базовое значение для последующей интерполяции по скроллу
       if (!ns.state) ns.state = {};
@@ -103,5 +103,6 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
 
