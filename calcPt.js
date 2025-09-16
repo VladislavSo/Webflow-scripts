@@ -57,7 +57,16 @@
     };
   }
   
-  const onResize = function() { updateCasesContainerPaddingTop(ns); if (typeof onScroll === 'function') { onScroll(); } };
+  const onResize = function() {
+    updateCasesContainerPaddingTop(ns);
+    if (typeof onScroll === 'function') {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => onScroll());
+      } else {
+        onScroll();
+      }
+    }
+  };
   window.addEventListener('resize', onResize);
   // Вызов onResize при входе/выходе из полноэкранного режима и сворачивании вкладки
   document.addEventListener('fullscreenchange', onResize);
@@ -94,6 +103,7 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
 
 
