@@ -10,6 +10,7 @@
   //   Формула: (top списка от окна + 2.25rem) - (высота title-block + 2.25rem)
   //   Примечание: 2.25rem взаимно сокращаются; оставлено для наглядности.
   function updateCasesContainerPaddingTop(ns) {
+    debugger;
     const casesContainer = ns.dom.casesContainer;
     const listEl = ns.dom.container;
     const casesGrid = ns.dom.casesGrid;
@@ -79,6 +80,7 @@
   // Привязка margin-bottom wrapper к прогрессу скролла на 17.5rem
   const getScrollProgress = createScrollProgress(ns);
   const onScroll = function() {
+    debugger;
     const wrapperEl = ns.dom.wrapper;
     const listEl = ns.dom.container;
     const stackEl = document.querySelector('.main-container__stack-wrap');
@@ -104,6 +106,7 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
 
 
