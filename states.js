@@ -111,7 +111,8 @@ window.StackUI = window.StackUI || {};
     lastActiveCase: null,
     lastCurrentCard: null,
     fromListScroll: false,
-    isProgrammaticListScroll: false
+    isProgrammaticListScroll: false,
+    removedCurrentCard: null
   };
 
   // Вспомогательные кэши
@@ -119,6 +120,7 @@ window.StackUI = window.StackUI || {};
     cardChildren: []  // Дочерние элементы карточек для управления opacity
   };
 })(window.StackUI);
+
 
 
 
