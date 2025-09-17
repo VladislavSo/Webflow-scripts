@@ -10,6 +10,7 @@
       ns.effects.updateZIndexes(ns);
       ns.effects.updateListItemEffects(ns);
       ns.effects.scheduleFrameUpdate(ns);
+      console.log("Функция refreshEffectsWithDelay вызвана");
     }, 1000);
   }
 
