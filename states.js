@@ -69,8 +69,8 @@ window.StackUI = window.StackUI || {};
     //wrapperMarginStartRem: 29.875,
     //wrapperMarginEndRem: 10.375,
     wrapperScrollEndRem: 19.5,
-    listHeightStartRem: 36,
-    listHeightEndRem: 43.875
+    listHeightStartRem: 36.5,
+    listHeightEndRem: 44.375
   };
 
   // Метрики в пикселях (заполняются при пересчёте)
@@ -119,6 +119,7 @@ window.StackUI = window.StackUI || {};
     cardChildren: []  // Дочерние элементы карточек для управления opacity
   };
 })(window.StackUI);
+
 
 
 
