@@ -159,7 +159,7 @@
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc3') {
-        // снизу (index+3): scale 0.79→0.92, opacity всегда 0, bg 14→18
+        // снизу (index+3): scale 0.79→0.92, opacity 0→1, bg 14→18
         const s = 0.79 + 0.13 * useP;
         const o = 0;
         const r = Math.round(color14.r + (color18.r - color14.r) * useP);
@@ -169,7 +169,7 @@
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc2') {
-        // снизу (index+2): scale 0.92→1, opacity 1→0, bg 18→21
+        // снизу (index+2): scale 0.92→1, opacity 0→1, bg 18→21
         const s = 0.92 + 0.08 * useP;
         const o = 1 - useP;
         const r = Math.round(color18.r + (color21.r - color18.r) * useP);
@@ -220,14 +220,6 @@
       ns.effects.updateZIndexes(ns, meas);
       ns.effects.updateListItemEffects(ns, meas);
 
-      // Обновление отладочных оверлеев зон влияния
-      if (ns.debug && ns.debug.enabled) {
-        ns.effects.ensureDebugOverlays(ns);
-        ns.effects.updateDebugOverlays(ns, meas);
-      } else if (ns.effects.removeDebugOverlays) {
-        ns.effects.removeDebugOverlays(ns);
-      }
-
       if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
 
       ns.state.fromListScroll = false; // сброс источника кадра
@@ -238,57 +230,6 @@
   ns.effects = {
     updateZIndexes,
     updateListItemEffects,
-    scheduleFrameUpdate,
-    ensureDebugOverlays: function(ns) {
-      if (!ns.dom.container) return;
-      const root = ns.dom.container;
-      const ensure = (el, className, color) => {
-        if (el) return el;
-        const overlay = document.createElement('div');
-        overlay.className = className;
-        overlay.style.position = 'fixed';
-        overlay.style.left = '0';
-        overlay.style.right = '0';
-        overlay.style.pointerEvents = 'none';
-        overlay.style.zIndex = '9999';
-        overlay.style.background = color;
-        overlay.style.mixBlendMode = 'screen';
-        overlay.style.opacity = '0.18';
-        document.body.appendChild(overlay);
-        return overlay;
-      };
-      ns.debug.overlays.top = ensure(ns.debug.overlays.top, 'stackui-debug-top-band', 'linear-gradient(180deg, rgba(0,255,0,0.5), rgba(0,255,0,0.1))');
-      ns.debug.overlays.bottom = ensure(ns.debug.overlays.bottom, 'stackui-debug-bottom-band', 'linear-gradient(180deg, rgba(0,128,255,0.1), rgba(0,128,255,0.5))');
-    },
-    updateDebugOverlays: function(ns, meas) {
-      if (!ns.dom.container || !ns.debug || !ns.debug.overlays.top || !ns.debug.overlays.bottom) return;
-      const m = ns.metrics;
-      const cRect = meas ? meas.containerRect : ns.dom.container.getBoundingClientRect();
-
-      // Верхняя зона: от top до (top + effectStartPx), с усилением до effectEndPx
-      const topStart = cRect.top - m.effectEndPx;
-      const topEnd = cRect.top + (m.effectStartPx - m.effectEndPx);
-      const topHeight = Math.max(0, topEnd - topStart);
-      const topEl = ns.debug.overlays.top;
-      topEl.style.top = `${Math.round(topStart)}px`;
-      topEl.style.height = `${Math.round(topHeight)}px`;
-
-      // Нижняя зона: от (bottom - bottomBandEndPx) до (bottom - bottomBandStartPx)
-      const bottomStart = cRect.bottom - m.bottomBandEndPx;
-      const bottomEnd = cRect.bottom - m.bottomBandStartPx;
-      const bottomHeight = Math.max(0, bottomEnd - bottomStart);
-      const bottomEl = ns.debug.overlays.bottom;
-      bottomEl.style.top = `${Math.round(bottomStart)}px`;
-      bottomEl.style.height = `${Math.round(bottomHeight)}px`;
-    },
-    removeDebugOverlays: function(ns) {
-      const { overlays } = ns.debug || {};
-      if (!overlays) return;
-      ['top','bottom'].forEach(k => {
-        const el = overlays[k];
-        if (el && el.parentNode) el.parentNode.removeChild(el);
-        overlays[k] = null;
-      });
-    }
+    scheduleFrameUpdate
   };
 })(window.StackUI);
