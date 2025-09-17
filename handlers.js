@@ -126,7 +126,10 @@
       ns.sync.createCasesObserver(ns);
       ns.effects.scheduleFrameUpdate(ns);
       ns.layout.updateCasesContainerPaddingTop(ns);
+      refreshEffectsWithDelay();
     });
+    // На смену ориентации — также обновляем эффекты
+    window.addEventListener('orientationchange', () => { refreshEffectsWithDelay(); });
   }
 
   // Bootstrap: инициализация после DOMContentLoaded
@@ -160,19 +163,7 @@
     document.addEventListener('mozfullscreenchange', () => { refreshEffectsWithDelay(); });
     document.addEventListener('MSFullscreenChange', () => { refreshEffectsWithDelay(); });
 
-    // При возврате вкладки в видимое состояние — триггерим обновление,
-    // только если реально изменились размеры
-    document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        if (w !== lastViewportWidth || h !== lastViewportHeight) {
-          lastViewportWidth = w;
-          lastViewportHeight = h;
-          refreshEffectsWithDelay();
-        }
-      }
-    });
+    // visibilitychange больше не используется, т.к. нужен триггер только при реальном изменении окна
   }
 
   document.addEventListener('DOMContentLoaded', bootstrap);
