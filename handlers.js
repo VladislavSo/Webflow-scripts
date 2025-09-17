@@ -135,12 +135,14 @@
     console.log("Функция bindVisibilityAndFullscreen вызвана");
     // Вызываем перерисовку при входе/выходе из полноэкранного режима
     const onFsChange = () => {
-      ns.utils.recalcMetrics(ns);
-      ns.sync.createCasesObserver(ns);
-      ns.layout.updateCasesContainerPaddingTop(ns);
-      callEffectsNow();
-      lastViewportWidth = window.innerWidth;
-      lastViewportHeight = window.innerHeight;
+      setTimeout(() => {
+        ns.utils.recalcMetrics(ns);
+        ns.sync.createCasesObserver(ns);
+        ns.layout.updateCasesContainerPaddingTop(ns);
+        callEffectsNow();
+        lastViewportWidth = window.innerWidth;
+        lastViewportHeight = window.innerHeight;
+      }, 0);
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
