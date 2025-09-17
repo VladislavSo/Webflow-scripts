@@ -46,8 +46,8 @@
     }
 
     // Начальная высота списка по прогрессу (p=0 → 36rem)
-    // const listHeightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
-    // listEl.style.height = `${Math.round(listHeightStartPx)}px`;
+    const listHeightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
+    listEl.style.height = `${Math.round(listHeightStartPx)}px`;
   }
 
   // Создаёт функцию прогресса скролла от 0 до 1 на отрезке 17.5rem
@@ -114,10 +114,10 @@
     wrapperEl.style.marginBottom = `${currentPx}px`;
 
     // Интерполяция высоты списка: 36rem → 43.875rem по progress
-    // const heightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
-    // const heightEndPx = ns.metrics.listHeightEndPx || (43.875 * ns.metrics.root);
-    // const listHeightPx = Math.round(heightStartPx + (heightEndPx - heightStartPx) * p);
-    // listEl.style.height = `${listHeightPx}px`;
+    const heightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
+    const heightEndPx = ns.metrics.listHeightEndPx || (43.875 * ns.metrics.root);
+    const listHeightPx = Math.round(heightStartPx + (heightEndPx - heightStartPx) * p);
+    listEl.style.height = `${listHeightPx}px`;
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   
