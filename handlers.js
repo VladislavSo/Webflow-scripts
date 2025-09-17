@@ -10,6 +10,7 @@
     ns.effects.updateZIndexes(ns);
     ns.effects.updateListItemEffects(ns);
     ns.effects.scheduleFrameUpdate(ns);
+    console.log("Функция вызвана");
   }
 
   // Обработчик скролла списка карточек: перерисовать эффекты (через rAF).
@@ -184,3 +185,4 @@
   document.addEventListener('DOMContentLoaded', bootstrap);
 
 })(window.StackUI);
+
