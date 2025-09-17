@@ -192,21 +192,35 @@
         }
       }
 
-      /* Removed: отключено отмечание current-карточки как затронутой эффектом на кадре скролла списка
-      // если именно current-карточка получила эффект в кадре скролла списка — отметим
-      if (ns.state.fromListScroll && i === currentIdx) {
-        if (useKind) currentAffected = true;
-      }
-      */
+      /* Removed: отключено отмечание current-карточки как затронутой эффектом на кадре скролла списка */
     }
 
-    /* Removed: отключено снятие класса current после применения эффектов
-    // после применения ко всем — снять current, если нужно
-    if (ns.state.fromListScroll && currentAffected && currentCard) {
-      currentCard.classList.remove('current');
-      ns.state.lastCurrentCard = null;
+    // Логика снятия/восстановления current на основе выхода за рамки
+    if (currentCard) {
+      const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
+      const distTop = r.top - containerRect.top; // расстояние до верха контейнера
+      const distFromBottom = containerRect.bottom - r.bottom; // расстояние от низа контейнера до низа карточки
+
+      const isAboveEnd = distTop < ns.metrics.effectEndPx; // строго вне: меньше нижней границы верхней полосы
+      const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx; // строго вне: больше начала нижней полосы
+      const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
+
+      // Снятие current, если вышла за пределы. На границе не снимаем.
+      if (isAboveEnd || isBelowStart) {
+        if (currentCard.classList.contains('current')) {
+          currentCard.classList.remove('current');
+          ns.state.removedCurrentCard = currentCard;
+          ns.state.lastCurrentCard = null;
+        }
+      } else if (isWithin) {
+        // Восстановление только той же карточке, у которой снимали ранее
+        if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
+          currentCard.classList.add('current');
+          ns.state.lastCurrentCard = currentCard;
+          ns.state.removedCurrentCard = null;
+        }
+      }
     }
-    */
   }
 
   
