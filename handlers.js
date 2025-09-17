@@ -2,6 +2,17 @@
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
 
+  // Отложенное обновление визуальных эффектов и z-index карточек
+  let lastViewportWidth = window.innerWidth;
+  let lastViewportHeight = window.innerHeight;
+  function refreshEffectsWithDelay(delayMs = 50) {
+    setTimeout(() => {
+      ns.effects.updateZIndexes(ns);
+      ns.effects.updateListItemEffects(ns);
+      ns.effects.scheduleFrameUpdate(ns);
+    }, delayMs);
+  }
+
   // Обработчик скролла списка карточек: перерисовать эффекты (через rAF).
   function onCardsScroll() {
     ns.effects.scheduleFrameUpdate(ns);
@@ -107,7 +118,6 @@
 
   // Привязать обработчики скролла и resize. На resize — пересчёт метрик и пересоздание observer.
   function bindAllScrolls(ns) {
-    console.log("Функция bindAllScrolls вызвана");
     ns.dom.container.addEventListener('scroll', onCardsScroll, { passive: true });
     window.addEventListener('scroll', onWindowScroll, { passive: true });
     window.addEventListener('resize', () => {
@@ -116,40 +126,6 @@
       ns.effects.scheduleFrameUpdate(ns);
       ns.layout.updateCasesContainerPaddingTop(ns);
     });
-
-    // Дополнительно: реакции на смену полноэкранного режима и видимости
-    let lastViewportWidth = window.innerWidth;
-    let lastViewportHeight = window.innerHeight;
-
-    const onResize = () => {
-      ns.utils.recalcMetrics(ns);
-      ns.sync.createCasesObserver(ns);
-      // Явно обновляем эффекты на основе свежих замеров
-      const containerRect = ns.dom.container.getBoundingClientRect();
-      const cardRects = ns.collections.cards.map(c => c.getBoundingClientRect());
-      const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
-      const meas = { containerRect, cardRects, caseRects };
-      ns.effects.updateZIndexes(ns, meas);
-      ns.effects.updateListItemEffects(ns, meas);
-      ns.effects.scheduleFrameUpdate(ns);
-      ns.layout.updateCasesContainerPaddingTop(ns);
-      lastViewportWidth = window.innerWidth;
-      lastViewportHeight = window.innerHeight;
-    };
-
-    document.addEventListener('fullscreenchange', onResize);
-    document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') {
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        if (w !== lastViewportWidth || h !== lastViewportHeight) {
-          onResize();
-        }
-      }
-    });
-    document.addEventListener('webkitfullscreenchange', onResize);
-    document.addEventListener('mozfullscreenchange', onResize);
-    document.addEventListener('MSFullscreenChange', onResize);
   }
 
   // Bootstrap: инициализация после DOMContentLoaded
@@ -176,6 +152,26 @@
     bindAllScrolls(ns);
 
     ns.effects.scheduleFrameUpdate(ns);
+
+    // Обновление эффектов при переходе в/из полноэкранного режима
+    document.addEventListener('fullscreenchange', () => { refreshEffectsWithDelay(); });
+    document.addEventListener('webkitfullscreenchange', () => { refreshEffectsWithDelay(); });
+    document.addEventListener('mozfullscreenchange', () => { refreshEffectsWithDelay(); });
+    document.addEventListener('MSFullscreenChange', () => { refreshEffectsWithDelay(); });
+
+    // При возврате вкладки в видимое состояние — триггерим обновление,
+    // только если реально изменились размеры
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        if (w !== lastViewportWidth || h !== lastViewportHeight) {
+          lastViewportWidth = w;
+          lastViewportHeight = h;
+          refreshEffectsWithDelay();
+        }
+      }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', bootstrap);
