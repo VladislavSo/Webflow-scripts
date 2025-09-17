@@ -60,8 +60,9 @@
 
     const idx1Prog = new Array(cards.length).fill(-1);
     const idx2Prog = new Array(cards.length).fill(-1);
+    // нижние каналы теперь: inc1 (index+1) и inc2 (index+2)
+    const inc1Prog = new Array(cards.length).fill(-1);
     const inc2Prog = new Array(cards.length).fill(-1);
-    const inc3Prog = new Array(cards.length).fill(-1);
 
     // верхнее влияние
     for (let j = 1; j < cards.length; j++) {
@@ -75,21 +76,21 @@
       if (t2 >= 0) idx2Prog[t2] = Math.max(idx2Prog[t2], p);
     }
 
-    // нижнее влияние
+    // нижнее влияние (index+1 и index+2)
     for (let j = 0; j < cards.length; j++) {
       const distFromBottom = containerRect.bottom - cardRects[j].bottom;
       if (distFromBottom < m.bottomBandStartPx || distFromBottom > m.bottomBandEndPx) continue;
       const p = Math.min(1, Math.max(0, (distFromBottom - m.bottomBandStartPx) / bottomRange));
       if (p <= 0) continue;
+      const t1 = j + 1;
       const t2 = j + 2;
-      const t3 = j + 3;
+      if (t1 < cards.length) inc1Prog[t1] = Math.max(inc1Prog[t1], p);
       if (t2 < cards.length) inc2Prog[t2] = Math.max(inc2Prog[t2], p);
-      if (t3 < cards.length) inc3Prog[t3] = Math.max(inc3Prog[t3], p);
     }
 
     let furthestBottomIdx = -1;
     for (let i = 0; i < cards.length; i++) {
-      if (inc2Prog[i] >= 0 || inc3Prog[i] >= 0) furthestBottomIdx = Math.max(furthestBottomIdx, i);
+      if (inc1Prog[i] >= 0 || inc2Prog[i] >= 0) furthestBottomIdx = Math.max(furthestBottomIdx, i);
     }
     const hasBottomTargets = furthestBottomIdx >= 0;
 
@@ -101,8 +102,8 @@
       else if (idx1Prog[i] >= 0) { topKind = 'idx1'; topP = idx1Prog[i]; }
 
       let botKind = null, botP = -1;
-      if (inc3Prog[i] >= 0) { botKind = 'inc3'; botP = inc3Prog[i]; }
-      else if (inc2Prog[i] >= 0) { botKind = 'inc2'; botP = inc2Prog[i]; }
+      if (inc2Prog[i] >= 0) { botKind = 'inc2'; botP = inc2Prog[i]; }
+      else if (inc1Prog[i] >= 0) { botKind = 'inc1'; botP = inc1Prog[i]; }
 
       // позиция
       if (topKind === 'idx2') {
@@ -115,11 +116,17 @@
         card.style.bottom = '0px';
       } else if (botKind) {
         card.style.top = '0px';
-        if (botKind === 'inc3') {
-          const b = -m.bottomIndex3StartPx + (m.bottomIndex3StartPx - m.bottomIndex3EndPx) * botP;
+        if (botKind === 'inc2') {
+          // index+2: от -start к -end (универсально, end может быть 0)
+          const start = m.bottomIndex2StartPx ?? m.bottomIndex3StartPx;
+          const end = m.bottomIndex2EndPx ?? m.bottomIndex3EndPx ?? 0;
+          const b = -start + (start - end) * botP;
           card.style.bottom = `${b}px`;
-        } else {
-          const b = -m.bottomIndex2StartPx + m.bottomIndex2StartPx * botP;
+        } else { // inc1
+          // index+1: от -start к -end (универсально, end может быть 0)
+          const start = m.bottomIndex1StartPx ?? m.bottomIndex2StartPx;
+          const end = m.bottomIndex1EndPx ?? m.bottomIndex2EndPx ?? 0;
+          const b = -start + (start - end) * botP;
           card.style.bottom = `${b}px`;
         }
       } else {
@@ -158,8 +165,8 @@
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
-      } else if (useKind === 'inc3') {
-        // снизу (index+3): scale 0.79→0.92, opacity 0→1, bg 14→18
+      } else if (useKind === 'inc2') {
+        // снизу (index+2): scale 0.79→0.92, opacity 0→1, bg 14→18
         const s = 0.79 + 0.13 * useP;
         const o = useP;
         const r = Math.round(color14.r + (color18.r - color14.r) * useP);
@@ -168,8 +175,8 @@
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
-      } else if (useKind === 'inc2') {
-        // снизу (index+2): scale 0.92→1, opacity 0→1, bg 18→21
+      } else if (useKind === 'inc1') {
+        // снизу (index+1): scale 0.92→1, opacity 0→1, bg 18→21
         const s = 0.92 + 0.08 * useP;
         const o = useP;
         const r = Math.round(color18.r + (color21.r - color18.r) * useP);
@@ -183,7 +190,8 @@
           card.style.transform = 'scale(0.79)';
           card.style.backgroundColor = `rgb(${ns.colors.color14.r}, ${ns.colors.color14.g}, ${ns.colors.color14.b})`;
           card.style.top = '0px';
-          card.style.bottom = `${-m.bottomIndex3StartPx}px`;
+          const start = m.bottomIndex2StartPx ?? m.bottomIndex3StartPx ?? 0;
+          card.style.bottom = `${-start}px`;
           ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '0'; });
         } else {
           card.style.transform = 'scale(1)';
@@ -204,6 +212,8 @@
       ns.state.lastCurrentCard = null;
     }
   }
+
+  
 
   // Единый rAF-цикл: один кадр — один набор замеров и применений.
   function scheduleFrameUpdate(ns) {
