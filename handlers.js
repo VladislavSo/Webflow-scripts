@@ -130,6 +130,7 @@
 
   // Обработчики полноэкранного режима и смены видимости
   function bindVisibilityAndFullscreen(ns) {
+    console.log("Функция вызвана");
     // Вызываем перерисовку при входе/выходе из полноэкранного режима
     const onFsChange = () => {
       callEffectsNow();
@@ -185,4 +186,5 @@
   document.addEventListener('DOMContentLoaded', bootstrap);
 
 })(window.StackUI);
+
 
