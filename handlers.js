@@ -10,8 +10,7 @@
       ns.effects.updateZIndexes(ns);
       ns.effects.updateListItemEffects(ns);
       ns.effects.scheduleFrameUpdate(ns);
-      console.log("Функция refreshEffectsWithDelay вызвана");
-    }, 1000);
+    }, 300);
   }
 
   // Обработчик скролла списка карточек: перерисовать эффекты (через rAF).
@@ -169,3 +168,4 @@
   document.addEventListener('DOMContentLoaded', bootstrap);
 
 })(window.StackUI);
+
