@@ -10,7 +10,7 @@
     ns.effects.updateZIndexes(ns);
     ns.effects.updateListItemEffects(ns);
     ns.effects.scheduleFrameUpdate(ns);
-    console.log("Функция вызвана");
+    console.log("Функция callEffectsNow вызвана");
   }
 
   // Обработчик скролла списка карточек: перерисовать эффекты (через rAF).
@@ -123,16 +123,21 @@
     window.addEventListener('resize', () => {
       ns.utils.recalcMetrics(ns);
       ns.sync.createCasesObserver(ns);
-      ns.effects.scheduleFrameUpdate(ns);
       ns.layout.updateCasesContainerPaddingTop(ns);
+      callEffectsNow();
+      lastViewportWidth = window.innerWidth;
+      lastViewportHeight = window.innerHeight;
     });
   }
 
   // Обработчики полноэкранного режима и смены видимости
   function bindVisibilityAndFullscreen(ns) {
-    console.log("Функция вызвана");
+    console.log("Функция bindVisibilityAndFullscreen вызвана");
     // Вызываем перерисовку при входе/выходе из полноэкранного режима
     const onFsChange = () => {
+      ns.utils.recalcMetrics(ns);
+      ns.sync.createCasesObserver(ns);
+      ns.layout.updateCasesContainerPaddingTop(ns);
       callEffectsNow();
       lastViewportWidth = window.innerWidth;
       lastViewportHeight = window.innerHeight;
@@ -148,9 +153,12 @@
         const w = window.innerWidth;
         const h = window.innerHeight;
         if (w !== lastViewportWidth || h !== lastViewportHeight) {
+          ns.utils.recalcMetrics(ns);
+          ns.sync.createCasesObserver(ns);
+          ns.layout.updateCasesContainerPaddingTop(ns);
+          callEffectsNow();
           lastViewportWidth = w;
           lastViewportHeight = h;
-          callEffectsNow();
         }
       }
     });
@@ -186,5 +194,3 @@
   document.addEventListener('DOMContentLoaded', bootstrap);
 
 })(window.StackUI);
-
-
