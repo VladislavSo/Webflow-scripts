@@ -1,71 +1,3 @@
-;(function(ns) {
-  'use strict';
-  if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
-
-  // Внутреннее состояние модуля
-  let lastLoggedActiveIndex = -1;
-
-  // Определить активный индекс карточки
-  function getActiveIndex() {
-    const cards = (ns.collections && ns.collections.cards) || [];
-    const total = cards.length;
-    if (total === 0) return -1;
-
-    // 1) Приоритет: последняя отмеченная current карточка
-    if (ns.state && ns.state.lastCurrentCard) {
-      const idx = cards.indexOf(ns.state.lastCurrentCard);
-      if (idx !== -1) return idx;
-    }
-
-    // 2) Фоллбэк: вычислить по scrollTop контейнера
-    const container = ns.dom && ns.dom.container;
-    if (!container) return 0;
-    const step = (ns.metrics && ns.metrics.containerItemHeightPx || 0) + (ns.state && ns.state.rowGapPx || 0);
-    if (step <= 0) return 0;
-    const approx = Math.round(container.scrollTop / step);
-    return Math.max(0, Math.min(total - 1, approx));
-  }
-
-  // Простой лог соседей i-1, i-2, i+2, i+3
-  function logNeighbors(activeIndex) {
-    const cards = (ns.collections && ns.collections.cards) || [];
-    const total = cards.length;
-    if (total === 0 || activeIndex < 0) return;
-
-    const inRange = (i) => (i >= 0 && i < total) ? i : null;
-
-    const iMinus1 = inRange(activeIndex - 1);
-    const iMinus2 = inRange(activeIndex - 2);
-    const iPlus2  = inRange(activeIndex + 2);
-    const iPlus3  = inRange(activeIndex + 3);
-
-    const source = ns.state && ns.state.fromListScroll ? 'list' : 'window';
-    // Формат: i-1, i-2, i+2, i+3, active, источник
-    console.log('[effects] i-1=%s i-2=%s i+2=%s i+3=%s (active=%s, src=%s)',
-      iMinus1, iMinus2, iPlus2, iPlus3, activeIndex, source);
-  }
-
-  function frameUpdate() {
-    ns.state.tickingFrame = false;
-    const activeIndex = getActiveIndex();
-    if (activeIndex !== lastLoggedActiveIndex) {
-      logNeighbors(activeIndex);
-      lastLoggedActiveIndex = activeIndex;
-    }
-    // Сбрасываем флаг источника кадра
-    ns.state.fromListScroll = false;
-  }
-
-  function scheduleFrameUpdate() {
-    if (ns.state.tickingFrame) return;
-    ns.state.tickingFrame = true;
-    requestAnimationFrame(frameUpdate);
-  }
-
-  ns.effects = ns.effects || {};
-  ns.effects.scheduleFrameUpdate = scheduleFrameUpdate;
-})(window.StackUI);
-
 (function(ns) {
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
@@ -301,4 +233,3 @@
     scheduleFrameUpdate
   };
 })(window.StackUI);
-
