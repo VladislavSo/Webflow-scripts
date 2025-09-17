@@ -45,8 +45,8 @@
       ns.state.baseMarginBottomPx = marginBottomPx;
     }
 
-    // Начальная высота списка по прогрессу (p=0 → 36rem)
-    const listHeightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
+    // Начальная высота списка по прогрессу (p=0 → 36.5rem)
+    const listHeightStartPx = ns.metrics.listHeightStartPx || (36.5 * ns.metrics.root);
     listEl.style.height = `${Math.round(listHeightStartPx)}px`;
   }
 
@@ -113,8 +113,8 @@
     const currentPx = Math.round(basePx + (targetPx - basePx) * p);
     wrapperEl.style.marginBottom = `${currentPx}px`;
 
-    // Интерполяция высоты списка: 36rem → 43.875rem по progress
-    const heightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
+    // Интерполяция высоты списка: 36.5rem → 43.875rem по progress
+    const heightStartPx = ns.metrics.listHeightStartPx || (36.5 * ns.metrics.root);
     const heightEndPx = ns.metrics.listHeightEndPx || (43.875 * ns.metrics.root);
     const listHeightPx = Math.round(heightStartPx + (heightEndPx - heightStartPx) * p);
     listEl.style.height = `${listHeightPx}px`;
@@ -124,3 +124,4 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
