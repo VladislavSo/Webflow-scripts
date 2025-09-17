@@ -118,14 +118,6 @@ window.StackUI = window.StackUI || {};
   ns.cache = {
     cardChildren: []  // Дочерние элементы карточек для управления opacity
   };
-  
-  // Отладка (визуализация зон влияния)
-  ns.debug = {
-    enabled: true,
-    overlays: {
-      top: null,
-      bottom: null
-    }
-  };
 })(window.StackUI);
+
 
