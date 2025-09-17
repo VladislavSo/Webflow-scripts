@@ -142,8 +142,8 @@
         callEffectsNow();
         lastViewportWidth = window.innerWidth;
         lastViewportHeight = window.innerHeight;
+        console.log("Delay отработал");
       }, 300);
-      console.log("Delay отработал");
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -197,4 +197,5 @@
   document.addEventListener('DOMContentLoaded', bootstrap);
 
 })(window.StackUI);
+
 
