@@ -159,22 +159,20 @@
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc3') {
-        // снизу (index+3), при движении от bottomBandEnd→bottomBandStart:
-        //   scale 0.92→0.79, opacity 0→0, bg 18→14
-        const s = 0.79 + 0.13 * useP; // при p:1→0 даёт 0.92→0.79
-        const o = 0;
-        const r = Math.round(color14.r + (color18.r - color14.r) * useP); // при p:1→0 даёт 18→14
+        // снизу (index+3): scale 0.79→0.92, opacity 0→1, bg 14→18
+        const s = 0.79 + 0.13 * useP;
+        const o = useP;
+        const r = Math.round(color14.r + (color18.r - color14.r) * useP);
         const g = Math.round(color14.g + (color18.g - color14.g) * useP);
         const b = Math.round(color14.b + (color18.b - color14.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc2') {
-        // снизу (index+2), при движении от bottomBandEnd→bottomBandStart:
-        //   scale 1→0.92, opacity 1→0, bg 21→18
-        const s = 0.92 + 0.08 * useP; // при p:1→0 даёт 1→0.92
-        const o = useP;               // при p:1→0 даёт 1→0
-        const r = Math.round(color18.r + (color21.r - color18.r) * useP); // при p:1→0 даёт 21→18
+        // снизу (index+2): scale 0.92→1, opacity 0→1, bg 18→21
+        const s = 0.92 + 0.08 * useP;
+        const o = useP;
+        const r = Math.round(color18.r + (color21.r - color18.r) * useP);
         const g = Math.round(color18.g + (color21.g - color18.g) * useP);
         const b = Math.round(color18.b + (color21.b - color18.b) * useP);
         card.style.transform = `scale(${s})`;
