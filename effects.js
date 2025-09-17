@@ -192,17 +192,21 @@
         }
       }
 
+      /* Removed: отключено отмечание current-карточки как затронутой эффектом на кадре скролла списка
       // если именно current-карточка получила эффект в кадре скролла списка — отметим
       if (ns.state.fromListScroll && i === currentIdx) {
         if (useKind) currentAffected = true;
       }
+      */
     }
 
+    /* Removed: отключено снятие класса current после применения эффектов
     // после применения ко всем — снять current, если нужно
     if (ns.state.fromListScroll && currentAffected && currentCard) {
       currentCard.classList.remove('current');
       ns.state.lastCurrentCard = null;
     }
+    */
   }
 
   
@@ -233,3 +237,4 @@
     scheduleFrameUpdate
   };
 })(window.StackUI);
+
