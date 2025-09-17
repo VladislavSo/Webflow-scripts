@@ -205,8 +205,6 @@
     }
   }
 
-  
-
   // Единый rAF-цикл: один кадр — один набор замеров и применений.
   function scheduleFrameUpdate(ns) {
     if (ns.state.tickingFrame) return;
