@@ -45,22 +45,21 @@
 
     // Константы (в rem)
     ns.constants = {
-      thresholdRem: 10.75,            // Порог смены z-index
+      thresholdRem: 10.625,            // Порог смены z-index
       triggerOffsetRem: 33.75,        // Вертикаль активации элемента кейса
       containerItemHeightRem: 7.375,  // Вертикальный шаг карточек списка
       pageScrollOffsetRem: 6.5,       // Отступ при прокрутке окна к кейсу
 
       // Верхняя полоса влияния (управляет i-1 и i-2)
-      effectStartRem: 10,
-      effectEndRem: 2.875,
-      topIndex1StartRem: 0,
+      effectStartRem: 10.125,
+      effectEndRem: 2.75,
       topIndex1EndRem: -1.5,
       topIndex2StartRem: -1.5,
       topIndex2EndRem: -2.75,
 
       // Нижняя полоса влияния (управляет i+2 и i+3)
-      bottomBandStartRem: 10.75,
-      bottomBandEndRem: 17.875,
+      bottomBandStartRem: 10.625,
+      bottomBandEndRem: 18,
       bottomIndex2StartRem: -1.5,
       bottomIndex2EndRem: 0,
       bottomIndex3StartRem: -2.75,
@@ -121,6 +120,7 @@
     };
 
   })(window.StackUI);
+
 
 
 
