@@ -43,11 +43,6 @@
       return;
     }
 
-    // ленивое выделение кэша прошлой непрозрачности для нижнего диапазона
-    if (!ns.cache.lastBottomOpacity || ns.cache.lastBottomOpacity.length !== cards.length) {
-      ns.cache.lastBottomOpacity = new Array(cards.length).fill(1);
-    }
-
     // сброс
     cards.forEach((card, idx) => {
       card.style.transform = 'scale(1)';
@@ -153,7 +148,6 @@
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
-        // верхний канал не трогает кэш нижней непрозрачности
       } else if (useKind === 'idx1') {
         // сверху (index-1): scale 1→0.92, opacity 1→0, bg 21→18
         const s = 1 - 0.08 * useP;
@@ -164,29 +158,25 @@
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
-        // верхний канал не трогает кэш нижней непрозрачности
       } else if (useKind === 'inc3') {
-        // снизу (index+3): scale 0.79→0.92, opacity 0→1, bg 14→18
+        // снизу (index+3): scale 0.79→0.92, opacity перманентно 0, bg 14→18
         const s = 0.79 + 0.13 * useP;
-        const o = useP;
         const r = Math.round(color14.r + (color18.r - color14.r) * useP);
         const g = Math.round(color14.g + (color18.g - color14.g) * useP);
         const b = Math.round(color14.b + (color18.b - color14.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
-        ns.cache.lastBottomOpacity[i] = o;
+        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '0'; });
       } else if (useKind === 'inc2') {
-        // снизу (index+2): scale 0.92→1, opacity 0→1, bg 18→21
+        // снизу (index+2): scale 0.92→1, opacity 1→0, bg 18→21
         const s = 0.92 + 0.08 * useP;
-        const o = useP;
+        const o = 1 - useP;
         const r = Math.round(color18.r + (color21.r - color18.r) * useP);
         const g = Math.round(color18.g + (color21.g - color18.g) * useP);
         const b = Math.round(color18.b + (color21.b - color18.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
-        ns.cache.lastBottomOpacity[i] = o;
       } else {
         if (hasBottomTargets && i > furthestBottomIdx) {
           card.style.transform = 'scale(0.79)';
@@ -194,27 +184,13 @@
           card.style.top = '0px';
           card.style.bottom = `${-m.bottomIndex3StartPx}px`;
           ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '0'; });
-          ns.cache.lastBottomOpacity[i] = 0;
         } else {
-          // Если элемент находится в нижней полосе, но на этот кадр не выбран ни inc2, ни inc3,
-          // удерживаем прошлое значение opacity, чтобы избежать скачка при переходе inc2→inc3.
-          const bottomStart = m.bottomBandStartPx;
-          const bottomEnd = m.bottomBandEndPx;
-          let inBottomBandForI = false;
-          if (i - 2 >= 0) {
-            const d2 = containerRect.bottom - cardRects[i - 2].bottom;
-            if (d2 >= bottomStart && d2 <= bottomEnd) inBottomBandForI = true;
-          }
-          if (!inBottomBandForI && i - 3 >= 0) {
-            const d3 = containerRect.bottom - cardRects[i - 3].bottom;
-            if (d3 >= bottomStart && d3 <= bottomEnd) inBottomBandForI = true;
-          }
-
           card.style.transform = 'scale(1)';
           card.style.backgroundColor = `rgb(${ns.colors.color21.r}, ${ns.colors.color21.g}, ${ns.colors.color21.b})`;
-          const keep = inBottomBandForI ? ns.cache.lastBottomOpacity[i] : 1;
-          ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(keep); });
-          if (!inBottomBandForI) ns.cache.lastBottomOpacity[i] = 1;
+          // Если карточка находится в нижней полосе влияния, но доминирующего канала в этом кадре нет — не поднимать opacity до 1
+          const distFromBottom = containerRect.bottom - cardRects[i].bottom;
+          const inBottomBand = distFromBottom >= m.bottomBandStartPx && distFromBottom <= m.bottomBandEndPx;
+          ns.cache.cardChildren[i].forEach(el => { el.style.opacity = inBottomBand ? '0' : '1'; });
         }
       }
 
