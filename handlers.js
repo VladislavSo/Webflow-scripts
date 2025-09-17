@@ -5,12 +5,12 @@
   // Отложенное обновление визуальных эффектов и z-index карточек
   let lastViewportWidth = window.innerWidth;
   let lastViewportHeight = window.innerHeight;
-  function refreshEffectsWithDelay(delayMs = 50) {
+  function refreshEffectsWithDelay() {
     setTimeout(() => {
       ns.effects.updateZIndexes(ns);
       ns.effects.updateListItemEffects(ns);
       ns.effects.scheduleFrameUpdate(ns);
-    }, delayMs);
+    }, 1000);
   }
 
   // Обработчик скролла списка карточек: перерисовать эффекты (через rAF).
