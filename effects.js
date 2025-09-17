@@ -159,14 +159,15 @@
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc3') {
-        // снизу (index+3): scale 0.79→0.92, opacity перманентно 0, bg 14→18
+        // снизу (index+3): scale 0.79→0.92, opacity всегда 0, bg 14→18
         const s = 0.79 + 0.13 * useP;
+        const o = 0;
         const r = Math.round(color14.r + (color18.r - color14.r) * useP);
         const g = Math.round(color14.g + (color18.g - color14.g) * useP);
         const b = Math.round(color14.b + (color18.b - color14.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '0'; });
+        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc2') {
         // снизу (index+2): scale 0.92→1, opacity 1→0, bg 18→21
         const s = 0.92 + 0.08 * useP;
@@ -187,10 +188,7 @@
         } else {
           card.style.transform = 'scale(1)';
           card.style.backgroundColor = `rgb(${ns.colors.color21.r}, ${ns.colors.color21.g}, ${ns.colors.color21.b})`;
-          // Если карточка находится в нижней полосе влияния, но доминирующего канала в этом кадре нет — не поднимать opacity до 1
-          const distFromBottom = containerRect.bottom - cardRects[i].bottom;
-          const inBottomBand = distFromBottom >= m.bottomBandStartPx && distFromBottom <= m.bottomBandEndPx;
-          ns.cache.cardChildren[i].forEach(el => { el.style.opacity = inBottomBand ? '0' : '1'; });
+          ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '1'; });
         }
       }
 
