@@ -94,10 +94,29 @@
 
     m.bottomBandStartPx = toPx(c.bottomBandStartRem);
     m.bottomBandEndPx = toPx(c.bottomBandEndRem);
-    m.bottomIndex2StartPx = toPx(Math.abs(c.bottomIndex2StartRem));
-    m.bottomIndex2EndPx = toPx(Math.abs(c.bottomIndex2EndRem));
-    m.bottomIndex3StartPx = toPx(Math.abs(c.bottomIndex3StartRem));
-    m.bottomIndex3EndPx = toPx(Math.abs(c.bottomIndex3EndRem));
+
+    // Обратная совместимость: поддержка как новой схемы (bottomIndex1/bottomIndex2),
+    // так и старой (bottomIndex2/bottomIndex3)
+    const b1StartRem = (typeof c.bottomIndex1StartRem === 'number') ? c.bottomIndex1StartRem : c.bottomIndex2StartRem;
+    const b1EndRem   = (typeof c.bottomIndex1EndRem === 'number')   ? c.bottomIndex1EndRem   : c.bottomIndex2EndRem;
+    const b2StartRem = (typeof c.bottomIndex2StartRem === 'number') ? c.bottomIndex2StartRem : c.bottomIndex3StartRem;
+    const b2EndRem   = (typeof c.bottomIndex2EndRem === 'number')   ? c.bottomIndex2EndRem   : c.bottomIndex3EndRem;
+
+    // Новые метрики (используются нижними эффектами index+1 и index+2)
+    m.bottomIndex1StartPx = toPx(Math.abs(b1StartRem));
+    m.bottomIndex1EndPx = toPx(Math.abs(b1EndRem));
+    m.bottomIndex2StartPx = toPx(Math.abs(b2StartRem));
+    m.bottomIndex2EndPx = toPx(Math.abs(b2EndRem));
+
+    // Старые поля сохраняем для модулей, которые могли их использовать ранее
+    if (typeof c.bottomIndex2StartRem === 'number' && typeof c.bottomIndex2EndRem === 'number') {
+      m.bottomIndex2StartPx = toPx(Math.abs(c.bottomIndex2StartRem));
+      m.bottomIndex2EndPx = toPx(Math.abs(c.bottomIndex2EndRem));
+    }
+    if (typeof c.bottomIndex3StartRem === 'number' && typeof c.bottomIndex3EndRem === 'number') {
+      m.bottomIndex3StartPx = toPx(Math.abs(c.bottomIndex3StartRem));
+      m.bottomIndex3EndPx = toPx(Math.abs(c.bottomIndex3EndRem));
+    }
 
     m.wrapperMarginStartPx = toPx(c.wrapperMarginStartRem);
     m.wrapperMarginEndPx = toPx(c.wrapperMarginEndRem);
