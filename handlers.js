@@ -94,11 +94,13 @@
         }
 
         ns.utils.waitForElementScrollEnd(ns.dom.container).then(() => {
-          ns.state.isProgrammaticListScroll = false;
-          ns.collections.cards.forEach(c => c.classList.remove('current'));
-          targetCard.classList.add('current');
-          ns.state.lastCurrentCard = targetCard;
-          ns.effects.scheduleFrameUpdate(ns);
+          setTimeout(() => {
+            ns.state.isProgrammaticListScroll = false;
+            ns.collections.cards.forEach(c => c.classList.remove('current'));
+            targetCard.classList.add('current');
+            ns.state.lastCurrentCard = targetCard;
+            ns.effects.scheduleFrameUpdate(ns);
+          }, 0);
         });
       });
     }
@@ -142,4 +144,5 @@
     }
 
     document.addEventListener('DOMContentLoaded', bootstrap);
+
   })(window.StackUI);
