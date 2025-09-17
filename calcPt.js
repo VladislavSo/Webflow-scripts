@@ -115,7 +115,7 @@
 
     // Интерполяция высоты списка: 36rem → 43.875rem по progress
     const heightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
-    const heightEndPx = ns.metrics.listHeightEndPx || (43.875 * ns.metrics.root);
+    const heightEndPx = ns.metrics.listHeightEndPx || (44 * ns.metrics.root);
     const listHeightPx = Math.round(heightStartPx + (heightEndPx - heightStartPx) * p);
     listEl.style.height = `${listHeightPx}px`;
   };
@@ -124,3 +124,4 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
