@@ -45,7 +45,7 @@ window.StackUI = window.StackUI || {};
 
   // Константы (в rem)
   ns.constants = {
-    thresholdRem: 10.625,            // Порог смены z-index
+    thresholdRem: 15.75,            // Порог смены z-index
     triggerOffsetRem: 33.75,        // Вертикаль активации элемента кейса
     containerItemHeightRem: 7.375,  // Вертикальный шаг карточек списка
     pageScrollOffsetRem: 6.5,       // Отступ при прокрутке окна к кейсу
@@ -119,6 +119,7 @@ window.StackUI = window.StackUI || {};
     cardChildren: []  // Дочерние элементы карточек для управления opacity
   };
 })(window.StackUI);
+
 
 
 
