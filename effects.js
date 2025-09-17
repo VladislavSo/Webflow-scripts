@@ -253,7 +253,7 @@
         overlay.style.zIndex = '9999';
         overlay.style.background = color;
         overlay.style.mixBlendMode = 'screen';
-        overlay.style.opacity = '0.18';
+        overlay.style.opacity = '0.35';
         document.body.appendChild(overlay);
         return overlay;
       };
