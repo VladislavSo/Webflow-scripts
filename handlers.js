@@ -2,17 +2,6 @@
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
 
-  // Запоминаем последние известные размеры вьюпорта для видимости/фуллскрина
-  let lastViewportWidth = window.innerWidth;
-  let lastViewportHeight = window.innerHeight;
-
-  function callEffectsNow() {
-    ns.effects.updateZIndexes(ns);
-    ns.effects.updateListItemEffects(ns);
-    ns.effects.scheduleFrameUpdate(ns);
-    console.log("Функция callEffectsNow вызвана");
-  }
-
   // Обработчик скролла списка карточек: перерисовать эффекты (через rAF).
   function onCardsScroll() {
     ns.effects.scheduleFrameUpdate(ns);
@@ -118,53 +107,49 @@
 
   // Привязать обработчики скролла и resize. На resize — пересчёт метрик и пересоздание observer.
   function bindAllScrolls(ns) {
+    console.log("Функция bindAllScrolls вызвана");
     ns.dom.container.addEventListener('scroll', onCardsScroll, { passive: true });
     window.addEventListener('scroll', onWindowScroll, { passive: true });
     window.addEventListener('resize', () => {
       ns.utils.recalcMetrics(ns);
       ns.sync.createCasesObserver(ns);
+      ns.effects.scheduleFrameUpdate(ns);
       ns.layout.updateCasesContainerPaddingTop(ns);
-      callEffectsNow();
+    });
+
+    // Дополнительно: реакции на смену полноэкранного режима и видимости
+    let lastViewportWidth = window.innerWidth;
+    let lastViewportHeight = window.innerHeight;
+
+    const onResize = () => {
+      ns.utils.recalcMetrics(ns);
+      ns.sync.createCasesObserver(ns);
+      // Явно обновляем эффекты на основе свежих замеров
+      const containerRect = ns.dom.container.getBoundingClientRect();
+      const cardRects = ns.collections.cards.map(c => c.getBoundingClientRect());
+      const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
+      const meas = { containerRect, cardRects, caseRects };
+      ns.effects.updateZIndexes(ns, meas);
+      ns.effects.updateListItemEffects(ns, meas);
+      ns.effects.scheduleFrameUpdate(ns);
+      ns.layout.updateCasesContainerPaddingTop(ns);
       lastViewportWidth = window.innerWidth;
       lastViewportHeight = window.innerHeight;
-    });
-  }
-
-  // Обработчики полноэкранного режима и смены видимости
-  function bindVisibilityAndFullscreen(ns) {
-    console.log("Функция bindVisibilityAndFullscreen вызвана");
-    // Вызываем перерисовку при входе/выходе из полноэкранного режима
-    const onFsChange = () => {
-      setTimeout(() => {
-        ns.utils.recalcMetrics(ns);
-        ns.sync.createCasesObserver(ns);
-        ns.layout.updateCasesContainerPaddingTop(ns);
-        callEffectsNow();
-        lastViewportWidth = window.innerWidth;
-        lastViewportHeight = window.innerHeight;
-        console.log("Delay отработал");
-      }, 300);
     };
-    document.addEventListener('fullscreenchange', onFsChange);
-    document.addEventListener('webkitfullscreenchange', onFsChange);
-    document.addEventListener('mozfullscreenchange', onFsChange);
-    document.addEventListener('MSFullscreenChange', onFsChange);
 
-    // При смене видимости: обновляем только если реально изменились размеры
+    document.addEventListener('fullscreenchange', onResize);
     document.addEventListener('visibilitychange', function() {
       if (document.visibilityState === 'visible') {
         const w = window.innerWidth;
         const h = window.innerHeight;
         if (w !== lastViewportWidth || h !== lastViewportHeight) {
-          ns.utils.recalcMetrics(ns);
-          ns.sync.createCasesObserver(ns);
-          ns.layout.updateCasesContainerPaddingTop(ns);
-          callEffectsNow();
-          lastViewportWidth = w;
-          lastViewportHeight = h;
+          onResize();
         }
       }
     });
+    document.addEventListener('webkitfullscreenchange', onResize);
+    document.addEventListener('mozfullscreenchange', onResize);
+    document.addEventListener('MSFullscreenChange', onResize);
   }
 
   // Bootstrap: инициализация после DOMContentLoaded
@@ -189,7 +174,6 @@
     bindCardClicks(ns);
     bindHoverHandlers(ns);
     bindAllScrolls(ns);
-    bindVisibilityAndFullscreen(ns);
 
     ns.effects.scheduleFrameUpdate(ns);
   }
@@ -197,5 +181,3 @@
   document.addEventListener('DOMContentLoaded', bootstrap);
 
 })(window.StackUI);
-
-
