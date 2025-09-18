@@ -211,8 +211,8 @@
     // Логика снятия/восстановления current на основе выхода за рамки
     if (ns.state.fromListScroll && currentCard && currentIdx !== -1) {
       const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
-      const distTop = r.top - containerRect.top;                 // расстояние до верха контейнера
-      const distFromBottom = containerRect.bottom - r.bottom;     // расстояние от низа контейнера до низа карточки
+      const distTop = r.top - containerRect.top - 1;                   // расстояние до верха контейнера (минус 1px)
+      const distFromBottom = containerRect.bottom - r.bottom - 1;      // расстояние от низа контейнера до низа карточки
 
       const isAboveEnd = distTop < ns.metrics.effectEndPx;        // строго меньше нижней границы верхней полосы
       const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx; // строго больше начала нижней полосы
