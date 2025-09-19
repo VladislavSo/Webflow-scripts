@@ -32,10 +32,10 @@ html::-webkit-scrollbar,
 }
 /*
 html, body {
-  font-family: 'TT Hoves Pro Variable', Arial, sans-serif;
-  font-style: normal;
-  font-synthesis: none;
-  font-variation-settings: "wght" 400, "slnt" 0, "ital" 0;
+font-family: 'TT Hoves Pro Variable', Arial, sans-serif;
+font-style: normal;
+font-synthesis: none;
+font-variation-settings: "wght" 400, "slnt" 0, "ital" 0;
 }
 */
 * {
@@ -63,19 +63,19 @@ body {
 }
 /*
 @font-face {
-  font-family: "TT Hoves Pro Variable";
-  src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
-  font-weight: 50 900;
-  font-style: normal;
-  font-display: swap;
+font-family: "TT Hoves Pro Variable";
+src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
+font-weight: 50 900;
+font-style: normal;
+font-display: swap;
 }
 
 @font-face {
-  font-family: "TT Hoves Pro Variable";
-  src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
-  font-weight: 50 900;
-  font-style: italic;
-  font-display: swap;
+font-family: "TT Hoves Pro Variable";
+src: url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.woff2") format("woff2"), url("https://vladislavso.github.io/Webflow-scripts/TT-Hoves-Pro-Variable.ttf") format("truetype");
+font-weight: 50 900;
+font-style: italic;
+font-display: swap;
 }
 */
 
@@ -475,6 +475,14 @@ body {
     font-size: 1.75rem;
     font-variation-settings: "wght" 440, "slnt" 0, "ital" 0;
     line-height: 100%;
+  }
+  .ad-fs-24 {
+    color: #e2dddd;
+    font-size: 1.5rem;
+    font-variation-settings: "wght" 480, "slnt" 0, "ital" 0;
+    line-height: 140%;
+    letter-spacing: -0.015rem;
+    margin: 0;
   }
   .ad-fs-17 {
     font-size: 1.0625rem;
@@ -1298,26 +1306,7 @@ body {
 
 @media (max-width: 479px) {
   .preloader-wrapper > div:nth-child(1)  > svg {
-  	width: 2rem;
+    width: 2rem;
     height: 2rem;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
