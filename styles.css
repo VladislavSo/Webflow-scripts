@@ -1294,6 +1294,12 @@ body {
   .ad-fw--500 { font-variation-settings: "wght" 500, "slnt" 0, "ital" 0 !important; }
 }
 
+@media (max-width: 479px) {
+  .preloader-wrapper > div:nth-child(1)  > svg {
+  	width: 2rem;
+    height: 2rem;
+  }
+}
 
 
 
