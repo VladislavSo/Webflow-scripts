@@ -487,7 +487,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Видео строго из .story-track (мобильная платформа)
   function getStoryTrackVideos(item) {
     if (!item) return [];
-    const root = item.querySelector('.story-slider__wrapper__mask__inner') || item.querySelector('.story-slider__wrapper') || item.querySelector('.story-track') || item;
+    // Собирать видео из всей mask: для первой загрузки берём первый ролик активного inner отдельно
+    const mask = item.querySelector('.story-slider__wrapper__mask');
+    const root = mask || item.querySelector('.story-slider__wrapper__mask__inner') || item.querySelector('.story-slider__wrapper') || item.querySelector('.story-track') || item;
     return Array.from(root.querySelectorAll('video'));
   }
 
@@ -569,8 +571,13 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     const loadRestVideos = async (item) => {
       if (!item) return;
+      const mask = item.querySelector('.story-slider__wrapper__mask');
+      const inners = mask ? Array.from(mask.querySelectorAll('.story-slider__wrapper__mask__inner')) : [];
+      // Собираем все видео из всех иннеров, пропуская первый ролик активного иннера
+      const activeInner = inners.find(el => !el.hasAttribute('aria-hidden')) || inners[0] || null;
+      const activeFirst = activeInner ? (activeInner.querySelector('.slide-inner__video-block video') || activeInner.querySelector('video')) : null;
       const all = getStoryTrackVideos(item);
-      const rest = all.slice(1);
+      const rest = all.filter(v => v !== activeFirst);
       for (const v of rest) {
         if (seqId !== prioritySequenceId) return;
         if (v.dataset && v.dataset.src && !v.dataset.loaded) {
