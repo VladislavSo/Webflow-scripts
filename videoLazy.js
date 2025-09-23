@@ -108,6 +108,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function attachPlaybandToCurrentActive() {
+    // Полоса используется только на десктопе
+    if (!isDesktop) return;
     const active = itemsArray.find(i => i.classList.contains('active'));
     if (active) attachPlaybandToItem(active);
   }
@@ -521,9 +523,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Мобильная приоритетная последовательность загрузки
   async function startPrioritySequenceMobile(activeIndex) {
     const seqId = ++prioritySequenceId;
-    const activeItem = itemsArray[activeIndex];
-    const nextItem = activeIndex < itemsArray.length - 1 ? itemsArray[activeIndex + 1] : null;
-    const prevItem = activeIndex > 0 ? itemsArray[activeIndex - 1] : null;
+    // Фолбэк: если нет активного, берём первый элемент
+    let idx = activeIndex;
+    if (idx == null || idx === -1) {
+      idx = 0;
+    }
+    const activeItem = itemsArray[idx];
+    const nextItem = idx < itemsArray.length - 1 ? itemsArray[idx + 1] : null;
+    const prevItem = idx > 0 ? itemsArray[idx - 1] : null;
 
     // Выгружаем всё вне области (оставляем только active, next, prev)
     updateLoadingScope(activeIndex);
@@ -537,6 +544,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const videos = getStoryTrackVideos(item);
       const first = videos[0];
       if (!first) return;
+      // Обязательные атрибуты для мобильного автоплея
+      try { first.muted = true; } catch(_) {}
+      try { if (!first.hasAttribute('muted')) first.setAttribute('muted', ''); } catch(_) {}
+      try { if (!first.hasAttribute('playsinline')) first.setAttribute('playsinline', ''); } catch(_) {}
+      try { if (!first.hasAttribute('webkit-playsinline')) first.setAttribute('webkit-playsinline', ''); } catch(_) {}
       if (first.dataset && first.dataset.src && !first.dataset.loaded) {
         await attachSourceAfterFetch(first);
       }
@@ -557,10 +569,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
-    // Активный: сразу применяем звук и полосу-наблюдатель
+    // Активный: сразу применяем звук
     if (activeItem) {
       applyAudioStateOnActivation(activeItem);
-      attachPlaybandToItem(activeItem);
       await loadFirstVideo(activeItem, true);
       if (seqId !== prioritySequenceId) return;
     }
