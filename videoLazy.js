@@ -388,7 +388,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (activeIndex === -1) {
       // Фолбэк для мобильных: запускаем от первого кейса, чтобы не ждать появления класса active
       if (isMobile) {
-        startPrioritySequenceMobile(0);
+        loadAllMobileVideosImmediate();
       }
       return;
     }
@@ -493,10 +493,55 @@ document.addEventListener("DOMContentLoaded", () => {
     return Array.from(root.querySelectorAll('video'));
   }
 
+  // Мобайл: собрать ВСЕ видео внутри slide-inner__video-block по всей маске
+  function getAllMobileSlideBlockVideos(item) {
+    if (!item) return [];
+    const mask = item.querySelector('.story-slider__wrapper__mask');
+    const scope = mask || item;
+    const byBlock = Array.from(scope.querySelectorAll('.slide-inner__video-block video'));
+    return byBlock.length > 0 ? byBlock : Array.from(scope.querySelectorAll('video'));
+  }
+
+  async function ensurePoster(video) {
+    if (!video) return;
+    let poster = video.getAttribute('poster');
+    if (!poster && video.dataset && video.dataset.poster) {
+      try { video.setAttribute('poster', video.dataset.poster); } catch(_) {}
+      poster = video.dataset.poster;
+    }
+    if (poster) { try { const img = new Image(); img.src = poster; } catch(_) {} }
+  }
+
+  // Мобайл: загрузить ВСЕ постеры и источники для всех видео сразу (без приоритета)
+  async function loadAllMobileVideosImmediate() {
+    const seqId = ++prioritySequenceId;
+    for (const item of itemsArray) {
+      const videos = getAllMobileSlideBlockVideos(item);
+      for (const v of videos) {
+        if (seqId !== prioritySequenceId) return;
+        await ensurePoster(v);
+        try { v.muted = true; } catch(_) {}
+        try { if (!v.hasAttribute('muted')) v.setAttribute('muted', ''); } catch(_) {}
+        try { if (!v.hasAttribute('playsinline')) v.setAttribute('playsinline', ''); } catch(_) {}
+        try { if (!v.hasAttribute('webkit-playsinline')) v.setAttribute('webkit-playsinline', ''); } catch(_) {}
+        if (v.dataset && v.dataset.src && !v.dataset.loaded) {
+          await attachSourceAfterFetch(v);
+        }
+        try { v.preload = 'auto'; } catch(_) {}
+        try { v.load(); } catch(_) {}
+      }
+    }
+    const active = itemsArray.find(i => i.classList.contains('active')) || itemsArray[0];
+    if (active) {
+      applyAudioStateOnActivation(active);
+      enableAutoplayAndPlay(active);
+    }
+  }
+
   async function startPrioritySequence(activeIndex) {
-    // Для мобильной платформы (<= 479px) используем особый порядок загрузки
+    // Для мобильной платформы (<= 479px) убираем приоритизацию и грузим всё сразу
     if (isMobile) {
-      return startPrioritySequenceMobile(activeIndex);
+      return loadAllMobileVideosImmediate();
     }
 
     const seqId = ++prioritySequenceId;
@@ -532,93 +577,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 4) Остальные постеры грузит стартовавшая цепочка startPosterPriorityChain
   }
 
-  // Мобильная приоритетная последовательность загрузки
-  async function startPrioritySequenceMobile(activeIndex) {
-    const seqId = ++prioritySequenceId;
-    // Фолбэк: если нет активного, берём первый элемент
-    let idx = activeIndex;
-    if (idx == null || idx === -1) {
-      idx = 0;
-    }
-    const activeItem = itemsArray[idx];
-    const nextItem = idx < itemsArray.length - 1 ? itemsArray[idx + 1] : null;
-    const prevItem = idx > 0 ? itemsArray[idx - 1] : null;
-
-    // Выгружаем всё вне области (оставляем только active, next, prev)
-    updateLoadingScope(activeIndex);
-
-    // Запускаем загрузку постеров в порядке active → next → prev → next2 (как и раньше)
-    startPosterPriorityChain(activeIndex);
-
-    // Вспомогательные загрузчики
-    const loadFirstVideo = async (item, autoplay) => {
-      if (!item) return;
-      const videos = getStoryTrackVideos(item);
-      const first = videos[0];
-      if (!first) return;
-      // Обязательные атрибуты для мобильного автоплея
-      try { first.muted = true; } catch(_) {}
-      try { if (!first.hasAttribute('muted')) first.setAttribute('muted', ''); } catch(_) {}
-      try { if (!first.hasAttribute('playsinline')) first.setAttribute('playsinline', ''); } catch(_) {}
-      try { if (!first.hasAttribute('webkit-playsinline')) first.setAttribute('webkit-playsinline', ''); } catch(_) {}
-      if (first.dataset && first.dataset.src && !first.dataset.loaded) {
-        await attachSourceAfterFetch(first);
-      }
-      await waitCanPlayThroughSingle(first);
-      if (autoplay) {
-        try { if (item.classList.contains('active') && first.paused) first.play().catch(()=>{}); } catch(_) {}
-      }
-    };
-    const loadRestVideos = async (item) => {
-      if (!item) return;
-      const mask = item.querySelector('.story-slider__wrapper__mask');
-      const inners = mask ? Array.from(mask.querySelectorAll('.story-slider__wrapper__mask__inner')) : [];
-      // Собираем все видео из всех иннеров, пропуская первый ролик активного иннера
-      const activeInner = inners.find(el => !el.hasAttribute('aria-hidden')) || inners[0] || null;
-      const activeFirst = activeInner ? (activeInner.querySelector('.slide-inner__video-block video') || activeInner.querySelector('video')) : null;
-      const all = getStoryTrackVideos(item);
-      const rest = all.filter(v => v !== activeFirst);
-      for (const v of rest) {
-        if (seqId !== prioritySequenceId) return;
-        if (v.dataset && v.dataset.src && !v.dataset.loaded) {
-          await attachSourceAfterFetch(v);
-        }
-      }
-    };
-
-    // Активный: сразу применяем звук
-    if (activeItem) {
-      applyAudioStateOnActivation(activeItem);
-      await loadFirstVideo(activeItem, true);
-      if (seqId !== prioritySequenceId) return;
-    }
-
-    // Далее: первый ролик следующего, затем предыдущего
-    if (nextItem) {
-      await loadFirstVideo(nextItem, false);
-      if (seqId !== prioritySequenceId) return;
-    }
-    if (prevItem) {
-      await loadFirstVideo(prevItem, false);
-      if (seqId !== prioritySequenceId) return;
-    }
-
-    // Возвращаемся: догружаем остальные видео по порядку active → next → prev
-    if (activeItem) {
-      await loadRestVideos(activeItem);
-      if (seqId !== prioritySequenceId) return;
-      // Обновим автозапуск по текущему состоянию (для остальных видео)
-      enableAutoplayAndPlay(activeItem);
-    }
-    if (nextItem) {
-      await loadRestVideos(nextItem);
-      if (seqId !== prioritySequenceId) return;
-    }
-    if (prevItem) {
-      await loadRestVideos(prevItem);
-      if (seqId !== prioritySequenceId) return;
-    }
-  }
+  // Мобильная приоритезация отключена: используем loadAllMobileVideosImmediate()
 
   // (poster не трогаем до DOMContentLoaded, так как используется data-poster в разметке)
 
