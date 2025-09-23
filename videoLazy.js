@@ -381,7 +381,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // Загрузка с приоритетом: active → next → prev
   function updateActiveVideos() {
     const activeIndex = itemsArray.findIndex(item => item.classList.contains("active"));
-    if (activeIndex === -1) return;
+    if (activeIndex === -1) {
+      // Фолбэк для мобильных: запускаем от первого кейса, чтобы не ждать появления класса active
+      if (isMobile) {
+        startPrioritySequenceMobile(0);
+      }
+      return;
+    }
     startPrioritySequence(activeIndex);
   }
 
