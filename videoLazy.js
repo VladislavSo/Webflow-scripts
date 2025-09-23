@@ -120,7 +120,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Вспомогательные выборки видео по платформе и исключение talking-head
   function selectPlatformContainer(item) {
-    return item.querySelector(isDesktop ? ".cases-grid__item__container" : ".story-track");
+    if (isDesktop) return item.querySelector(".cases-grid__item__container");
+    // Мобильный контейнер: новый wrapper/inner
+    return item.querySelector('.story-slider__wrapper__mask__inner') || item.querySelector('.story-slider__wrapper') || item.querySelector('.story-track');
   }
 
   function getPlatformVideos(item, onlyWithDataSrc = false) {
@@ -137,7 +139,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --------- Постеры: новая строгая логика ---------
   function getPosterVideosByPlatform(item) {
-    const container = item.querySelector(isDesktop ? ".cases-grid__item__container" : ".story-track");
+    const container = isDesktop
+      ? item.querySelector(".cases-grid__item__container")
+      : (item.querySelector('.story-slider__wrapper__mask__inner') || item.querySelector('.story-slider__wrapper') || item.querySelector('.story-track'));
     if (!container) return [];
     // постеры talking-head НЕ учитываем — по требованию постеры строго по платформе
     return Array.from(container.querySelectorAll('video')).filter(v => !v.closest('.cases-grid__item__container__wrap__talking-head'));
@@ -482,9 +486,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Видео строго из .story-track (мобильная платформа)
   function getStoryTrackVideos(item) {
-    const track = item ? item.querySelector('.story-track') : null;
-    if (!track) return [];
-    return Array.from(track.querySelectorAll('video'));
+    if (!item) return [];
+    const root = item.querySelector('.story-slider__wrapper__mask__inner') || item.querySelector('.story-slider__wrapper') || item.querySelector('.story-track') || item;
+    return Array.from(root.querySelectorAll('video'));
   }
 
   async function startPrioritySequence(activeIndex) {
