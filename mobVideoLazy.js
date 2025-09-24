@@ -14,8 +14,8 @@
 
 (function initMobileVideoLazyLoader() {
   if (typeof document === 'undefined') return;
-  if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
-  
+  if (!window.matchMedia('(max-width: 479px)').matches) return;
+
   // Простая детекция iOS Safari
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
   const isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
@@ -30,6 +30,19 @@
    */
   function queryAll(root, selector) {
     return Array.prototype.slice.call(root.querySelectorAll(selector));
+  }
+
+  /**
+   * Дебаунс для событий (например, при быстрой смене active)
+   * @param {Function} fn
+   * @param {number} delay
+   */
+  function debounce(fn, delay) {
+    let t = null;
+    return function debounced() {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, arguments), delay);
+    };
   }
 
   /**
@@ -225,13 +238,39 @@
   }
 
   async function run() {
-    const allItems = queryAll(document, '.cases-grid__item');
-    if (!allItems.length) return;
+    const processFromActive = async () => {
+      const allItems = queryAll(document, '.cases-grid__item');
+      if (!allItems.length) return;
+      const order = buildProcessingOrder(allItems);
+      for (let index = 0; index < order.length; index += 1) {
+        await processGridItem(order[index]);
+      }
+    };
 
-    const order = buildProcessingOrder(allItems);
-    for (let index = 0; index < order.length; index += 1) {
-      await processGridItem(order[index]);
-    }
+    // Первичная подгрузка
+    await processFromActive();
+
+    // Отслеживание изменения класса active
+    const debouncedProcess = debounce(processFromActive, 100);
+    const observer = new MutationObserver((mutations) => {
+      for (let i = 0; i < mutations.length; i += 1) {
+        const m = mutations[i];
+        if (m.type === 'attributes' && m.attributeName === 'class') {
+          const el = m.target;
+          if (el && el.matches && el.matches('.cases-grid__item')) {
+            debouncedProcess();
+            break;
+          }
+        }
+      }
+    });
+    try {
+      observer.observe(document.documentElement || document.body, {
+        attributes: true,
+        attributeFilter: ['class'],
+        subtree: true
+      });
+    } catch (_) { /* ignore */ }
   }
 
   // Стартуем, когда DOM готов. Если уже готов — запускаем сразу.
@@ -241,6 +280,3 @@
     run();
   }
 })();
-
-
-
