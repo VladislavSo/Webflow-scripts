@@ -14,7 +14,6 @@
 
 (function initMobileVideoLazyLoader() {
   if (typeof document === 'undefined') return;
-  if (!window.matchMedia('(max-width: 479px)').matches) return;
 
   // Простая детекция iOS Safari
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
@@ -93,6 +92,7 @@
 
   /**
    * Устанавливает постер для <video> из data-poster/poster-src.
+   * Сохраняет постер в CSS-фоне до готовности видео.
    * @param {HTMLVideoElement} video
    * @returns {Promise<void>}
    */
@@ -106,6 +106,11 @@
       if (!video.getAttribute('poster')) {
         video.setAttribute('poster', posterUrl);
       }
+      // Сохраняем постер в CSS-фоне для плавного перехода
+      video.style.backgroundImage = `url(${posterUrl})`;
+      video.style.backgroundSize = 'cover';
+      video.style.backgroundPosition = 'center';
+      video.style.backgroundRepeat = 'no-repeat';
     } catch (_) {
       // ignore
     }
@@ -150,13 +155,12 @@
       try { video.load(); } catch (_) { /* ignore */ }
     }
 
-    // Ждем минимальной готовности для старта (iOS часто не диспатчит canplaythrough)
+    // Ждем готовности видео к воспроизведению
     try {
-      if (video.readyState < 2) { // HAVE_CURRENT_DATA
+      if (video.readyState < 3) { // HAVE_FUTURE_DATA
         await Promise.race([
-          waitForEvent(video, 'loadedmetadata', 6000),
-          waitForEvent(video, 'canplay', 6000),
-          waitForEvent(video, 'loadeddata', 6000)
+          waitForEvent(video, 'canplay', 8000),
+          waitForEvent(video, 'canplaythrough', 8000)
         ]);
       }
     } catch (_) {
@@ -165,7 +169,16 @@
 
     video.setAttribute('data-loaded', 'true');
 
-    // Автовоспроизведение: по требованию или при наличии атрибута
+    // Убираем CSS-постер только после готовности видео
+    try {
+      video.style.backgroundImage = '';
+      video.style.backgroundSize = '';
+      video.style.backgroundPosition = '';
+      video.style.backgroundRepeat = '';
+    } catch (_) {
+      // ignore
+    }
+
     // Автозапуск отключен по требованиям — только подгрузка источника
   }
 
