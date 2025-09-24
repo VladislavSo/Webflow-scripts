@@ -14,7 +14,8 @@
 
 (function initMobileVideoLazyLoader() {
   if (typeof document === 'undefined') return;
-
+  if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
+  
   // Простая детекция iOS Safari
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
   const isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
@@ -155,12 +156,13 @@
       try { video.load(); } catch (_) { /* ignore */ }
     }
 
-    // Ждем готовности видео к воспроизведению
+    // Ждем минимальной готовности для старта (iOS часто не диспатчит canplaythrough)
     try {
-      if (video.readyState < 3) { // HAVE_FUTURE_DATA
+      if (video.readyState < 2) { // HAVE_CURRENT_DATA
         await Promise.race([
-          waitForEvent(video, 'canplay', 8000),
-          waitForEvent(video, 'canplaythrough', 8000)
+          waitForEvent(video, 'loadedmetadata', 6000),
+          waitForEvent(video, 'canplay', 6000),
+          waitForEvent(video, 'loadeddata', 6000)
         ]);
       }
     } catch (_) {
@@ -169,16 +171,7 @@
 
     video.setAttribute('data-loaded', 'true');
 
-    // Убираем CSS-постер только после готовности видео
-    try {
-      video.style.backgroundImage = '';
-      video.style.backgroundSize = '';
-      video.style.backgroundPosition = '';
-      video.style.backgroundRepeat = '';
-    } catch (_) {
-      // ignore
-    }
-
+    // Автовоспроизведение: по требованию или при наличии атрибута
     // Автозапуск отключен по требованиям — только подгрузка источника
   }
 
