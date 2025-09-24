@@ -14,7 +14,8 @@
 
 (function initMobileVideoLazyLoader() {
   if (typeof document === 'undefined') return;
-
+  if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
+  
   // Простая детекция iOS Safari
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
   const isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
@@ -240,5 +241,6 @@
     run();
   }
 })();
+
 
 
