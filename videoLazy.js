@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
+  //if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
   const items = document.querySelectorAll(".cases-grid__item");
   const itemsArray = Array.from(items);
   const indexByItem = new Map(itemsArray.map((el, i) => [el, i]));
