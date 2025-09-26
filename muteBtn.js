@@ -14,7 +14,7 @@
   function findCaseVideos(caseEl){
     if (!caseEl) return [];
     try {
-      var list = caseEl.querySelectorAll('.cases-grid__item__container video, .cases-grid__item__container__wrap__talking-head__video video, .story-track video');
+      var list = caseEl.querySelectorAll('.cases-grid__item__container video, .cases-grid__item__container__wrap__talking-head__video video, .story-track-wrapper video');
       return Array.prototype.slice.call(list);
     } catch(_) { return []; }
   }
@@ -120,3 +120,4 @@
     initMutationForCases();
   }
 })();
+
