@@ -121,15 +121,6 @@
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   
-  // Начальная установка только после полной загрузки DOM
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-      onResize();
-    });
-  } else {
-    onResize();
-  }
-  
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
