@@ -38,15 +38,15 @@
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - (ns.metrics.root / 2 )));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - ns.metrics.root));
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
       // Сохраняем базовое значение для последующей интерполяции по скроллу
       if (!ns.state) ns.state = {};
       ns.state.baseMarginBottomPx = marginBottomPx;
     }
 
-    // Начальная высота списка по прогрессу (p=0 → 36.5rem)
-    const listHeightStartPx = ns.metrics.listHeightStartPx || (36.5 * ns.metrics.root);
+    // Начальная высота списка по прогрессу (p=0 → 36rem)
+    const listHeightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
     listEl.style.height = `${Math.round(listHeightStartPx)}px`;
   }
 
@@ -113,17 +113,23 @@
     const currentPx = Math.round(basePx + (targetPx - basePx) * p);
     wrapperEl.style.marginBottom = `${currentPx}px`;
 
-    // Интерполяция высоты списка: 36.5rem → 44.375rem по progress
-    const heightStartPx = ns.metrics.listHeightStartPx || (36.5 * ns.metrics.root);
-    const heightEndPx = ns.metrics.listHeightEndPx || (44.375 * ns.metrics.root);
+    // Интерполяция высоты списка: 36rem → 43.875rem по progress
+    const heightStartPx = ns.metrics.listHeightStartPx || (36 * ns.metrics.root);
+    const heightEndPx = ns.metrics.listHeightEndPx || (43.875 * ns.metrics.root);
     const listHeightPx = Math.round(heightStartPx + (heightEndPx - heightStartPx) * p);
     listEl.style.height = `${listHeightPx}px`;
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   
+  // Начальная установка только после полной загрузки DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+      onResize();
+    });
+  } else {
+    onResize();
+  }
+  
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
-
-
-
