@@ -19,8 +19,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const logotype = document.querySelector(".preloader-wrapper__logotype");
   const progressBar = document.querySelector(".preloader-wrapper__progress-bar");
   const progressFill = document.querySelector(".preloader-wrapper__progress-bar__fill");
-  const cookiesBlock = document.querySelector(".preloader-wrapper__cookies-block");
-  const cookiesBtn = document.querySelector(".preloader-wrapper__cookies-block__btn");
 
   if (!preloader || !logotype || !progressBar || !progressFill) return;
 
@@ -50,52 +48,19 @@ document.addEventListener("DOMContentLoaded", () => {
       progressBar.style.opacity = "0";
       logotype.style.opacity = "0";
 
-      // Функция продолжения скрытия прелоадера (как было раньше)
-      const proceedToHidePreloader = () => {
+      setTimeout(() => {
+        preloader.style.transition = "opacity 0.3s ease";
+        preloader.style.opacity = "0";
+
         setTimeout(() => {
-          preloader.style.transition = "opacity 0.3s ease";
-          preloader.style.opacity = "0";
-
-          setTimeout(() => {
-            preloader.style.display = "none";
-            document.body.style.overflow = ""; // Разблокируем скролл
-            // Дополнительно закрепим положение в самом верху после скрытия прелоадера
-            window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-            document.documentElement.scrollTop = 0;
-            document.body.scrollTop = 0;
-          }, 300);
+          preloader.style.display = "none";
+          document.body.style.overflow = ""; // Разблокируем скролл
+          // Дополнительно закрепим положение в самом верху после скрытия прелоадера
+          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          document.documentElement.scrollTop = 0;
+          document.body.scrollTop = 0;
         }, 300);
-      };
-
-      // Для экранов ≤ 479px показываем cookies-блок и ждём клика; для остальных — сразу продолжаем
-      const isSmallScreen = typeof window.matchMedia === "function"
-        ? window.matchMedia("(max-width: 479px)").matches
-        : window.innerWidth <= 479;
-
-      if (isSmallScreen) {
-        // Через 300 мс показываем блок cookies
-        setTimeout(() => {
-          if (cookiesBlock) {
-            cookiesBlock.style.transition = "opacity 0.3s ease";
-            cookiesBlock.style.opacity = "1";
-            cookiesBlock.style.pointerEvents = "auto";
-          }
-        }, 300);
-
-        // По клику на кнопку скрываем cookies и продолжаем, иначе — автопродолжение
-        if (cookiesBtn && cookiesBlock) {
-          cookiesBtn.addEventListener("click", () => {
-            cookiesBlock.style.transition = "opacity 0.3s ease";
-            cookiesBlock.style.opacity = "0";
-            cookiesBlock.style.pointerEvents = "none";
-            proceedToHidePreloader();
-          }, { once: true });
-        } else {
-          proceedToHidePreloader();
-        }
-      } else {
-        proceedToHidePreloader();
-      }
+      }, 300);
     }, { once: true });
   });
 });
