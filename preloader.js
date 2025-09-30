@@ -50,15 +50,6 @@ document.addEventListener("DOMContentLoaded", () => {
       progressBar.style.opacity = "0";
       logotype.style.opacity = "0";
 
-      // Через 300 мс показываем блок cookies
-      setTimeout(() => {
-        if (cookiesBlock) {
-          cookiesBlock.style.transition = "opacity 0.3s ease";
-          cookiesBlock.style.opacity = "1";
-          cookiesBlock.style.pointerEvents = "auto";
-        }
-      }, 300);
-
       // Функция продолжения скрытия прелоадера (как было раньше)
       const proceedToHidePreloader = () => {
         setTimeout(() => {
@@ -76,14 +67,32 @@ document.addEventListener("DOMContentLoaded", () => {
         }, 300);
       };
 
-      // По клику на кнопку скрываем cookies и продолжаем, иначе — автопродолжение
-      if (cookiesBtn && cookiesBlock) {
-        cookiesBtn.addEventListener("click", () => {
-          cookiesBlock.style.transition = "opacity 0.3s ease";
-          cookiesBlock.style.opacity = "0";
-          cookiesBlock.style.pointerEvents = "none";
+      // Для экранов ≤ 479px показываем cookies-блок и ждём клика; для остальных — сразу продолжаем
+      const isSmallScreen = typeof window.matchMedia === "function"
+        ? window.matchMedia("(max-width: 479px)").matches
+        : window.innerWidth <= 479;
+
+      if (isSmallScreen) {
+        // Через 300 мс показываем блок cookies
+        setTimeout(() => {
+          if (cookiesBlock) {
+            cookiesBlock.style.transition = "opacity 0.3s ease";
+            cookiesBlock.style.opacity = "1";
+            cookiesBlock.style.pointerEvents = "auto";
+          }
+        }, 300);
+
+        // По клику на кнопку скрываем cookies и продолжаем, иначе — автопродолжение
+        if (cookiesBtn && cookiesBlock) {
+          cookiesBtn.addEventListener("click", () => {
+            cookiesBlock.style.transition = "opacity 0.3s ease";
+            cookiesBlock.style.opacity = "0";
+            cookiesBlock.style.pointerEvents = "none";
+            proceedToHidePreloader();
+          }, { once: true });
+        } else {
           proceedToHidePreloader();
-        }, { once: true });
+        }
       } else {
         proceedToHidePreloader();
       }
