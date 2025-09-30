@@ -4,6 +4,9 @@
   window.CasesAudio = window.CasesAudio || {};
   window.CasesAudio.soundOn = !!window.CasesAudio.soundOn; // глобальный флаг: был клик и снят muted
   window.CasesAudio.initMuteHandlers = true;
+  // При клике по mute/unmute, если в кейсе есть talking-head видео,
+  // сбрасываем currentTime только для этих видео (одноразово)
+  window.CasesAudio.resetOnlyTheseOnce = null;
 
   function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
 
@@ -45,9 +48,16 @@
       return;
     }
     if (window.CasesAudio.soundOn){
+      var listToReset = window.CasesAudio.resetOnlyTheseOnce;
       videos.forEach(function(v){
         try { v.muted = false; } catch(_){ }
-        try { v.currentTime = 0; } catch(_){ }
+        if (listToReset){
+          if (listToReset.indexOf(v) !== -1){
+            try { v.currentTime = 0; } catch(_){ }
+          }
+        } else {
+          try { v.currentTime = 0; } catch(_){ }
+        }
         try { v.volume = 1; } catch(_){ }
         try { if (v.paused) v.play().catch(function(){}); } catch(_){ }
       });
@@ -73,8 +83,20 @@
     setButtonIconsStateForAll(window.CasesAudio.soundOn);
 
     // применяем к ближайшему кейсу (если активен) и ко всем активным
+    // Если в кейсе есть talking-head видео — сбросить currentTime только им (одноразово)
+    if (caseEl){
+      try{
+        var thVideos = caseEl.querySelectorAll('.cases-grid__item__container__wrap__talking-head__video video');
+        thVideos = Array.prototype.slice.call(thVideos || []);
+        if (thVideos.length){
+          window.CasesAudio.resetOnlyTheseOnce = thVideos;
+        }
+      }catch(_){ }
+    }
     if (caseEl) applySoundStateToCase(caseEl);
     applySoundStateToActiveCases();
+    // Очистить одноразовый список после применения ко всем активным
+    window.CasesAudio.resetOnlyTheseOnce = null;
   }
 
   function initButtons(){
@@ -120,4 +142,3 @@
     initMutationForCases();
   }
 })();
-
