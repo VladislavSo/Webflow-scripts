@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
           source.src = video.dataset.src;
           source.type = 'video/mp4';
           video.appendChild(source);
-          video.preload = 'auto';
+          video.preload = isIOS ? 'metadata' : 'auto';
           try { video.load(); } catch(e) {}
           video.dataset.loaded = 'true';
         }
@@ -263,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return index === activeIndex || index === activeIndex - 1 || index === activeIndex + 1;
   }
 
-  function stopAndUnloadVideos(item) {
+  function pauseVideos(item) {
     const videos = getStoryTrackVideos(item, false);
     videos.forEach(video => {
       try { video.pause(); } catch(e) {}
@@ -271,56 +271,17 @@ document.addEventListener("DOMContentLoaded", () => {
       try { video.currentTime = 0; } catch(e) {}
       if (video.autoplay) video.autoplay = false;
       if (video.hasAttribute("autoplay")) video.removeAttribute("autoplay");
-      video.setAttribute("preload", "none");
-      const sources = Array.from(video.querySelectorAll("source"));
-      sources.forEach(s => s.remove());
-      // освобождаем blob URL если использовался
-      if (video.dataset && video.dataset.blobUrl) {
-        try { URL.revokeObjectURL(video.dataset.blobUrl); } catch(_) {}
-        try { delete video.dataset.blobUrl; } catch(_) {}
-      }
-      try { video.removeAttribute("src"); } catch(e) {}
-      try { delete video.dataset.loaded; } catch(e) {}
-      try { video.load(); } catch(e) {}
     });
   }
 
   function updateLoadingScope(activeIndex) {
     itemsArray.forEach((item, index) => {
       if (!isInScope(index, activeIndex)) {
-        stopAndUnloadVideos(item);
+        pauseVideos(item);
       }
     });
   }
 
-  // Очистка нерелевантных контейнеров от источников и постеров (кроме talking-head)
-  function cleanupIrrelevantContainers() {
-    itemsArray.forEach(item => {
-      const irrelevantSelectors = [".cases-grid__item__container"];
-      irrelevantSelectors.forEach(sel => {
-        const irrelevantContainer = item.querySelector(sel);
-        if (!irrelevantContainer) return;
-        const irrelevantVideos = irrelevantContainer.querySelectorAll("video");
-        irrelevantVideos.forEach(video => {
-          // Не трогаем talking-head — он платформенно-агностичен
-          if (video.closest('.cases-grid__item__container__wrap__talking-head')) return;
-          // снимаем возможные source и пометки, чтобы исключить загрузку
-          const sources = Array.from(video.querySelectorAll("source"));
-          sources.forEach(s => s.remove());
-          // удаляем постер, чтобы не грузился на нерелевантной платформе
-          if (video.hasAttribute("poster")) {
-            try { video.removeAttribute("poster"); } catch(e) {}
-          }
-          if (!video.hasAttribute("data-src")) {
-            // если нет lazy-атрибута, принудительно делаем видео ленивым "пустым"
-            video.setAttribute("preload", "none");
-            try { video.removeAttribute("src"); } catch(e) {}
-            try { video.load(); } catch(e) {}
-          }
-        });
-      });
-    });
-  }
 
   function waitAllCanPlayThrough(videos) {
     const waiters = videos.map(video => new Promise(resolve => {
@@ -397,8 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Выполняем скрипт только после полной загрузки страницы
   function initVideoLazy() {
-    // Чистим нерелевантные контейнеры, но без создания sources
-    cleanupIrrelevantContainers();
+    console.log('Страница загружена');
 
     // Следим за изменением класса active на .cases-grid__item
     const observer = new MutationObserver((mutations) => {
@@ -457,6 +417,14 @@ document.addEventListener("DOMContentLoaded", () => {
       handleActiveSlideChange(activeItem);
     }
   }
+
+  // Отключаем preload у всех видео до полной загрузки страницы
+  itemsArray.forEach(item => {
+    const allVideos = item.querySelectorAll('video');
+    allVideos.forEach(video => {
+      video.preload = 'none';
+    });
+  });
   
   if (document.readyState === 'complete') {
     initVideoLazy();
