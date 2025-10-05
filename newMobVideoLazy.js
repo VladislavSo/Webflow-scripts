@@ -416,6 +416,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Выполняем скрипт только после полной загрузки страницы
   function initVideoLazy() {
     console.log('Страница загружена');
+    
+    // Отключаем preload у всех видео ПОСЛЕ полной загрузки страницы
+    let disabledCount = 0;
+    itemsArray.forEach(item => {
+      const allVideos = item.querySelectorAll('video');
+      allVideos.forEach(video => {
+        video.preload = 'none';
+        disabledCount++;
+      });
+    });
+    console.log(`🚫 Отключен preload у ${disabledCount} видео после загрузки страницы`);
 
     // Следим за изменением класса active на .cases-grid__item
     const observer = new MutationObserver((mutations) => {
@@ -480,17 +491,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Отключаем preload у всех видео до полной загрузки страницы
-  let disabledCount = 0;
-  itemsArray.forEach(item => {
-    const allVideos = item.querySelectorAll('video');
-    allVideos.forEach(video => {
-      video.preload = 'none';
-      disabledCount++;
-    });
-  });
-  console.log(`🚫 Отключен preload у ${disabledCount} видео до загрузки страницы`);
-  
   if (document.readyState === 'complete') {
     initVideoLazy();
   } else {
