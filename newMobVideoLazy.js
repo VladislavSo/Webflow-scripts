@@ -43,22 +43,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 
-  // Talking-head: отключаем preload до полной загрузки страницы
+  // Talking-head: грузим видео сразу
   function loadTalkingHeadAssetsImmediately() {
     itemsArray.forEach(item => {
       const head = item.querySelector('.cases-grid__item__container__wrap__talking-head');
       if (!head) return;
       const videos = Array.from(head.querySelectorAll('video'));
       videos.forEach(video => {
-        // Отключаем preload до полной загрузки страницы
-        video.preload = 'none';
         // видео ресурсы
         if (video.dataset && video.dataset.src && !video.dataset.loaded) {
           const source = document.createElement('source');
           source.src = video.dataset.src;
           source.type = 'video/mp4';
           video.appendChild(source);
-          video.preload = isIOS ? 'metadata' : 'auto';
+          video.preload = 'auto';
           try { video.load(); } catch(e) {}
           video.dataset.loaded = 'true';
         }
@@ -399,14 +397,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Выполняем скрипт только после полной загрузки страницы
   function initVideoLazy() {
-    // Отключаем preload у всех видео до полной загрузки страницы
-    itemsArray.forEach(item => {
-      const allVideos = item.querySelectorAll('video');
-      allVideos.forEach(video => {
-        video.preload = 'none';
-      });
-    });
-
     // Чистим нерелевантные контейнеры, но без создания sources
     cleanupIrrelevantContainers();
 
@@ -468,5 +458,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   
-  window.onload = initVideoLazy;
+  if (document.readyState === 'complete') {
+    initVideoLazy();
+  } else {
+    window.addEventListener('load', initVideoLazy, { once: true });
+  }
 });
