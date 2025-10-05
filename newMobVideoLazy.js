@@ -45,23 +45,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Talking-head: грузим видео сразу
   function loadTalkingHeadAssetsImmediately() {
+    console.log('🎬 Начинаем загрузку talking-head видео');
+    let loadedCount = 0;
+    let totalCount = 0;
+    
     itemsArray.forEach(item => {
       const head = item.querySelector('.cases-grid__item__container__wrap__talking-head');
       if (!head) return;
       const videos = Array.from(head.querySelectorAll('video'));
       videos.forEach(video => {
-        // видео ресурсы
-        if (video.dataset && video.dataset.src && !video.dataset.loaded) {
-          const source = document.createElement('source');
-          source.src = video.dataset.src;
-          source.type = 'video/mp4';
-          video.appendChild(source);
-          video.preload = isIOS ? 'metadata' : 'auto';
-          try { video.load(); } catch(e) {}
-          video.dataset.loaded = 'true';
+        if (video.dataset && video.dataset.src) {
+          totalCount++;
+          console.log(`📥 Загружаем talking-head видео: ${video.dataset.src}`);
+          
+          // видео ресурсы
+          if (!video.dataset.loaded) {
+            const source = document.createElement('source');
+            source.src = video.dataset.src;
+            source.type = 'video/mp4';
+            video.appendChild(source);
+            video.preload = isIOS ? 'metadata' : 'auto';
+            try { video.load(); } catch(e) {}
+            video.dataset.loaded = 'true';
+            loadedCount++;
+            console.log(`✅ Talking-head видео загружено: ${video.dataset.src}`);
+          } else {
+            console.log(`⏭️ Talking-head видео уже загружено: ${video.dataset.src}`);
+            loadedCount++;
+          }
         }
       });
     });
+    
+    console.log(`🎬 Talking-head видео: загружено ${loadedCount}/${totalCount}`);
   }
 
   // Подгрузка всех видео в блоке
@@ -80,13 +96,17 @@ document.addEventListener("DOMContentLoaded", () => {
   async function attachSourceAfterFetch(video) {
     if (!video || !video.dataset || !video.dataset.src) return;
     if (video.dataset.fetching === 'true' || video.dataset.loaded) return;
+    
     video.dataset.fetching = 'true';
     const url = video.dataset.src;
+    console.log(`📥 Начинаем загрузку видео: ${url}`);
+    
     // Если источник кросс-доменный — НЕ используем fetch (избежим CORS), подключаем напрямую
     try {
       const urlObj = new URL(url, window.location.href);
       const sameOrigin = urlObj.origin === window.location.origin;
       if (!sameOrigin) {
+        console.log(`🌐 Кросс-доменное видео, подключаем напрямую: ${url}`);
         const source = document.createElement('source');
         source.src = url;
         source.type = 'video/mp4';
@@ -94,11 +114,13 @@ document.addEventListener("DOMContentLoaded", () => {
         video.preload = isIOS ? 'metadata' : 'auto';
         try { video.load(); } catch(e) {}
         video.dataset.loaded = 'true';
+        console.log(`✅ Кросс-доменное видео загружено: ${url}`);
         delete video.dataset.fetching;
         return;
       }
     } catch (_) {
       // В случае ошибок парсинга URL — подключаем напрямую
+      console.log(`⚠️ Ошибка парсинга URL, подключаем напрямую: ${url}`);
       const source = document.createElement('source');
       source.src = url;
       source.type = 'video/mp4';
@@ -106,10 +128,12 @@ document.addEventListener("DOMContentLoaded", () => {
       video.preload = isIOS ? 'metadata' : 'auto';
       try { video.load(); } catch(e) {}
       video.dataset.loaded = 'true';
+      console.log(`✅ Видео загружено (ошибка парсинга): ${url}`);
       delete video.dataset.fetching;
       return;
     }
     try {
+      console.log(`🔄 Загружаем через fetch: ${url}`);
       const response = await fetch(url, { credentials: 'omit', cache: 'default' });
       if (!response.ok) throw new Error('Failed to fetch video');
       const blob = await response.blob();
@@ -122,7 +146,9 @@ document.addEventListener("DOMContentLoaded", () => {
       try { video.load(); } catch(e) {}
       video.dataset.loaded = 'true';
       video.dataset.blobUrl = blobUrl;
+      console.log(`✅ Видео загружено через fetch: ${url}`);
     } catch (e) {
+      console.log(`❌ Ошибка fetch, используем фолбэк: ${url}`);
       // Фолбэк: если fetch недоступен (CORS и т.п.), подключаем источник напрямую
       try {
         const source = document.createElement('source');
@@ -132,7 +158,10 @@ document.addEventListener("DOMContentLoaded", () => {
         video.preload = isIOS ? 'metadata' : 'auto';
         try { video.load(); } catch(err) {}
         video.dataset.loaded = 'true';
-      } catch (_) {}
+        console.log(`✅ Видео загружено через фолбэк: ${url}`);
+      } catch (_) {
+        console.log(`❌ Фолбэк тоже не сработал: ${url}`);
+      }
     } finally {
       try { delete video.dataset.fetching; } catch(_) {}
     }
@@ -255,7 +284,11 @@ document.addEventListener("DOMContentLoaded", () => {
   // Загрузка с приоритетом: active → next → prev
   function updateActiveVideos() {
     const activeIndex = itemsArray.findIndex(item => item.classList.contains("active"));
-    if (activeIndex === -1) return;
+    if (activeIndex === -1) {
+      console.log('❌ Активный элемент не найден');
+      return;
+    }
+    console.log(`🎯 Активный элемент найден (индекс ${activeIndex}), запускаем приоритетную загрузку`);
     startPrioritySequence(activeIndex);
   }
 
@@ -301,59 +334,83 @@ document.addEventListener("DOMContentLoaded", () => {
     const nextItem = activeIndex < itemsArray.length - 1 ? itemsArray[activeIndex + 1] : null;
     const prevItem = activeIndex > 0 ? itemsArray[activeIndex - 1] : null;
 
+    console.log(`🔄 Начинаем приоритетную последовательность (ID: ${seqId})`);
+    console.log(`📋 План загрузки: Active(${activeIndex}) → Next(${nextItem ? activeIndex + 1 : 'нет'}) → Prev(${prevItem ? activeIndex - 1 : 'нет'})`);
+
     // Выгружаем всё вне области и готовим активный
     updateLoadingScope(activeIndex);
 
-
     // 1) Active — грузим полностью, применяем звук и запускаем при готовности (видео ждём по canplaythrough)
+    console.log(`🎯 Этап 1: Загружаем активный элемент (${activeIndex})`);
     loadVideos(activeItem, false);
     applyAudioStateOnActivation(activeItem);
     enableAutoplayAndPlay(activeItem);
     await waitAllCanPlayThrough(getStoryTrackVideos(activeItem, false));
     if (seqId !== prioritySequenceId) return;
+    console.log(`✅ Активный элемент загружен и готов к воспроизведению`);
 
     // 2) index+1 — после полной загрузки active
     if (nextItem) {
+      console.log(`🎯 Этап 2: Загружаем следующий элемент (${activeIndex + 1})`);
       loadVideos(nextItem, true);
       await waitAllCanPlayThrough(getStoryTrackVideos(nextItem, false));
       if (seqId !== prioritySequenceId) return;
+      console.log(`✅ Следующий элемент загружен`);
     }
 
     // 3) index-1 — после полной загрузки index+1
     if (prevItem) {
+      console.log(`🎯 Этап 3: Загружаем предыдущий элемент (${activeIndex - 1})`);
       loadVideos(prevItem, true);
     }
 
+    console.log(`🎉 Приоритетная последовательность завершена (ID: ${seqId})`);
   }
 
   // Функция для обработки изменения активного слайда внутри story-track-wrapper
   function handleActiveSlideChange(item) {
     if (!item.classList.contains('active')) return;
     
+    console.log('🔄 Обрабатываем смену активного слайда');
+    
     // Сначала останавливаем ВСЕ видео в элементе
     const allVideos = getStoryTrackVideos(item, false);
+    let pausedCount = 0;
     allVideos.forEach(video => {
       try { 
         if (!video.paused) {
           video.pause(); 
+          pausedCount++;
         }
       } catch(e) {}
     });
+    if (pausedCount > 0) {
+      console.log(`⏸️ Остановлено видео: ${pausedCount}`);
+    }
     
     // Затем запускаем только видео в активном слайде + talking-head
     const activeSlideVideos = getActiveSlideVideos(item);
     const talkingHeadVideos = Array.from(item.querySelectorAll('.cases-grid__item__container__wrap__talking-head video'));
     
+    console.log(`📊 Найдено видео: активный слайд(${activeSlideVideos.length}) + talking-head(${talkingHeadVideos.length})`);
+    
     // Объединяем видео для запуска (активный слайд + talking-head)
     const videosToPlay = [...activeSlideVideos, ...talkingHeadVideos];
     
+    let playedCount = 0;
     videosToPlay.forEach(video => {
       try { 
         if (video.paused) {
           video.play().catch(()=>{}); 
+          playedCount++;
+          console.log(`▶️ Запускаем видео: ${video.dataset.src || 'без data-src'}`);
         }
       } catch(e) {}
     });
+    
+    if (playedCount > 0) {
+      console.log(`🎬 Запущено видео: ${playedCount}`);
+    }
   }
 
   // Выполняем скрипт только после полной загрузки страницы
@@ -369,6 +426,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!wasActive && isActive) {
           // Элемент стал активным: запускаем приоритетную последовательность
+          console.log('🔄 Элемент стал активным');
           let index = indexByItem.get(item);
           if (index === undefined) {
             index = itemsArray.indexOf(item);
@@ -379,6 +437,7 @@ document.addEventListener("DOMContentLoaded", () => {
           handleActiveSlideChange(item);
         } else if (wasActive && !isActive) {
           // Элемент потерял active: останавливаем, сбрасываем и гарантируем muted
+          console.log('⏹️ Элемент потерял активность');
           disableAutoplayAndReset(item);
         }
       });
@@ -414,17 +473,23 @@ document.addEventListener("DOMContentLoaded", () => {
     // Немедленно запускаем видео в активном слайде
     const activeItem = itemsArray.find(item => item.classList.contains('active'));
     if (activeItem) {
+      console.log('🎬 Запускаем видео в активном слайде при инициализации');
       handleActiveSlideChange(activeItem);
+    } else {
+      console.log('❌ Активный элемент не найден при инициализации');
     }
   }
 
   // Отключаем preload у всех видео до полной загрузки страницы
+  let disabledCount = 0;
   itemsArray.forEach(item => {
     const allVideos = item.querySelectorAll('video');
     allVideos.forEach(video => {
       video.preload = 'none';
+      disabledCount++;
     });
   });
+  console.log(`🚫 Отключен preload у ${disabledCount} видео до загрузки страницы`);
   
   if (document.readyState === 'complete') {
     initVideoLazy();
