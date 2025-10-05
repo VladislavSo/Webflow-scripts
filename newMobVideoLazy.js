@@ -373,19 +373,28 @@ document.addEventListener("DOMContentLoaded", () => {
     
     console.log('🔄 Обрабатываем смену активного слайда');
     
-    // Сначала останавливаем ВСЕ видео в элементе
+    // Сначала останавливаем ВСЕ видео в элементе и сбрасываем время
     const allVideos = getStoryTrackVideos(item, false);
     let pausedCount = 0;
+    let resetCount = 0;
     allVideos.forEach(video => {
       try { 
         if (!video.paused) {
           video.pause(); 
           pausedCount++;
         }
+        // Сбрасываем время воспроизведения
+        if (video.currentTime > 0) {
+          video.currentTime = 0;
+          resetCount++;
+        }
       } catch(e) {}
     });
     if (pausedCount > 0) {
       console.log(`⏸️ Остановлено видео: ${pausedCount}`);
+    }
+    if (resetCount > 0) {
+      console.log(`⏮️ Сброшено время воспроизведения у ${resetCount} видео`);
     }
     
     // Затем запускаем только видео в активном слайде + talking-head
