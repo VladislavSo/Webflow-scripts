@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const itemsArray = Array.from(items);
   const indexByItem = new Map(itemsArray.map((el, i) => [el, i]));
   let prioritySequenceId = 0;
+  let initialPlayDone = false;
 
   // Простая детекция iOS Safari
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
@@ -340,16 +341,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // Выгружаем всё вне области и готовим активный
     updateLoadingScope(activeIndex);
 
-    // 1) Active — грузим полностью, применяем звук и запускаем при готовности (видео ждём по canplaythrough)
+    // 1) Active — грузим полностью (без управления воспроизведением)
     console.log(`🎯 Этап 1: Загружаем активный элемент (${activeIndex})`);
     loadVideos(activeItem, false);
-    applyAudioStateOnActivation(activeItem);
-    enableAutoplayAndPlay(activeItem);
     await waitAllCanPlayThrough(getStoryTrackVideos(activeItem, false));
     if (seqId !== prioritySequenceId) return;
     console.log(`✅ Активный элемент загружен и готов к воспроизведению`);
 
-    // 2) index+1 — после полной загрузки active
+    // 2) index+1 — после полной загрузки active (prefetch без воспроизведения)
     if (nextItem) {
       console.log(`🎯 Этап 2: Загружаем следующий элемент (${activeIndex + 1})`);
       loadVideos(nextItem, true);
@@ -358,7 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log(`✅ Следующий элемент загружен`);
     }
 
-    // 3) index-1 — после полной загрузки index+1
+    // 3) index-1 — после полной загрузки index+1 (prefetch без воспроизведения)
     if (prevItem) {
       console.log(`🎯 Этап 3: Загружаем предыдущий элемент (${activeIndex - 1})`);
       loadVideos(prevItem, true);
@@ -437,7 +436,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     console.log(`🚫 Отключен preload у ${disabledCount} видео после загрузки страницы`);
 
-    // Следим за изменением класса active на .cases-grid__item
+    // Следим за изменением класса active на .cases-grid__item (только загрузка, без запуска/остановки)
     const observer = new MutationObserver((mutations) => {
       mutations.forEach(mutation => {
         const item = mutation.target;
@@ -445,7 +444,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const isActive = item.classList.contains("active");
 
         if (!wasActive && isActive) {
-          // Элемент стал активным: запускаем приоритетную последовательность
+          // Элемент стал активным: запускаем только приоритетную загрузку
           console.log('🔄 Элемент стал активным');
           let index = indexByItem.get(item);
           if (index === undefined) {
@@ -453,50 +452,43 @@ document.addEventListener("DOMContentLoaded", () => {
             if (index !== -1) indexByItem.set(item, index);
           }
           if (index > -1) startPrioritySequence(index);
-          // Немедленно запускаем видео в активном слайде
-          handleActiveSlideChange(item);
         } else if (wasActive && !isActive) {
-          // Элемент потерял active: останавливаем, сбрасываем и гарантируем muted
-          console.log('⏹️ Элемент потерял активность');
-          disableAutoplayAndReset(item);
+          // Ничего не делаем при потере активности (управление воспроизведением в другом скрипте)
         }
       });
     });
     items.forEach(item => observer.observe(item, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
 
-    // Следим за изменением класса active на слайдах внутри story-track-wrapper
-    const slideObserver = new MutationObserver((mutations) => {
-      mutations.forEach(mutation => {
-        const slide = mutation.target;
-        if (slide.classList.contains('story-track-wrapper__slide')) {
-          const storyWrapper = slide.closest('.story-track-wrapper');
-          const gridItem = storyWrapper ? storyWrapper.closest('.cases-grid__item') : null;
-          if (gridItem) {
-            handleActiveSlideChange(gridItem);
-          }
-        }
-      });
-    });
-    
-    // Наблюдаем за всеми слайдами
-    items.forEach(item => {
-      const slides = item.querySelectorAll('.story-track-wrapper__slide');
-      slides.forEach(slide => {
-        slideObserver.observe(slide, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
-      });
-    });
-
     // talking-head — грузим сразу после полной загрузки
     loadTalkingHeadAssetsImmediately();
     // Стартуем подгрузку активных видео
     updateActiveVideos();
-    // Немедленно запускаем видео в активном слайде
+    // Однократный старт воспроизведения после первой загрузки
     const activeItem = itemsArray.find(item => item.classList.contains('active'));
-    if (activeItem) {
-      console.log('🎬 Запускаем видео в активном слайде при инициализации');
-      handleActiveSlideChange(activeItem);
-    } else {
+    if (!activeItem) {
       console.log('❌ Активный элемент не найден при инициализации');
+    } else {
+      (async () => {
+        try {
+          await waitAllCanPlayThrough(getStoryTrackVideos(activeItem, false));
+        } catch(_) {}
+        if (!initialPlayDone) {
+          const activeSlideVideos = getActiveSlideVideos(activeItem);
+          const talkingHeadVideos = Array.from(activeItem.querySelectorAll('.cases-grid__item__container__wrap__talking-head video'));
+          const videosToPlay = [...activeSlideVideos, ...talkingHeadVideos];
+          let playedCount = 0;
+          videosToPlay.forEach(video => {
+            try {
+              if (video.paused) {
+                video.play().catch(()=>{});
+                playedCount++;
+              }
+            } catch(_) {}
+          });
+          if (playedCount > 0) console.log(`🎬 Однократный старт: запущено видео ${playedCount}`);
+          initialPlayDone = true;
+        }
+      })();
     }
   }
 
