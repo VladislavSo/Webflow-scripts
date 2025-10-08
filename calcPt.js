@@ -28,7 +28,7 @@
       const stackHeightPxForPadding = stackEl.getBoundingClientRect().height;
       const wrapperHeightPxForPadding = wrapperEl.getBoundingClientRect().height;
       console.log(stackHeightPxForPadding, wrapperHeightPxForPadding, titlePx, addPx);
-      paddingTopPx = stackHeightPxForPadding - wrapperHeightPxForPadding - titlePx - addPx;
+      paddingTopPx = stackHeightPxForPadding - wrapperHeightPxForPadding - titlePx;
       console.log(paddingTopPx);
       clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
     }
@@ -39,7 +39,9 @@
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - 2 * ns.metrics.root));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - addPx));
+      console.log(stackHeightPx, clampedPx, wrapperHeightPx, titlePx, addPx);
+      console.log(marginBottomPx);
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
       // Сохраняем базовое значение для последующей интерполяции по скроллу
       if (!ns.state) ns.state = {};
