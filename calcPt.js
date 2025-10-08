@@ -27,7 +27,7 @@
     if (wrapperEl && stackEl) {
       const stackHeightPxForPadding = stackEl.getBoundingClientRect().height;
       const wrapperHeightPxForPadding = wrapperEl.getBoundingClientRect().height;
-      paddingTopPx = stackHeightPxForPadding - wrapperHeightPxForPadding - titlePx;
+      paddingTopPx = stackHeightPxForPadding - wrapperHeightPxForPadding - titlePx + addPx;
       console.log(paddingTopPx);
       clampedPx = Math.min(maxPaddingPx, Math.max(minPaddingPx, Math.round(paddingTopPx)));
     }
@@ -125,6 +125,7 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
 
 
