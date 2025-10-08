@@ -40,8 +40,10 @@
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - addPx - 2 * ns.metrics.root));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - addPx - ns.metrics.root));
+      console.log(stackHeightPx, clampedPx, wrapperHeightPx, titlePx, addPx, ns.metrics.root);
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
+      console.log(marginBottomPx);
       // Сохраняем базовое значение для последующей интерполяции по скроллу
       if (!ns.state) ns.state = {};
       ns.state.baseMarginBottomPx = marginBottomPx;
@@ -126,6 +128,3 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
 })(window.StackUI);
-
-
-
