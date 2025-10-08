@@ -18,7 +18,7 @@
   
     const addPx = 2.25 * ns.metrics.root;
     const titlePx = 12.75 * ns.metrics.root;
-    const maxPaddingPx = 17.5 * ns.metrics.root;
+    const maxPaddingPx = 19.5 * ns.metrics.root;
     const minPaddingPx = 7.5 * ns.metrics.root; // минимальный padding-top = 7.5rem
     // Новый расчёт padding-top: высота stack - высота wrapper - titlePx - addPx
     const stackEl = document.querySelector('.main-container__stack-wrap');
@@ -125,6 +125,7 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
   })(window.StackUI);
+
 
 
 
