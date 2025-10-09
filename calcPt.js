@@ -16,7 +16,7 @@
     const wrapperEl = ns.dom.wrapper;
     if (!casesContainer || !listEl || !casesGrid) return;
 
-    const addPx = 2.5 * ns.metrics.root;
+    const addPx = 1 * ns.metrics.root;
     const titlePx = 11.25 * ns.metrics.root;
     const maxPaddingPx = 20 * ns.metrics.root;
     const minPaddingPx = 7.5 * ns.metrics.root; // минимальный padding-top = 7.5rem
@@ -40,7 +40,7 @@
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - addPx - ns.metrics.root + (ns.metrics.root * 2.75)));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx + 4));
       console.log(stackHeightPx, clampedPx, wrapperHeightPx, titlePx, addPx, ns.metrics.root);
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
       console.log(marginBottomPx);
@@ -128,10 +128,3 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
 })(window.StackUI);
-
-
-
-
-
-
-
