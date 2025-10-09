@@ -40,7 +40,7 @@
     if (wrapperEl && stackEl) {
       const stackHeightPx = stackEl.getBoundingClientRect().height;
       const wrapperHeightPx = wrapperEl.getBoundingClientRect().height;
-      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - addPx - ns.metrics.root));
+      const marginBottomPx = Math.max(0, Math.round(stackHeightPx - clampedPx - wrapperHeightPx - titlePx - addPx - ns.metrics.root - (ns.metrics.root * 2.75)));
       console.log(stackHeightPx, clampedPx, wrapperHeightPx, titlePx, addPx, ns.metrics.root);
       wrapperEl.style.marginBottom = `${marginBottomPx}px`;
       console.log(marginBottomPx);
@@ -128,4 +128,5 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
 })(window.StackUI);
+
 
