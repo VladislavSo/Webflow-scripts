@@ -1,3 +1,18 @@
+/*
+  Мобильная лениво-управляемая загрузка видео в элементах `cases-grid__item`.
+
+  Правила загрузки:
+  1) Для активного `cases-grid__item.active` сначала загружаем все постеры всех <video> во всех `story-track-wrapper__slide`.
+  2) Затем, начиная с первого слайда, последовательно полностью загружаем видео и запускаем его.
+  3) После завершения всех слайдов активного элемента — загружаем следующий `cases-grid__item` (если есть) по тем же правилам.
+  4) После следующего — загружаем предыдущий относительно активного (если есть).
+
+   Поддерживаемые атрибуты источников:
+   - видео: data-src (источник mp4/webm)
+   - talking-head видео: mob-data-src (источник mp4/webm)
+   - постер: data-poster или poster-src (оба поддерживаются)
+*/
+
 (function initMobileVideoLazyLoader() {
   if (typeof document === 'undefined') return;
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
@@ -115,7 +130,6 @@
     const isTalkingHead = !!video.getAttribute('mob-data-src');
 
     if (!alreadyLoaded && dataSrc) {
-      try { console.log('[mobVideoLazy] start loading', { type: isTalkingHead ? 'talking-head' : 'slide', src: dataSrc }); } catch (_) { /* ignore */ }
       // Удаляем crossorigin, чтобы не требовать CORS от сервера для <video>
       try { video.removeAttribute('crossorigin'); } catch (_) { /* ignore */ }
       try { video.crossOrigin = null; } catch (_) { /* ignore */ }
@@ -154,12 +168,10 @@
         ]);
       }
     } catch (e) {
-      try { console.warn('[mobVideoLazy] load wait timeout/error', { type: isTalkingHead ? 'talking-head' : 'slide', src: dataSrc, error: String(e && e.message || e) }); } catch (_) { /* ignore */ }
       // Продолжаем даже при таймауте, чтобы не блокировать очередь
     }
 
     video.setAttribute('data-loaded', 'true');
-    try { console.log('[mobVideoLazy] loaded', { type: isTalkingHead ? 'talking-head' : 'slide', src: dataSrc, readyState: video.readyState }); } catch (_) { /* ignore */ }
 
     // Автовоспроизведение: по требованию или при наличии атрибута
     // Автозапуск отключен по требованиям — только подгрузка источника
