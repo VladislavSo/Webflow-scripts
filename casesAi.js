@@ -1207,3 +1207,119 @@ document.addEventListener("DOMContentLoaded", () => {
     initMutationForCases();
   }
 })();
+
+// ===== videoLazy.js =====
+(function(){
+  'use strict';
+  
+  // Определяем тип устройства
+  const isMobile = window.matchMedia && window.matchMedia('(max-width: 479px)').matches;
+  const isDesktop = window.matchMedia && window.matchMedia('(min-width: 480px)').matches;
+  
+  // Функция для получения селекторов видео в зависимости от устройства
+  function getVideoSelectors() {
+    const selectors = [];
+    
+    if (isMobile) {
+      // Для мобильных устройств
+      selectors.push('.cases-grid__item__container__video-block video');
+    }
+    
+    if (isDesktop) {
+      // Для десктопа
+      selectors.push('.slide-inner__video-block video');
+    }
+    
+    // Общие для обоих устройств
+    selectors.push('.cases-grid__item__container__wrap__talking-head__video video');
+    
+    return selectors;
+  }
+  
+  // Функция для получения правильного атрибута src в зависимости от устройства
+  function getSrcAttribute(video) {
+    if (isMobile) {
+      return video.getAttribute('mob-data-src');
+    } else {
+      return video.getAttribute('data-src');
+    }
+  }
+  
+  // Функция для ленивой загрузки видео
+  function lazyLoadVideo(video) {
+    try {
+      const src = getSrcAttribute(video);
+      
+      if (!src) {
+        console.warn('Video lazy load: no src attribute found for device type', {
+          isMobile,
+          isDesktop,
+          hasMobDataSrc: !!video.getAttribute('mob-data-src'),
+          hasDataSrc: !!video.getAttribute('data-src')
+        });
+        return false;
+      }
+      
+      // Устанавливаем src и загружаем видео
+      video.src = src;
+      video.load();
+      
+      console.log('Video lazy loaded successfully:', {
+        src: src,
+        deviceType: isMobile ? 'mobile' : 'desktop'
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error lazy loading video:', error);
+      return false;
+    }
+  }
+  
+  // Функция для инициализации ленивой загрузки всех видео
+  function initVideoLazyLoad() {
+    const selectors = getVideoSelectors();
+    const allVideos = [];
+    
+    // Собираем все видео по селекторам
+    selectors.forEach(selector => {
+      try {
+        const videos = document.querySelectorAll(selector);
+        allVideos.push(...Array.from(videos));
+      } catch (error) {
+        console.error('Error querying videos with selector:', selector, error);
+      }
+    });
+    
+    console.log('Found videos for lazy loading:', {
+      count: allVideos.length,
+      selectors: selectors,
+      deviceType: isMobile ? 'mobile' : 'desktop'
+    });
+    
+    // Загружаем все видео
+    let loadedCount = 0;
+    allVideos.forEach(video => {
+      if (lazyLoadVideo(video)) {
+        loadedCount++;
+      }
+    });
+    
+    console.log(`Video lazy loading completed: ${loadedCount}/${allVideos.length} videos loaded`);
+  }
+  
+  // Инициализируем ленивую загрузку после загрузки DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVideoLazyLoad);
+  } else {
+    initVideoLazyLoad();
+  }
+  
+  // Экспортируем функции для внешнего использования
+  window.VideoLazyLoad = {
+    initVideoLazyLoad,
+    lazyLoadVideo,
+    getVideoSelectors,
+    getSrcAttribute
+  };
+})();
