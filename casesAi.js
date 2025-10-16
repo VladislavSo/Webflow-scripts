@@ -1221,26 +1221,35 @@ document.addEventListener("DOMContentLoaded", () => {
     const selectors = [];
     
     if (isMobile) {
-      // Для мобильных устройств
-      selectors.push('.cases-grid__item__container__video-block video');
-    }
-    
-    if (isDesktop) {
-      // Для десктопа
+      // Для мобильных устройств: slide-inner__video-block video
       selectors.push('.slide-inner__video-block video');
     }
     
-    // Общие для обоих устройств
+    if (isDesktop) {
+      // Для десктопа: cases-grid__item__container__video-block video
+      selectors.push('.cases-grid__item__container__video-block video');
+    }
+    
+    // Общие для обоих устройств: talking-head видео
     selectors.push('.cases-grid__item__container__wrap__talking-head__video video');
     
     return selectors;
   }
   
-  // Функция для получения правильного атрибута src в зависимости от устройства
+  // Функция для получения правильного атрибута src в зависимости от устройства и типа видео
   function getSrcAttribute(video) {
-    if (isMobile) {
-      return video.getAttribute('mob-data-src');
+    // Проверяем, является ли это talking-head видео
+    const isTalkingHead = video.closest('.cases-grid__item__container__wrap__talking-head__video');
+    
+    if (isTalkingHead) {
+      // Talking-head видео: mob-data-src для мобилы, data-src для десктопа
+      if (isMobile) {
+        return video.getAttribute('mob-data-src');
+      } else {
+        return video.getAttribute('data-src');
+      }
     } else {
+      // Обычные видео: data-src для обоих устройств
       return video.getAttribute('data-src');
     }
   }
@@ -1249,11 +1258,13 @@ document.addEventListener("DOMContentLoaded", () => {
   function lazyLoadVideo(video) {
     try {
       const src = getSrcAttribute(video);
+      const isTalkingHead = video.closest('.cases-grid__item__container__wrap__talking-head__video');
       
       if (!src) {
         console.warn('Video lazy load: no src attribute found for device type', {
           isMobile,
           isDesktop,
+          isTalkingHead: !!isTalkingHead,
           hasMobDataSrc: !!video.getAttribute('mob-data-src'),
           hasDataSrc: !!video.getAttribute('data-src')
         });
@@ -1266,7 +1277,9 @@ document.addEventListener("DOMContentLoaded", () => {
       
       console.log('Video lazy loaded successfully:', {
         src: src,
-        deviceType: isMobile ? 'mobile' : 'desktop'
+        deviceType: isMobile ? 'mobile' : 'desktop',
+        videoType: isTalkingHead ? 'talking-head' : 'regular',
+        selector: isTalkingHead ? '.talking-head' : (isMobile ? '.slide-inner__video-block' : '.cases-grid__item__container__video-block')
       });
       
       return true;
@@ -1301,7 +1314,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let loadedCount = 0;
     allVideos.forEach(video => {
       if (lazyLoadVideo(video)) {
-        loadedCount++;
+            loadedCount++;
       }
     });
     
@@ -1311,7 +1324,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Инициализируем ленивую загрузку после загрузки DOM
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initVideoLazyLoad);
-  } else {
+      } else {
     initVideoLazyLoad();
   }
   
