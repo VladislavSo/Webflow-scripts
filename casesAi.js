@@ -1,4 +1,3 @@
-
 window.StackUI = window.StackUI || {};
 
 (function(ns) {
@@ -111,7 +110,8 @@ window.StackUI = window.StackUI || {};
     lastCurrentCard: null,
     removedCurrentCard: null,
     fromListScroll: false,
-    isProgrammaticListScroll: false
+    isProgrammaticListScroll: false,
+    casesGridInViewport: true
   };
 
   // Вспомогательные кэши
@@ -989,19 +989,69 @@ window.StackUI = window.StackUI || {};
     });
   }
 
+  // Проверка видимости cases-grid в viewport
+  function checkCasesGridVisibility(ns) {
+    if (!ns.dom.casesGrid) return;
+    
+    const rect = ns.dom.casesGrid.getBoundingClientRect();
+    const windowHeight = window.innerHeight || document.documentElement.clientHeight;
+    
+    // Проверяем, пересекается ли cases-grid с видимой областью
+    const isInViewport = rect.bottom > 0 && rect.top < windowHeight;
+    const wasInViewport = ns.state.casesGridInViewport;
+    
+    ns.state.casesGridInViewport = isInViewport;
+    
+    // Если видимость изменилась, обновляем состояние видео
+    if (wasInViewport !== isInViewport) {
+      updateVideoStateByVisibility(ns);
+    }
+  }
+
+  // Обновление состояния видео в зависимости от видимости cases-grid
+  function updateVideoStateByVisibility(ns) {
+    const activeItem = ns.collections.caseItems.find(item => item.classList.contains('active'));
+    if (activeItem) {
+      if (ns.state.casesGridInViewport) {
+        // cases-grid стал видимым - восстанавливаем воспроизведение
+        enableAutoplayAndPlay(activeItem);
+        applyAudioStateOnActivation(activeItem);
+      } else {
+        // cases-grid стал невидимым - останавливаем все видео
+        // Получаем все видео из активного элемента
+        const allVideos = Array.from(activeItem.querySelectorAll('video'));
+        allVideos.forEach(video => {
+          try { video.pause(); } catch(e) {}
+          try { video.muted = true; } catch(e) {}
+        });
+      }
+    }
+  }
+
   // Привязать обработчики скролла и resize. На resize — пересчёт метрик и пересоздание observer.
   function bindAllScrolls(ns) {
     ns.dom.container.addEventListener('scroll', onCardsScroll, { passive: true });
-    window.addEventListener('scroll', onWindowScroll, { passive: true });
+    
+    // Обновленный обработчик скролла окна
+    function onWindowScrollWithVisibility() {
+      onWindowScroll();
+      checkCasesGridVisibility(ns);
+    }
+    
+    window.addEventListener('scroll', onWindowScrollWithVisibility, { passive: true });
     window.addEventListener('resize', () => {
       ns.utils.recalcMetrics(ns);
       ns.sync.createCasesObserver(ns);
       ns.effects.scheduleFrameUpdate(ns);
       ns.layout.updateCasesContainerPaddingTop(ns);
+      checkCasesGridVisibility(ns); // Проверяем видимость при resize
       refreshEffectsWithDelay();
     });
     // На смену ориентации — также обновляем эффекты
-    window.addEventListener('orientationchange', () => { refreshEffectsWithDelay(); });
+    window.addEventListener('orientationchange', () => { 
+      refreshEffectsWithDelay();
+      checkCasesGridVisibility(ns); // Проверяем видимость при смене ориентации
+    });
   }
 
   // Bootstrap: инициализация после DOMContentLoaded
@@ -1017,6 +1067,9 @@ window.StackUI = window.StackUI || {};
     ns.domTools.cacheCardChildren(ns);
     ns.domTools.initCards(ns);
 
+    // Проверяем начальную видимость cases-grid
+    checkCasesGridVisibility(ns);
+
     const initiallyActive = ns.collections.caseItems.find(ci => ci.classList.contains('active'));
     if (initiallyActive) ns.sync.setActiveCase(ns, initiallyActive, { scrollContainer: true });
     else ns.sync.updateCasesActiveByWindowScroll(ns);
@@ -1030,10 +1083,22 @@ window.StackUI = window.StackUI || {};
     ns.effects.scheduleFrameUpdate(ns);
 
     // Обновление эффектов при переходе в/из полноэкранного режима
-    document.addEventListener('fullscreenchange', () => { refreshEffectsWithDelay(); });
-    document.addEventListener('webkitfullscreenchange', () => { refreshEffectsWithDelay(); });
-    document.addEventListener('mozfullscreenchange', () => { refreshEffectsWithDelay(); });
-    document.addEventListener('MSFullscreenChange', () => { refreshEffectsWithDelay(); });
+    document.addEventListener('fullscreenchange', () => { 
+      refreshEffectsWithDelay(); 
+      checkCasesGridVisibility(ns);
+    });
+    document.addEventListener('webkitfullscreenchange', () => { 
+      refreshEffectsWithDelay(); 
+      checkCasesGridVisibility(ns);
+    });
+    document.addEventListener('mozfullscreenchange', () => { 
+      refreshEffectsWithDelay(); 
+      checkCasesGridVisibility(ns);
+    });
+    document.addEventListener('MSFullscreenChange', () => { 
+      refreshEffectsWithDelay(); 
+      checkCasesGridVisibility(ns);
+    });
 
     // visibilitychange больше не используется, т.к. нужен триггер только при реальном изменении окна
   }
@@ -1497,6 +1562,12 @@ document.addEventListener("DOMContentLoaded", () => {
   function applyAudioStateOnActivation(item) {
     const videos = getPlatformVideos(item, false);
     videos.forEach(video => {
+      // Если cases-grid не в зоне видимости, принудительно отключаем звук
+      if (!ns.state.casesGridInViewport) {
+        try { video.muted = true; } catch(e) {}
+        return;
+      }
+      
       const soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
       if (soundOn) {
         try { video.muted = false; } catch(e) {}
@@ -1510,6 +1581,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Запускаем видео только после полной загрузки (canplaythrough)
   function enableAutoplayAndPlay(item) {
+    // Проверяем, находится ли cases-grid в зоне видимости
+    if (!ns.state.casesGridInViewport) {
+      // Если cases-grid не в зоне видимости, останавливаем все видео
+      const videos = getPlatformVideos(item, false);
+      videos.forEach(video => {
+        try { video.pause(); } catch(e) {}
+        try { video.muted = true; } catch(e) {}
+      });
+      return;
+    }
+
     const videos = getPlatformVideos(item, false);
     videos.forEach(video => {
       const isTalkingHead = !!video.closest('.cases-grid__item__container__wrap__talking-head');
@@ -1535,6 +1617,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const tryPlay = () => {
         if (!item.classList.contains("active")) return;
+        // Дополнительная проверка видимости cases-grid
+        if (!ns.state.casesGridInViewport) return;
+        
         if (isTalkingHead) {
           try { if (video.paused) video.play().catch(()=>{}); } catch(e) {}
           return;
