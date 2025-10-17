@@ -718,7 +718,7 @@ window.StackUI = window.StackUI || {};
           video.pause();
         }
       } catch (e) {
-        console.warn('Error pausing video:', e);
+        // Игнорируем ошибки при паузе видео
       }
     });
   }
@@ -737,7 +737,7 @@ window.StackUI = window.StackUI || {};
           }
         }
       } catch (e) {
-        console.warn('Error playing video:', e);
+        // Игнорируем ошибки при воспроизведении видео
       }
     });
   }
@@ -756,7 +756,7 @@ window.StackUI = window.StackUI || {};
           video.currentTime = 0;
         }
       } catch (e) {
-        console.warn('Error pausing/resetting video:', e);
+        // Игнорируем ошибки при паузе/сбросе видео
       }
     });
   }
@@ -1350,13 +1350,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const isTalkingHead = video.closest('.cases-grid__item__container__wrap__talking-head__video');
       
       if (!src) {
-        console.warn('Video lazy load: no src attribute found for device type', {
-          isMobile,
-          isDesktop,
-          isTalkingHead: !!isTalkingHead,
-          hasMobDataSrc: !!video.getAttribute('mob-data-src'),
-          hasDataSrc: !!video.getAttribute('data-src')
-        });
         return false;
       }
       
@@ -1364,16 +1357,9 @@ document.addEventListener("DOMContentLoaded", () => {
       video.src = src;
       video.load();
       
-      console.log('Video lazy loaded successfully:', {
-        src: src,
-        deviceType: isMobile ? 'mobile' : 'desktop',
-        videoType: isTalkingHead ? 'talking-head' : 'regular',
-        selector: isTalkingHead ? '.talking-head' : (isMobile ? '.slide-inner__video-block' : '.cases-grid__item__container__video-block')
-      });
       
       return true;
     } catch (error) {
-      console.error('Error lazy loading video:', error);
       return false;
     }
   }
@@ -1394,7 +1380,6 @@ document.addEventListener("DOMContentLoaded", () => {
       let loadedCount = 0;
       const totalVideos = allPriorityVideos.length;
       
-      console.log(`Loading priority videos: ${totalVideos} videos from hero and interface sections`);
       
       allPriorityVideos.forEach(video => {
         try {
@@ -1406,20 +1391,16 @@ document.addEventListener("DOMContentLoaded", () => {
             // Ждем загрузки метаданных видео
             const onLoadedMetadata = () => {
               loadedCount++;
-              console.log(`Priority video loaded: ${loadedCount}/${totalVideos}`);
               
               if (loadedCount === totalVideos) {
-                console.log('All priority videos loaded successfully');
                 resolve();
               }
             };
             
             const onError = () => {
               loadedCount++;
-              console.warn(`Priority video failed to load: ${loadedCount}/${totalVideos}`);
               
               if (loadedCount === totalVideos) {
-                console.log('Priority videos loading completed (with some errors)');
                 resolve();
               }
             };
@@ -1428,7 +1409,6 @@ document.addEventListener("DOMContentLoaded", () => {
             video.addEventListener('error', onError, { once: true });
           } else {
             loadedCount++;
-            console.warn('Priority video has no src attribute');
             
             if (loadedCount === totalVideos) {
               resolve();
@@ -1436,7 +1416,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         } catch (error) {
           loadedCount++;
-          console.error('Error loading priority video:', error);
           
           if (loadedCount === totalVideos) {
             resolve();
@@ -1451,17 +1430,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const caseItems = document.querySelectorAll('.cases-grid__item');
     
     if (caseItems.length === 0) {
-      console.log('No case items found for video loading');
       return;
     }
     
-    console.log(`Starting sequential loading of videos from ${caseItems.length} case items`);
     
     let currentIndex = 0;
     
     function loadNextCase() {
       if (currentIndex >= caseItems.length) {
-        console.log('All case videos loaded successfully');
         return;
       }
       
@@ -1469,13 +1445,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const videos = caseItem.querySelectorAll('video');
       
       if (videos.length === 0) {
-        console.log(`Case ${currentIndex + 1}: No videos found`);
         currentIndex++;
         setTimeout(loadNextCase, 100); // Небольшая задержка между кейсами
         return;
       }
       
-      console.log(`Case ${currentIndex + 1}: Loading ${videos.length} videos`);
       
       let loadedInCase = 0;
       const totalInCase = videos.length;
@@ -1489,10 +1463,8 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const onLoadedMetadata = () => {
               loadedInCase++;
-              console.log(`Case ${currentIndex + 1}: Video ${loadedInCase}/${totalInCase} loaded`);
               
               if (loadedInCase === totalInCase) {
-                console.log(`Case ${currentIndex + 1}: All videos loaded`);
                 currentIndex++;
                 setTimeout(loadNextCase, 200); // Задержка между кейсами
               }
@@ -1500,10 +1472,8 @@ document.addEventListener("DOMContentLoaded", () => {
             
             const onError = () => {
               loadedInCase++;
-              console.warn(`Case ${currentIndex + 1}: Video ${loadedInCase}/${totalInCase} failed to load`);
               
               if (loadedInCase === totalInCase) {
-                console.log(`Case ${currentIndex + 1}: Loading completed (with some errors)`);
                 currentIndex++;
                 setTimeout(loadNextCase, 200);
               }
@@ -1513,7 +1483,6 @@ document.addEventListener("DOMContentLoaded", () => {
             video.addEventListener('error', onError, { once: true });
           } else {
             loadedInCase++;
-            console.warn(`Case ${currentIndex + 1}: Video has no src attribute`);
             
             if (loadedInCase === totalInCase) {
               currentIndex++;
@@ -1522,7 +1491,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         } catch (error) {
           loadedInCase++;
-          console.error(`Case ${currentIndex + 1}: Error loading video:`, error);
           
           if (loadedInCase === totalInCase) {
             currentIndex++;
@@ -1537,16 +1505,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Обновленная функция для инициализации ленивой загрузки всех видео
   function initVideoLazyLoad() {
-    console.log('Starting prioritized video lazy loading...');
     
     // Сначала загружаем видео из hero и interface секций
     loadHeroAndInterfaceVideos().then(() => {
-      console.log('Priority videos loaded, starting cases videos...');
       
       // Затем последовательно загружаем видео из каждого cases-grid__item
       loadCasesVideosSequentially();
     }).catch(error => {
-      console.error('Error in priority video loading:', error);
       
       // В случае ошибки все равно запускаем загрузку кейсов
       loadCasesVideosSequentially();
