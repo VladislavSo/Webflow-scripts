@@ -1153,6 +1153,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ===== muteBtn.js =====
 (function(){
   'use strict';
+  if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
   if (window.CasesAudio && window.CasesAudio.initMuteHandlers) return;
   window.CasesAudio = window.CasesAudio || {};
   window.CasesAudio.soundOn = !!window.CasesAudio.soundOn; // глобальный флаг: был клик и снят muted
@@ -1170,7 +1171,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function findCaseVideos(caseEl){
     if (!caseEl) return [];
     try {
-      var list = caseEl.querySelectorAll('.cases-grid__item__container video, .cases-grid__item__container__wrap__talking-head__video video, .slide-inner__video-block video');
+      var list = caseEl.querySelectorAll('.cases-grid__item__container video, .cases-grid__item__container__wrap__talking-head__video video, .story-track-wrapper video');
       return Array.prototype.slice.call(list);
     } catch(_) { return []; }
   }
