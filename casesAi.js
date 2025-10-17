@@ -708,10 +708,66 @@ window.StackUI = window.StackUI || {};
     });
   }
 
+  // Функции для управления видео в кейсах
+  function pauseAllVideosInCase(caseItem) {
+    if (!caseItem) return;
+    const videos = caseItem.querySelectorAll('video');
+    videos.forEach(video => {
+      try {
+        if (video && typeof video.pause === 'function') {
+          video.pause();
+        }
+      } catch (e) {
+        console.warn('Error pausing video:', e);
+      }
+    });
+  }
+
+  function playVideosInCase(caseItem) {
+    if (!caseItem) return;
+    const videos = caseItem.querySelectorAll('video');
+    videos.forEach(video => {
+      try {
+        if (video && typeof video.play === 'function') {
+          const playPromise = video.play();
+          if (playPromise && playPromise.catch) {
+            playPromise.catch(() => {
+              // Игнорируем ошибки автовоспроизведения
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Error playing video:', e);
+      }
+    });
+  }
+
+  function pauseAndResetVideosInCase(caseItem) {
+    if (!caseItem) return;
+    const videos = caseItem.querySelectorAll('video');
+    videos.forEach(video => {
+      try {
+        if (video && typeof video.pause === 'function') {
+          video.pause();
+        }
+        // Для talking-head видео не сбрасываем время, только пауза
+        const isTalkingHead = video.closest('.cases-grid__item__container__wrap__talking-head__video');
+        if (!isTalkingHead && typeof video.currentTime === 'number') {
+          video.currentTime = 0;
+        }
+      } catch (e) {
+        console.warn('Error pausing/resetting video:', e);
+      }
+    });
+  }
+
   ns.effects = {
     updateZIndexes,
     updateListItemEffects,
-    scheduleFrameUpdate
+    scheduleFrameUpdate,
+    pauseAllVideosInCase,
+    playVideosInCase,
+    pauseAndResetVideosInCase
   };
 })(window.StackUI);
 
@@ -728,6 +784,17 @@ window.StackUI = window.StackUI || {};
       });
     });
     ns.state.lastCurrentCard = null;
+  }
+
+  // Деактивировать все кейсы и остановить видео
+  function deactivateAllCases(ns) {
+    ns.collections.caseItems.forEach(caseItem => {
+      caseItem.classList.remove('active');
+      // Останавливаем все видео в деактивированном кейсе
+      ns.effects.pauseAndResetVideosInCase(caseItem);
+    });
+    clearCardDecorations(ns);
+    ns.state.lastActiveCase = null;
   }
 
   // Пометить карточку по префиксу: добавить current и "<prefix>-card-style".
@@ -769,9 +836,20 @@ window.StackUI = window.StackUI || {};
   // Установить активный кейс и синхронизировать карточку.
   function setActiveCase(ns, targetCase, { scrollContainer = true } = {}) {
     if (!targetCase) return;
-    ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
+    
+    // Деактивируем все кейсы и останавливаем их видео
+    ns.collections.caseItems.forEach(ci => {
+      ci.classList.remove('active');
+      if (ci !== targetCase) {
+        ns.effects.pauseAndResetVideosInCase(ci);
+      }
+    });
+    
+    // Активируем целевой кейс
     targetCase.classList.add('active');
-
+    
+    // Запускаем видео в активированном кейсе
+    ns.effects.playVideosInCase(targetCase);
 
     const prefix = (targetCase.id || '').split('-')[0] || '';
     clearCardDecorations(ns);
@@ -782,8 +860,21 @@ window.StackUI = window.StackUI || {};
   // Установить активным только кейс (без вмешательства в карточки/скролл списка).
   function setActiveCaseOnly(ns, targetCase) {
     if (!targetCase) return;
-    ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
+    
+    // Деактивируем все кейсы и останавливаем их видео
+    ns.collections.caseItems.forEach(ci => {
+      ci.classList.remove('active');
+      if (ci !== targetCase) {
+        ns.effects.pauseAndResetVideosInCase(ci);
+      }
+    });
+    
+    // Активируем целевой кейс
     targetCase.classList.add('active');
+    
+    // Запускаем видео в активированном кейсе
+    ns.effects.playVideosInCase(targetCase);
+    
     ns.state.lastActiveCase = targetCase;
   }
 
@@ -803,9 +894,7 @@ window.StackUI = window.StackUI || {};
       setActiveCase(ns, active, { scrollContainer: true });
     } else if (!active && ns.state.lastActiveCase) {
       // Если нет активного кейса, но был активный - деактивируем все
-      ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
-      clearCardDecorations(ns);
-      ns.state.lastActiveCase = null;
+      deactivateAllCases(ns);
     }
   }
 
@@ -826,9 +915,7 @@ window.StackUI = window.StackUI || {};
     
     if (!hasIntersecting && ns.state.lastActiveCase) {
       // Если нет пересекающих элементов, но был активный - деактивируем все
-      ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
-      clearCardDecorations(ns);
-      ns.state.lastActiveCase = null;
+      deactivateAllCases(ns);
     }
   }
 
@@ -860,6 +947,7 @@ window.StackUI = window.StackUI || {};
 
   ns.sync = {
     clearCardDecorations,
+    deactivateAllCases,
     markCardByPrefix,
     setActiveCase,
     setActiveCaseOnly,
