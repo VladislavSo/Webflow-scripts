@@ -663,7 +663,8 @@ window.StackUI = window.StackUI || {};
         if (video && typeof video.pause === 'function') {
           video.pause();
         }
-        if (typeof video.currentTime === 'number') {
+        const isTalkingHead = video.closest('.cases-grid__item__container__wrap__talking-head__video');
+        if (!isTalkingHead && typeof video.currentTime === 'number') {
           video.currentTime = 0;
         }
       } catch (e) {
@@ -1051,7 +1052,13 @@ document.addEventListener("DOMContentLoaded", () => {
       var listToReset = window.CasesAudio.resetOnlyTheseOnce;
       videos.forEach(function(v){
         try { v.muted = false; } catch(_){ }
-        try { v.currentTime = 0; } catch(_){ }
+        if (listToReset){
+          if (listToReset.indexOf(v) !== -1){
+            try { v.currentTime = 0; } catch(_){ }
+          }
+        } else {
+          try { v.currentTime = 0; } catch(_){ }
+        }
         try { v.volume = 1; } catch(_){ }
         try { if (v.paused) v.play().catch(function(){}); } catch(_){ }
       });
@@ -1070,16 +1077,17 @@ document.addEventListener("DOMContentLoaded", () => {
     var btn = ev.currentTarget;
     var caseEl = getCaseItem(btn);
 
+    // переключаем глобальный флаг
     window.CasesAudio.soundOn = !window.CasesAudio.soundOn;
 
+    // синхронизируем все кнопки
     setButtonIconsStateForAll(window.CasesAudio.soundOn);
 
     if (caseEl){
       try{
-        var thVideos = caseEl.querySelectorAll('.cases-grid__item__container__wrap__talking-head__video video');
-        thVideos = Array.prototype.slice.call(thVideos || []);
-        if (thVideos.length){
-          window.CasesAudio.resetOnlyTheseOnce = thVideos;
+        var allVideos = findCaseVideos(caseEl);
+        if (allVideos && allVideos.length){
+          window.CasesAudio.resetOnlyTheseOnce = allVideos;
         }
       }catch(_){ }
     }
@@ -1346,5 +1354,3 @@ document.addEventListener("DOMContentLoaded", () => {
     loadCasesVideosSequentially
   };
 })();
-
-
