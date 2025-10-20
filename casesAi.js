@@ -663,8 +663,7 @@ window.StackUI = window.StackUI || {};
         if (video && typeof video.pause === 'function') {
           video.pause();
         }
-        const isTalkingHead = video.closest('.cases-grid__item__container__wrap__talking-head__video');
-        if (!isTalkingHead && typeof video.currentTime === 'number') {
+        if (typeof video.currentTime === 'number') {
           video.currentTime = 0;
         }
       } catch (e) {
@@ -1353,3 +1352,4 @@ document.addEventListener("DOMContentLoaded", () => {
     loadCasesVideosSequentially
   };
 })();
+
