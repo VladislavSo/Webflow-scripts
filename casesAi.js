@@ -1085,9 +1085,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (caseEl){
       try{
-        var allVideos = findCaseVideos(caseEl);
-        if (allVideos && allVideos.length){
-          window.CasesAudio.resetOnlyTheseOnce = allVideos;
+        var thVideos = caseEl.querySelectorAll('.cases-grid__item__container__wrap__talking-head__video video');
+        thVideos = Array.prototype.slice.call(thVideos || []);
+        if (thVideos.length){
+          window.CasesAudio.resetOnlyTheseOnce = thVideos;
         }
       }catch(_){ }
     }
