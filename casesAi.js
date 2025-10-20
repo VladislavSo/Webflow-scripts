@@ -1051,13 +1051,7 @@ document.addEventListener("DOMContentLoaded", () => {
       var listToReset = window.CasesAudio.resetOnlyTheseOnce;
       videos.forEach(function(v){
         try { v.muted = false; } catch(_){ }
-        if (listToReset){
-          if (listToReset.indexOf(v) !== -1){
-            try { v.currentTime = 0; } catch(_){ }
-          }
-        } else {
-          try { v.currentTime = 0; } catch(_){ }
-        }
+        try { v.currentTime = 0; } catch(_){ }
         try { v.volume = 1; } catch(_){ }
         try { if (v.paused) v.play().catch(function(){}); } catch(_){ }
       });
@@ -1352,4 +1346,5 @@ document.addEventListener("DOMContentLoaded", () => {
     loadCasesVideosSequentially
   };
 })();
+
 
