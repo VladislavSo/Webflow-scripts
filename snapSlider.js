@@ -1,4 +1,35 @@
 (function(){
+  // Защита от ошибок Telegram WebView: "Error invoking post: Method not found"
+  // Перехватываем post и молча игнорируем неизвестные/внешние методы, чтобы не ломать страницу
+  try {
+    var __tw = (typeof window !== 'undefined') && (window.TelegramWebview || window.TelegramWebviewProxy || (window.Telegram && (window.Telegram.WebView || window.Telegram.WebApp)));
+    if (__tw && typeof __tw.post === 'function' && !__tw.__snapSafePatched){
+      var __origPost = __tw.post.bind(__tw);
+      __tw.post = function(method){
+        try {
+          // Игнорируем сторонние вызовы, часто встречающиеся в интеграциях
+          if (method === 'siteName' || method === 'siteNameEmpty') { return; }
+          // Разрешаем только известные web_app методы, остальные игнорируем без ошибок
+          var known = [
+            'web_app_data_send',
+            'web_app_expand',
+            'web_app_close',
+            'web_app_setup_main_button',
+            'web_app_setup_back_button',
+            'web_app_set_header_color',
+            'web_app_set_background_color',
+            'web_app_setup_swipe_behavior'
+          ];
+          if (typeof method === 'string' && method.indexOf('web_app_') === 0 && known.indexOf(method) !== -1){
+            return __origPost.apply(__tw, arguments);
+          }
+          // Неизвестный метод — ничего не делаем, чтобы не провоцировать исключение в Telegram WebView
+          return;
+        } catch(__e){ /* проглатываем любые ошибки телеграм‑моста */ }
+      };
+      __tw.__snapSafePatched = true;
+    }
+  } catch(__ignore){}
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
   // Утилиты
   var PROGRESS_ADVANCE_THRESHOLD = 0.98;
