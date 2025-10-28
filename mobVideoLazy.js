@@ -1,18 +1,3 @@
-/*
-  Мобильная лениво-управляемая загрузка видео в элементах `cases-grid__item`.
-
-  Правила загрузки:
-  1) Для активного `cases-grid__item.active` сначала загружаем все постеры всех <video> во всех `story-track-wrapper__slide`.
-  2) Затем, начиная с первого слайда, последовательно полностью загружаем видео и запускаем его.
-  3) После завершения всех слайдов активного элемента — загружаем следующий `cases-grid__item` (если есть) по тем же правилам.
-  4) После следующего — загружаем предыдущий относительно активного (если есть).
-
-   Поддерживаемые атрибуты источников:
-   - видео: data-src (источник mp4/webm)
-   - talking-head видео: mob-data-src (источник mp4/webm)
-   - постер: data-poster или poster-src (оба поддерживаются)
-*/
-
 (function initMobileVideoLazyLoader() {
   if (typeof document === 'undefined') return;
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
@@ -83,7 +68,7 @@
    * @returns {Promise<void>}
    */
   function preloadImage(src) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!src) return resolve();
       const img = new Image();
       img.onload = () => resolve();
@@ -127,7 +112,6 @@
   async function loadAndMaybePlayVideo(video) {
     const alreadyLoaded = video.getAttribute('data-loaded') === 'true' || video.readyState >= 3;
     const dataSrc = video.getAttribute('data-src') || video.getAttribute('mob-data-src');
-    const isTalkingHead = !!video.getAttribute('mob-data-src');
 
     if (!alreadyLoaded && dataSrc) {
       // Удаляем crossorigin, чтобы не требовать CORS от сервера для <video>
@@ -192,74 +176,77 @@
     return undefined;
   }
 
+  
+
   /**
-   * Для одного `cases-grid__item`: сначала постеры всех видео, затем по слайдам видео по порядку.
-   * Также обрабатывает talking-head видео.
-   * @param {Element} gridItem
+   * Новый порядок загрузки по ТЗ:
+   * 1) talking-head в активном cases-grid__item
+   * 2) видео первого слайда активного
+   * 3) talking-head в следующем (active + 1)
+   * 4) видео первого слайда следующего
+   * 5) видео второго слайда активного (если есть)
    */
-  async function processGridItem(gridItem) {
-    if (!gridItem) return;
+  async function processAccordingToSpec() {
+    const items = queryAll(document, '.cases-grid__item');
+    if (!items.length) return;
+    const activeIndex = items.findIndex(el => el.classList.contains('active'));
+    if (activeIndex < 0) return;
 
-    const slides = queryAll(gridItem, '.story-track-wrapper .story-track-wrapper__slide');
-    const talkingHeadVideos = queryAll(gridItem, '.cases-grid__item__container__wrap__talking-head__video video');
-    
-    if (!slides.length && !talkingHeadVideos.length) return;
+    const activeItem = items[activeIndex];
+    const nextItem = items[activeIndex + 1];
 
-    const isActive = gridItem.classList.contains('active');
+    // Helpers
+    const getSlides = (item) => item ? queryAll(item, '.story-track-wrapper .story-track-wrapper__slide') : [];
+    const getTalkingHeadVideos = (item) => item ? queryAll(item, '.cases-grid__item__container__wrap__talking-head__video video') : [];
+    const getSlideVideos = (slide) => slide ? queryAll(slide, 'video') : [];
 
-    // 1) Постеры всех видео: в слайдах + talking-head
-    const allVideos = [
-      ...slides.map(slide => queryAll(slide, 'video')).flat(),
-      ...talkingHeadVideos
-    ];
-    await Promise.all(allVideos.map(ensurePosterLoaded));
-
-    // 2) Сначала полностью загружаем talking-head видео
-    for (let i = 0; i < talkingHeadVideos.length; i += 1) {
-      const video = talkingHeadVideos[i];
-      await loadAndMaybePlayVideo(video);
+    // Active: talking-head
+    const activeTalkingHead = getTalkingHeadVideos(activeItem);
+    await Promise.all(activeTalkingHead.map(ensurePosterLoaded));
+    for (let i = 0; i < activeTalkingHead.length; i += 1) {
+      await loadAndMaybePlayVideo(activeTalkingHead[i]);
     }
 
-    // 3) Затем поочередно загружаем видео по слайдам
-    for (let slideIndex = 0; slideIndex < slides.length; slideIndex += 1) {
-      const slide = slides[slideIndex];
-      const videosInSlide = queryAll(slide, 'video');
-      for (let i = 0; i < videosInSlide.length; i += 1) {
-        const video = videosInSlide[i];
-        await loadAndMaybePlayVideo(video);
+    // Active: first slide videos
+    const activeSlides = getSlides(activeItem);
+    const activeFirstSlideVideos = getSlideVideos(activeSlides[0]);
+    await Promise.all(activeFirstSlideVideos.map(ensurePosterLoaded));
+    for (let i = 0; i < activeFirstSlideVideos.length; i += 1) {
+      await loadAndMaybePlayVideo(activeFirstSlideVideos[i]);
+    }
+
+    // Next: talking-head
+    if (nextItem) {
+      const nextTalkingHead = getTalkingHeadVideos(nextItem);
+      await Promise.all(nextTalkingHead.map(ensurePosterLoaded));
+      for (let i = 0; i < nextTalkingHead.length; i += 1) {
+        await loadAndMaybePlayVideo(nextTalkingHead[i]);
       }
     }
+
+    // Next: first slide videos
+    if (nextItem) {
+      const nextSlides = getSlides(nextItem);
+      const nextFirstSlideVideos = getSlideVideos(nextSlides[0]);
+      await Promise.all(nextFirstSlideVideos.map(ensurePosterLoaded));
+      for (let i = 0; i < nextFirstSlideVideos.length; i += 1) {
+        await loadAndMaybePlayVideo(nextFirstSlideVideos[i]);
+      }
+    }
+
+    // Active: second slide videos (if exists)
+    const activeSecondSlideVideos = getSlideVideos(activeSlides[1]);
+    await Promise.all(activeSecondSlideVideos.map(ensurePosterLoaded));
+    for (let i = 0; i < activeSecondSlideVideos.length; i += 1) {
+      await loadAndMaybePlayVideo(activeSecondSlideVideos[i]);
+    }
   }
 
-  /**
-   * Формирует порядок: активный, следующий, предыдущий (если существуют).
-   * @param {Element[]} items
-   * @returns {Element[]}
-   */
-  function buildProcessingOrder(items) {
-    if (!items.length) return [];
-    const activeIndex = items.findIndex(el => el.classList.contains('active'));
-    const order = [];
-    if (activeIndex >= 0) {
-      order.push(items[activeIndex]);
-      if (items[activeIndex + 1]) order.push(items[activeIndex + 1]);
-      if (items[activeIndex - 1]) order.push(items[activeIndex - 1]);
-    } else {
-      // если активного нет — просто первый, второй, третий...
-      return items.slice();
-    }
-    // Удаляем потенциальные дубликаты (если один и тот же элемент попал дважды)
-    return order.filter((el, idx, arr) => arr.indexOf(el) === idx);
-  }
+  
 
   async function run() {
     const processFromActive = async () => {
-      const allItems = queryAll(document, '.cases-grid__item');
-      if (!allItems.length) return;
-      const order = buildProcessingOrder(allItems);
-      for (let index = 0; index < order.length; index += 1) {
-        await processGridItem(order[index]);
-      }
+      await processAccordingToSpec();
     };
 
     // Первичная подгрузка
@@ -267,6 +254,21 @@
 
     // Отслеживание изменения класса active
     const debouncedProcess = debounce(processFromActive, 100);
+    const debouncedLoadNextSlide = debounce(async (slideEl) => {
+      try {
+        const gridItem = slideEl.closest ? slideEl.closest('.cases-grid__item') : null;
+        if (!gridItem || !gridItem.classList.contains('active')) return;
+        const slides = queryAll(gridItem, '.story-track-wrapper .story-track-wrapper__slide');
+        const currentIndex = slides.indexOf(slideEl);
+        const nextSlide = slides[currentIndex + 1];
+        if (!nextSlide) return;
+        const videos = queryAll(nextSlide, 'video');
+        await Promise.all(videos.map(ensurePosterLoaded));
+        for (let i = 0; i < videos.length; i += 1) {
+          await loadAndMaybePlayVideo(videos[i]);
+        }
+      } catch (_) { /* ignore */ }
+    }, 100);
     const observer = new MutationObserver((mutations) => {
       for (let i = 0; i < mutations.length; i += 1) {
         const m = mutations[i];
@@ -275,6 +277,12 @@
           if (el && el.matches && el.matches('.cases-grid__item')) {
             debouncedProcess();
             break;
+          }
+          // Реакция на смену активного слайда: догружаем следующий слайд активного grid item
+          if (el && el.matches && el.matches('.story-track-wrapper__slide')) {
+            if (el.classList && el.classList.contains('active')) {
+              debouncedLoadNextSlide(el);
+            }
           }
         }
       }
