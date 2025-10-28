@@ -61,25 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return Array.from(slides[slideIndex].querySelectorAll('video[data-src]'));
   }
 
-  // Talking-head: грузим видео сразу
-  function loadTalkingHeadAssetsImmediately() {
-    itemsArray.forEach(item => {
-      const head = item.querySelector('.cases-grid__item__container__wrap__talking-head');
-      if (!head) return;
-      const videos = Array.from(head.querySelectorAll('video'));
-      videos.forEach(video => {
-        if (video.dataset && video.dataset.src && !video.dataset.loaded) {
-          const source = document.createElement('source');
-          source.src = video.dataset.src;
-          source.type = 'video/mp4';
-          video.appendChild(source);
-          video.preload = isIOS ? 'metadata' : 'auto';
-          try { video.load(); } catch(e) {}
-          video.dataset.loaded = 'true';
-        }
-      });
-    });
-  }
+  
 
   // Загружаем список видео
   async function loadVideosList(videos) {
@@ -341,7 +323,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    loadTalkingHeadAssetsImmediately();
     updateActiveVideos();
     
     const activeItem = itemsArray.find(item => item.classList.contains('active'));
