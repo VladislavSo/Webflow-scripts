@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-  // Работаем только на мобильных устройствах (ширина экрана до 479px)
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
   
   const items = document.querySelectorAll(".cases-grid__item");
@@ -47,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function getTalkingHeadVideos(item) {
     const head = item.querySelector('.cases-grid__item__container__wrap__talking-head');
     if (!head) return [];
-    return Array.from(head.querySelectorAll('video[data-src]'));
+    return Array.from(head.querySelectorAll('video[mob-data-src]'));
   }
 
   // Получаем видео из конкретного слайда по индексу
