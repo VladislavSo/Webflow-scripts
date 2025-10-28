@@ -66,8 +66,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Загружаем список видео
   async function loadVideosList(videos) {
     const toLoad = videos.filter(v => {
-      const dataSrcAttr = v.dataset.mobDataSrc || v.dataset.src;
-      return v.dataset && dataSrcAttr && !v.dataset.loaded;
+      const mobAttr = typeof v.getAttribute === 'function' ? v.getAttribute('mob-data-src') : null;
+      const dataAttr = v.dataset ? v.dataset.src : null;
+      const chosen = mobAttr || dataAttr;
+      return chosen && !(v.dataset && v.dataset.loaded);
     });
     if (toLoad.length === 0) return;
     
@@ -76,9 +78,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function attachSourceAfterFetch(video) {
-    const dataSrcAttr = video.dataset.mobDataSrc || video.dataset.src;
-    if (!video || !video.dataset || !dataSrcAttr) return;
-    if (video.dataset.loaded) return;
+    const mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
+    const dataAttr = video.dataset ? video.dataset.src : null;
+    const dataSrcAttr = mobAttr || dataAttr;
+    if (!video || !dataSrcAttr) return;
+    if (video.dataset && video.dataset.loaded) return;
     if (video.dataset.fetching === 'true') {
       // Если уже загружается, ждем завершения
       return new Promise(resolve => {
@@ -93,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
     
-    video.dataset.fetching = 'true';
+    if (video.dataset) video.dataset.fetching = 'true';
     const url = dataSrcAttr;
     
     // Если источник кросс-доменный — НЕ используем fetch (избежим CORS), подключаем напрямую
@@ -114,8 +118,8 @@ document.addEventListener("DOMContentLoaded", () => {
             video.addEventListener("canplaythrough", resolve, { once: true });
           }
         });
-        video.dataset.loaded = 'true';
-        delete video.dataset.fetching;
+        if (video.dataset) video.dataset.loaded = 'true';
+        try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
         return;
       }
     } catch (_) {
@@ -133,8 +137,8 @@ document.addEventListener("DOMContentLoaded", () => {
           video.addEventListener("canplaythrough", resolve, { once: true });
         }
       });
-      video.dataset.loaded = 'true';
-      delete video.dataset.fetching;
+      if (video.dataset) video.dataset.loaded = 'true';
+      try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
       return;
     }
     try {
@@ -155,8 +159,10 @@ document.addEventListener("DOMContentLoaded", () => {
           video.addEventListener("canplaythrough", resolve, { once: true });
         }
       });
-      video.dataset.loaded = 'true';
-      video.dataset.blobUrl = blobUrl;
+      if (video.dataset) {
+        video.dataset.loaded = 'true';
+        video.dataset.blobUrl = blobUrl;
+      }
     } catch (e) {
       // Фолбэк: если fetch недоступен (CORS и т.п.), подключаем источник напрямую
       try {
@@ -173,10 +179,10 @@ document.addEventListener("DOMContentLoaded", () => {
             video.addEventListener("canplaythrough", resolve, { once: true });
           }
         });
-        video.dataset.loaded = 'true';
+        if (video.dataset) video.dataset.loaded = 'true';
       } catch (_) {}
     } finally {
-      try { delete video.dataset.fetching; } catch(_) {}
+      try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
     }
   }
 
