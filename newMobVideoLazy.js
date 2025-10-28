@@ -1,4 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // Работаем только на мобильных устройствах (ширина экрана до 479px)
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
   
   const items = document.querySelectorAll(".cases-grid__item");
@@ -64,7 +65,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Загружаем список видео
   async function loadVideosList(videos) {
-    const toLoad = videos.filter(v => v.dataset && v.dataset.src && !v.dataset.loaded);
+    const toLoad = videos.filter(v => {
+      const dataSrcAttr = v.dataset.mobDataSrc || v.dataset.src;
+      return v.dataset && dataSrcAttr && !v.dataset.loaded;
+    });
     if (toLoad.length === 0) return;
     
     // Запускаем загрузку всех видео и ждем завершения
@@ -72,7 +76,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function attachSourceAfterFetch(video) {
-    if (!video || !video.dataset || !video.dataset.src) return;
+    const dataSrcAttr = video.dataset.mobDataSrc || video.dataset.src;
+    if (!video || !video.dataset || !dataSrcAttr) return;
     if (video.dataset.loaded) return;
     if (video.dataset.fetching === 'true') {
       // Если уже загружается, ждем завершения
@@ -89,7 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     video.dataset.fetching = 'true';
-    const url = video.dataset.src;
+    const url = dataSrcAttr;
     
     // Если источник кросс-доменный — НЕ используем fetch (избежим CORS), подключаем напрямую
     try {
