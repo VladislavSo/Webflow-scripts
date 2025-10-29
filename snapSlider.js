@@ -203,9 +203,10 @@
           return;
         }
         
-        // Если видео готово, пытаемся сразу запустить
-        if (condition2){
-          console.log('[snapSlider] playVideos - video [' + idx + '] ready, calling play() immediately... (branch 2)');
+        // Вызываем play() для всех видео, которые не загружаются (даже если не готовы)
+        // Это поможет разблокировать autoplay и видео запустится автоматически, когда будет готово
+        if (!isFetching){
+          console.log('[snapSlider] playVideos - video [' + idx + '] calling play() immediately (readyState=' + readyState + ', even if not ready)...');
           var p = video.play();
           console.log('[snapSlider] playVideos - video [' + idx + '] play() returned:', p ? 'Promise' : 'void');
           if (p && p.then){
@@ -245,8 +246,7 @@
             });
           }
         } else {
-          console.log('[snapSlider] playVideos - video [' + idx + '] NOT entering any branch! (readyState=' + readyState + ', hasSource=' + hasSource + ', condition1=' + condition1 + ', condition2=' + condition2 + '), skipping');
-          console.log('[snapSlider] playVideos - video [' + idx + '] DEBUG: readyState >= 2?', readyState >= 2, ', !hasSource?', !hasSource);
+          console.log('[snapSlider] playVideos - video [' + idx + '] is still fetching, skipping play()');
         }
       } catch(err){
         console.error('[snapSlider] playVideos - video [' + idx + '] exception:', err);
@@ -508,9 +508,10 @@
         return;
       }
       
-      // Если видео готово
-      if (v.readyState >= 2 || !hasSource){
-        console.log('[snapSlider] playTalkingHead - video ready, calling play() immediately...');
+      // Вызываем play() для всех видео, которые не загружаются (даже если не готовы)
+      // Это поможет разблокировать autoplay и видео запустится автоматически, когда будет готово
+      if (!isFetching){
+        console.log('[snapSlider] playTalkingHead - calling play() immediately (readyState=' + readyState + ', even if not ready)...');
         var p = v.play();
         console.log('[snapSlider] playTalkingHead - play() returned:', p ? 'Promise' : 'void');
         if (p && p.then){
@@ -548,7 +549,7 @@
           });
         }
       } else {
-        console.log('[snapSlider] playTalkingHead - video not ready (readyState=' + readyState + ', hasSource=' + hasSource + '), skipping');
+        console.log('[snapSlider] playTalkingHead - video is still fetching, skipping play()');
       }
     } catch(err){
       console.error('[snapSlider] playTalkingHead - exception:', err);
@@ -1161,71 +1162,120 @@
 
   // Инициализация всего snap-слайдера
   function initSnapSlider(){
-    // Активируем user gesture при первом touchstart/touchmove/click для разблокировки autoplay
+    // Активируем user gesture при touchstart/touchmove/click для разблокировки autoplay
     // КРИТИЧНО: вызываем play() СРАЗУ в обработчике gesture, пока gesture действителен
+    // ВАЖНО: убрали once:true, чтобы обработчик мог срабатывать при каждом gesture
     try {
       var activateOnGesture = function(ev){
-        if (!USER_GESTURE_ACTIVATED){
-          USER_GESTURE_ACTIVATED = true;
-          console.log('[snapSlider] User gesture detected, calling play() immediately while gesture is valid');
-          // ВАЖНО: вызываем play() СРАЗУ, пока gesture еще действителен
-          try {
-            var activeCases = qsa(document, '.cases-grid__item.active, .case.active');
-            if (activeCases && activeCases.length > 0){
-              each(activeCases, function(caseEl){
-                var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
-                if (activeSlides && activeSlides.length > 0){
-                  each(activeSlides, function(slide){
-                    var videos = qsa(slide, '.slide-inner__video-block video, video');
-                    if (videos && videos.length > 0){
-                      each(videos, function(video){
-                        try {
-                          if (!video || typeof video.play !== 'function') return;
-                          var isFetching = video.dataset && video.dataset.fetching === 'true';
-                          if (isFetching) return;
-                          // Вызываем play() СРАЗУ пока gesture действителен
-                          var p = video.play();
-                          if (p && p.then){
-                            p.then(function(){
-                              console.log('[snapSlider] Gesture handler - video play() resolved (autoplay unlocked)');
-                            }).catch(function(err){
-                              console.log('[snapSlider] Gesture handler - video play() rejected:', err.name);
-                            });
-                          }
-                        } catch(e){}
+        console.log('[snapSlider] Gesture event detected:', ev.type);
+        // Вызываем play() для ВСЕХ готовых видео на странице, чтобы разблокировать autoplay
+        try {
+          // Сначала пытаемся для активных видео
+          var activeCases = qsa(document, '.cases-grid__item.active, .case.active');
+          var videosPlayed = 0;
+          
+          if (activeCases && activeCases.length > 0){
+            each(activeCases, function(caseEl){
+              var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
+              if (activeSlides && activeSlides.length > 0){
+                each(activeSlides, function(slide){
+                  var videos = qsa(slide, '.slide-inner__video-block video, video');
+                  if (videos && videos.length > 0){
+                    each(videos, function(video){
+                      try {
+                        if (!video || typeof video.play !== 'function') return;
+                        var isFetching = video.dataset && video.dataset.fetching === 'true';
+                        if (isFetching) return;
+                        // Вызываем play() СРАЗУ пока gesture действителен, даже если видео не готово
+                        // Это разблокирует autoplay, и видео запустится автоматически, когда будет готово
+                        var p = video.play();
+                        videosPlayed++;
+                        console.log('[snapSlider] Gesture handler - calling play() on active video, readyState:', video.readyState, '(even if not ready)');
+                        if (p && p.then){
+                          p.then(function(){
+                            console.log('[snapSlider] Gesture handler - video play() RESOLVED (autoplay unlocked!)');
+                            USER_GESTURE_ACTIVATED = true;
+                          }).catch(function(err){
+                            console.log('[snapSlider] Gesture handler - video play() rejected:', err.name, err.message);
+                          });
+                        }
+                      } catch(e){
+                        console.error('[snapSlider] Gesture handler - video play() exception:', e);
+                      }
+                    });
+                  }
+                });
+              }
+              // Talking-head видео
+              try {
+                var talkingVideo = getTalkingHeadVideo(caseEl);
+                if (talkingVideo && typeof talkingVideo.play === 'function'){
+                  var isFetching = talkingVideo.dataset && talkingVideo.dataset.fetching === 'true';
+                  if (!isFetching){
+                    var pt = talkingVideo.play();
+                    videosPlayed++;
+                    console.log('[snapSlider] Gesture handler - calling play() on talking-head, readyState:', talkingVideo.readyState, '(even if not ready)');
+                    if (pt && pt.then){
+                      pt.then(function(){
+                        console.log('[snapSlider] Gesture handler - talking-head play() RESOLVED (autoplay unlocked!)');
+                        USER_GESTURE_ACTIVATED = true;
+                      }).catch(function(err){
+                        console.log('[snapSlider] Gesture handler - talking-head play() rejected:', err.name, err.message);
                       });
                     }
-                  });
+                  }
                 }
-                // Talking-head видео
-                try {
-                  var talkingVideo = getTalkingHeadVideo(caseEl);
-                  if (talkingVideo && typeof talkingVideo.play === 'function'){
-                    var isFetching = talkingVideo.dataset && talkingVideo.dataset.fetching === 'true';
-                    if (!isFetching){
-                      var pt = talkingVideo.play();
-                      if (pt && pt.then){
-                        pt.then(function(){
-                          console.log('[snapSlider] Gesture handler - talking-head play() resolved (autoplay unlocked)');
-                        }).catch(function(err){
-                          console.log('[snapSlider] Gesture handler - talking-head play() rejected:', err.name);
-                        });
-                      }
+              } catch(e){
+                console.error('[snapSlider] Gesture handler - talking-head exception:', e);
+              }
+            });
+          }
+          
+          console.log('[snapSlider] Gesture handler - attempted to play', videosPlayed, 'video(s)');
+          
+          // Если не было активных видео, пробуем ЛЮБОЕ видео для разблокировки (даже если не готово)
+          if (videosPlayed === 0){
+            console.log('[snapSlider] Gesture handler - no active videos, trying ANY video for unlock (even if not ready)');
+            var allVideos = qsa(document, 'video');
+            var unlocked = false;
+            each(allVideos, function(video){
+              if (unlocked) return;
+              try {
+                if (!video || typeof video.play !== 'function') return;
+                if (!video.paused){
+                  // Уже играет - autoplay скорее всего разблокирован
+                  console.log('[snapSlider] Gesture handler - found already playing video, autoplay likely unlocked');
+                  USER_GESTURE_ACTIVATED = true;
+                  unlocked = true;
+                } else {
+                  var isFetching = video.dataset && video.dataset.fetching === 'true';
+                  if (!isFetching){
+                    var p = video.play();
+                    console.log('[snapSlider] Gesture handler - calling play() on any video for unlock, readyState:', video.readyState, '(even if not ready)');
+                    if (p && p.then){
+                      p.then(function(){
+                        console.log('[snapSlider] Gesture handler - ANY video play() RESOLVED (autoplay unlocked!)');
+                        USER_GESTURE_ACTIVATED = true;
+                        unlocked = true;
+                      }).catch(function(err){
+                        console.log('[snapSlider] Gesture handler - ANY video play() rejected:', err.name);
+                      });
                     }
                   }
-                } catch(e){}
-              });
-            }
-          } catch(e){
-            console.error('[snapSlider] Error in activateOnGesture:', e);
+                }
+              } catch(e){}
+            });
           }
+        } catch(e){
+          console.error('[snapSlider] Error in activateOnGesture:', e);
         }
       };
       // Обрабатываем touchstart и touchmove (свайпы) для Telegram WebView
-      document.addEventListener('touchstart', activateOnGesture, { passive: true, once: true });
-      document.addEventListener('touchmove', activateOnGesture, { passive: true, once: true });
+      // УБРАЛИ once:true - обработчик может срабатывать при каждом gesture
+      document.addEventListener('touchstart', activateOnGesture, { passive: true });
+      document.addEventListener('touchmove', activateOnGesture, { passive: true });
       // Также обрабатываем click на случай, если touch не сработал
-      document.addEventListener('click', activateOnGesture, { passive: true, once: true });
+      document.addEventListener('click', activateOnGesture, { passive: true });
     } catch(err){
       console.error('[snapSlider] Error in initSnapSlider - setup user gesture handlers:', err);
     }
