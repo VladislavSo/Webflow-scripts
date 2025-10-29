@@ -1274,6 +1274,113 @@
     return false;
   }
 
+  // Установка прямых обработчиков кликов на видео для разблокировки
+  function setupDirectVideoClickHandlers(){
+    try {
+      // Используем делегирование на document для всех видео
+      document.addEventListener('click', function(ev){
+        var target = ev.target;
+        // Находим ближайшее видео
+        var video = target.tagName === 'VIDEO' ? target : (target.closest ? target.closest('video') : null);
+        if (!video || typeof video.play !== 'function') return;
+        
+        // Проверяем, что видео в активном слайде
+        var slide = video.closest ? video.closest('.story-track-wrapper__slide') : null;
+        if (!slide) return;
+        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
+        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
+        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+        
+        // Если это активное видео - запускаем его используя event (прямое взаимодействие)
+        if (isActiveSlide && isActiveCase) {
+          try {
+            if (!video.muted) video.muted = true;
+            var playPromise = video.play();
+            video.__unlockedByGesture = true;
+            if (playPromise && typeof playPromise.then === 'function') {
+              playPromise.then(function(){
+                console.log('[snapSlider] ✅ Видео запущено через прямой клик');
+              }).catch(function(err){
+                // Игнорируем ошибки, возможно видео уже играет
+              });
+            }
+          } catch(_){}
+        }
+      }, { capture: true, passive: true });
+      
+      // Также для touchstart (для мобильных)
+      document.addEventListener('touchstart', function(ev){
+        var target = ev.target;
+        var video = target.tagName === 'VIDEO' ? target : (target.closest ? target.closest('video') : null);
+        if (!video || typeof video.play !== 'function') return;
+        
+        var slide = video.closest ? video.closest('.story-track-wrapper__slide') : null;
+        if (!slide) return;
+        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
+        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
+        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+        
+        if (isActiveSlide && isActiveCase) {
+          try {
+            if (!video.muted) video.muted = true;
+            var playPromise = video.play();
+            video.__unlockedByGesture = true;
+          } catch(_){}
+        }
+      }, { capture: true, passive: true });
+      
+      // Обработчики кликов на слайды - запускаем видео при клике на активный слайд
+      document.addEventListener('click', function(ev){
+        var target = ev.target;
+        // Проверяем, кликнули ли на слайде или внутри него
+        var slide = target.closest ? target.closest('.story-track-wrapper__slide') : null;
+        if (!slide) return;
+        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
+        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
+        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+        
+        if (isActiveSlide && isActiveCase) {
+          // Запускаем все видео в этом слайде
+          var videos = qsa(slide, 'video');
+          each(videos, function(video){
+            try {
+              if (typeof video.play !== 'function') return;
+              if (!video.muted) video.muted = true;
+              var playPromise = video.play();
+              video.__unlockedByGesture = true;
+            } catch(_){}
+          });
+        }
+      }, { capture: true, passive: true });
+      
+      // Также для touchstart на слайды
+      document.addEventListener('touchstart', function(ev){
+        var target = ev.target;
+        var slide = target.closest ? target.closest('.story-track-wrapper__slide') : null;
+        if (!slide) return;
+        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
+        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
+        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+        
+        if (isActiveSlide && isActiveCase) {
+          var videos = qsa(slide, 'video');
+          each(videos, function(video){
+            try {
+              if (typeof video.play !== 'function') return;
+              if (!video.muted) video.muted = true;
+              var playPromise = video.play();
+              video.__unlockedByGesture = true;
+            } catch(_){}
+          });
+        }
+      }, { capture: true, passive: true });
+      
+      console.log('[snapSlider] Установлены прямые обработчики кликов на видео');
+    } catch(err){
+      console.warn('[snapSlider] Ошибка при установке обработчиков кликов:', err);
+    }
+  }
+
   // Глобальная установка обработчиков ошибок воспроизведения для всех видео
   function setupVideoErrorHandlers(){
     try {
@@ -1322,6 +1429,9 @@
 
   // Инициализация всего snap-слайдера
   function initSnapSlider(){
+    // Устанавливаем прямые обработчики кликов на видео (для разблокировки через прямое взаимодействие)
+    setupDirectVideoClickHandlers();
+    
     // Устанавливаем глобальные обработчики ошибок для видео
     setupVideoErrorHandlers();
 
