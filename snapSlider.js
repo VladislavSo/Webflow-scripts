@@ -35,6 +35,7 @@
   function activateUserGesture(){
     if (USER_GESTURE_ACTIVATED) return;
     USER_GESTURE_ACTIVATED = true;
+    console.log('[snapSlider] User gesture activated');
     // При активации сразу запускаем видео в активных слайдах активных кейсов
     try {
       var activeCases = qsa(document, '.cases-grid__item.active, .case.active');
@@ -49,9 +50,13 @@
                   try {
                     if (video && typeof video.play === 'function'){
                       var p = video.play();
-                      if (p && p.catch) p.catch(function(){});
+                      if (p && p.catch) p.catch(function(err){
+                        console.error('[snapSlider] Error activating video playback:', err);
+                      });
                     }
-                  } catch(_){ }
+                  } catch(err){
+                    console.error('[snapSlider] Error in activateUserGesture video play:', err);
+                  }
                 });
               }
             });
@@ -61,12 +66,18 @@
             var talkingVideo = getTalkingHeadVideo(caseEl);
             if (talkingVideo && typeof talkingVideo.play === 'function'){
               var pt = talkingVideo.play();
-              if (pt && pt.catch) pt.catch(function(){});
+              if (pt && pt.catch) pt.catch(function(err){
+                console.error('[snapSlider] Error activating talking-head playback:', err);
+              });
             }
-          } catch(_){ }
+          } catch(err){
+            console.error('[snapSlider] Error in activateUserGesture talking-head:', err);
+          }
         });
       }
-    } catch(_){ }
+    } catch(err){
+      console.error('[snapSlider] Error in activateUserGesture:', err);
+    }
   }
 
   // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
@@ -79,7 +90,18 @@
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
     each(videos, function(video){
-      try { if (video && typeof video.play === 'function') { var p = video.play(); if (p && p.catch) p.catch(function(){}); } } catch(_){ }
+      try {
+        if (video && typeof video.play === 'function'){
+          var p = video.play();
+          if (p && p.catch){
+            p.catch(function(err){
+              console.error('[snapSlider] Error in playVideos - video.play() rejected:', err);
+            });
+          }
+        }
+      } catch(err){
+        console.error('[snapSlider] Error in playVideos:', err);
+      }
     });
   }
 
@@ -88,8 +110,16 @@
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
     each(videos, function(video){
-      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
-      try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
+      try {
+        if (video && typeof video.pause === 'function') video.pause();
+      } catch(err){
+        console.error('[snapSlider] Error in pauseAndResetVideos - pause:', err);
+      }
+      try {
+        if (typeof video.currentTime === 'number') video.currentTime = 0;
+      } catch(err){
+        console.error('[snapSlider] Error in pauseAndResetVideos - currentTime:', err);
+      }
     });
   }
 
@@ -98,12 +128,24 @@
     var videos = qsa(rootEl, 'video');
     if (!videos || !videos.length) return;
     each(videos, function(video){
-      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
+      try {
+        if (video && typeof video.pause === 'function') video.pause();
+      } catch(err){
+        console.error('[snapSlider] Error in pauseAndResetVideosInElement - pause:', err);
+      }
       // talking-head: не сбрасываем время, только пауза
       var isTalking = false;
-      try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+      try {
+        isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video'));
+      } catch(err){
+        console.error('[snapSlider] Error in pauseAndResetVideosInElement - closest check:', err);
+      }
       if (!isTalking){
-        try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
+        try {
+          if (typeof video.currentTime === 'number') video.currentTime = 0;
+        } catch(err){
+          console.error('[snapSlider] Error in pauseAndResetVideosInElement - currentTime:', err);
+        }
       }
     });
   }
@@ -114,7 +156,11 @@
     var videos = qsa(rootEl, 'video');
     if (!videos || !videos.length) return;
     each(videos, function(video){
-      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
+      try {
+        if (video && typeof video.pause === 'function') video.pause();
+      } catch(err){
+        console.error('[snapSlider] Error in pauseAllVideosInElement:', err);
+      }
     });
   }
 
@@ -229,8 +275,31 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
-  function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
+  function playTalkingHead(root){
+    var v = getTalkingHeadVideo(root);
+    if (v){
+      try {
+        var p = v.play();
+        if (p && p.catch){
+          p.catch(function(err){
+            console.error('[snapSlider] Error in playTalkingHead - video.play() rejected:', err);
+          });
+        }
+      } catch(err){
+        console.error('[snapSlider] Error in playTalkingHead:', err);
+      }
+    }
+  }
+  function pauseTalkingHead(root){
+    var v = getTalkingHeadVideo(root);
+    if (v){
+      try {
+        v.pause();
+      } catch(err){
+        console.error('[snapSlider] Error in pauseTalkingHead:', err);
+      }
+    }
+  }
 
   // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
   function ensureTalkingHeadAutoPlay(caseEl){
@@ -242,10 +311,18 @@
           if (caseEl.classList && caseEl.classList.contains('active')){
             playTalkingHead(caseEl);
           }
-        } catch(_){ }
+        } catch(err){
+          console.error('[snapSlider] Error in ensureTalkingHeadAutoPlay - onMeta:', err);
+        }
       };
-      try { v.addEventListener('loadedmetadata', onMeta, { once: true }); } catch(_){ }
-    } catch(_){ }
+      try {
+        v.addEventListener('loadedmetadata', onMeta, { once: true });
+      } catch(err){
+        console.error('[snapSlider] Error in ensureTalkingHeadAutoPlay - addEventListener:', err);
+      }
+    } catch(err){
+      console.error('[snapSlider] Error in ensureTalkingHeadAutoPlay:', err);
+    }
   }
 
   // Извлекаем ключ бренда из айтема стека: brand-data="xx-mini-view" на самом айтеме или его потомке
@@ -359,12 +436,21 @@
       if (st._autoLockTimer) { clearTimeout(st._autoLockTimer); }
       st.autoScrollLock = true;
       st._autoLockTimer = setTimeout(function(){ st.autoScrollLock = false; }, 600);
-    } catch(_){ }
+    } catch(err){
+      console.error('[snapSlider] Error in scrollToSlide - state management:', err);
+    }
     try {
       target.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
-    } catch(_){
-      try { wrapperEl.scrollTo({ left: target.offsetLeft, behavior: 'smooth' }); }
-      catch(__){ try { wrapperEl.scrollLeft = target.offsetLeft; } catch(___){ } }
+    } catch(err){
+      try {
+        wrapperEl.scrollTo({ left: target.offsetLeft, behavior: 'smooth' });
+      } catch(err2){
+        try {
+          wrapperEl.scrollLeft = target.offsetLeft;
+        } catch(err3){
+          console.error('[snapSlider] Error in scrollToSlide - all scroll methods failed:', err3, err2, err);
+        }
+      }
     }
   }
 
@@ -390,11 +476,30 @@
 
       function detachHandlers(v){
         if(!v) return;
-        try { if(v.__progressHandler){ v.removeEventListener('timeupdate', v.__progressHandler); v.__progressHandler = null; } } catch(_){ }
-        try { if(v.__metaHandler){ v.removeEventListener('loadedmetadata', v.__metaHandler); v.__metaHandler = null; } } catch(_){ }
-        try { if(v.__endedHandler){ v.removeEventListener('ended', v.__endedHandler); v.__endedHandler = null; } } catch(_){ }
+        try {
+          if(v.__progressHandler){ v.removeEventListener('timeupdate', v.__progressHandler); v.__progressHandler = null; }
+        } catch(err){
+          console.error('[snapSlider] Error in detachHandlers - removeEventListener timeupdate:', err);
+        }
+        try {
+          if(v.__metaHandler){ v.removeEventListener('loadedmetadata', v.__metaHandler); v.__metaHandler = null; }
+        } catch(err){
+          console.error('[snapSlider] Error in detachHandlers - removeEventListener loadedmetadata:', err);
+        }
+        try {
+          if(v.__endedHandler){ v.removeEventListener('ended', v.__endedHandler); v.__endedHandler = null; }
+        } catch(err){
+          console.error('[snapSlider] Error in detachHandlers - removeEventListener ended:', err);
+        }
         // загрузочные обработчики не используются здесь
-        if (v.__rafProgressId){ try { cancelAnimationFrame(v.__rafProgressId); } catch(_){ } v.__rafProgressId = null; }
+        if (v.__rafProgressId){
+          try {
+            cancelAnimationFrame(v.__rafProgressId);
+          } catch(err){
+            console.error('[snapSlider] Error in detachHandlers - cancelAnimationFrame:', err);
+          }
+          v.__rafProgressId = null;
+        }
       }
 
       if (idx !== activeIdx || !caseIsActive){
@@ -454,21 +559,43 @@
             // После появления метаданных у активного слайда в активном кейсе — запустим воспроизведение
             try {
               if (idx === activeIdx && caseIsActive) { playVideos(slide); }
-            } catch(_){ }
+            } catch(err){
+              console.error('[snapSlider] Error in __metaHandler - playVideos:', err);
+            }
           };
           video.__endedHandler = function(){
-            if (fill) { try { fill.style.transform = 'scaleX(1)'; } catch(_){ } }
+            if (fill) {
+              try {
+                fill.style.transform = 'scaleX(1)';
+              } catch(err){
+                console.error('[snapSlider] Error in __endedHandler - fill transform:', err);
+              }
+            }
             try {
               var st = wrapperEl.__snapState || {};
               if (!st.isUserInteracting && !st.autoScrollLock){
                 var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
                 scrollToSlide(wrapperEl, slides, nextIndex);
               }
-            } catch(_){ }
+            } catch(err){
+              console.error('[snapSlider] Error in __endedHandler - scrollToSlide:', err);
+            }
           };
-          try { video.addEventListener('timeupdate', video.__progressHandler); } catch(_){ }
-          try { video.addEventListener('loadedmetadata', video.__metaHandler, { once: true }); } catch(_){ }
-          try { video.addEventListener('ended', video.__endedHandler, { once: true }); } catch(_){ }
+          try {
+            video.addEventListener('timeupdate', video.__progressHandler);
+          } catch(err){
+            console.error('[snapSlider] Error in updateWrapperPlayback - addEventListener timeupdate:', err);
+          }
+          try {
+            video.addEventListener('loadedmetadata', video.__metaHandler, { once: true });
+          } catch(err){
+            console.error('[snapSlider] Error in updateWrapperPlayback - addEventListener loadedmetadata:', err);
+          }
+          try {
+            video.addEventListener('ended', video.__endedHandler, { once: true });
+          } catch(err){
+            console.error('[snapSlider] Error in updateWrapperPlayback - addEventListener ended:', err);
+          }
         }
         // Управление запуском выполняется внешним скриптом; здесь не трогаем playback
       }
@@ -573,14 +700,34 @@
         var wrappersInCase = qsa(best, '.story-track-wrapper');
         each(wrappersInCase, function(w){
           var activeSlide = null;
-          try { activeSlide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
-          try { updateWrapperPlayback(w); } catch(_){ }
-          if (activeSlide) { try { playVideos(activeSlide); } catch(_){ } }
+          try {
+            activeSlide = setActiveSlideInWrapperByCenter(w);
+          } catch(err){
+            console.error('[snapSlider] Error in updateActive - setActiveSlideInWrapperByCenter:', err);
+          }
+          try {
+            updateWrapperPlayback(w);
+          } catch(err){
+            console.error('[snapSlider] Error in updateActive - updateWrapperPlayback:', err);
+          }
+          if (activeSlide) {
+            try {
+              playVideos(activeSlide);
+            } catch(err){
+              console.error('[snapSlider] Error in updateActive - playVideos:', err);
+            }
+          }
         });
 
         // Запускаем видео только в активных слайдах внутри активного кейса
         var activeSlidesInCase = qsa(best, '.story-track-wrapper__slide.active');
-        each(activeSlidesInCase, function(s){ try { playVideos(s); } catch(_){ } });
+        each(activeSlidesInCase, function(s){
+          try {
+            playVideos(s);
+          } catch(err){
+            console.error('[snapSlider] Error in updateActive - playVideos for active slide:', err);
+          }
+        });
 
         lastActiveCase = best;
       }
@@ -630,12 +777,31 @@
         var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
         if (caseIsActive){
           each(slides, function(slide){
-            if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
-            else { try { slide.classList.remove('active'); } catch(_){ } }
+            if (slide === bestSlide){
+              try {
+                slide.classList.add('active');
+              } catch(err){
+                console.error('[snapSlider] Error in setupActiveObserver - classList.add:', err);
+              }
+            } else {
+              try {
+                slide.classList.remove('active');
+              } catch(err){
+                console.error('[snapSlider] Error in setupActiveObserver - classList.remove:', err);
+              }
+            }
           });
-          updateWrapperPlayback(wrapperEl);
+          try {
+            updateWrapperPlayback(wrapperEl);
+          } catch(err){
+            console.error('[snapSlider] Error in setupActiveObserver - updateWrapperPlayback:', err);
+          }
           // После присвоения active — запускаем видео в активном слайде
-          try { playVideos(bestSlide); } catch(_){ }
+          try {
+            playVideos(bestSlide);
+          } catch(err){
+            console.error('[snapSlider] Error in setupActiveObserver - playVideos:', err);
+          }
         }
       }
     }, { root: wrapperEl, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] });
@@ -658,13 +824,37 @@
       // Снимаем active с остальных кейсов, ставим паузу+0 для видео; talking-head только пауза
       (cases.forEach ? cases.forEach : Array.prototype.forEach).call(cases, function(el){
         if (el === activeCase){
-          try { el.classList.add('active'); } catch(_){ }
-          try { playTalkingHead(el); } catch(_){ }
-          try { ensureTalkingHeadAutoPlay(el); } catch(_){ }
+          try {
+            el.classList.add('active');
+          } catch(err){
+            console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - classList.add:', err);
+          }
+          try {
+            playTalkingHead(el);
+          } catch(err){
+            console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - playTalkingHead:', err);
+          }
+          try {
+            ensureTalkingHeadAutoPlay(el);
+          } catch(err){
+            console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - ensureTalkingHeadAutoPlay:', err);
+          }
         } else {
-          try { el.classList.remove('active'); } catch(_){ }
-          try { pauseTalkingHead(el); } catch(_){ }
-          try { pauseAndResetVideosInElement(el); } catch(_){ }
+          try {
+            el.classList.remove('active');
+          } catch(err){
+            console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - classList.remove:', err);
+          }
+          try {
+            pauseTalkingHead(el);
+          } catch(err){
+            console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - pauseTalkingHead:', err);
+          }
+          try {
+            pauseAndResetVideosInElement(el);
+          } catch(err){
+            console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - pauseAndResetVideosInElement:', err);
+          }
         }
       });
 
@@ -672,15 +862,37 @@
       var wrappers = qsa(activeCase, '.story-track-wrapper');
       each(wrappers, function(w){
         var slide = null;
-        try { slide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
-        try { updateWrapperPlayback(w); } catch(_){ }
-        if (slide){ try { playVideos(slide); } catch(_){ } }
+        try {
+          slide = setActiveSlideInWrapperByCenter(w);
+        } catch(err){
+          console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - setActiveSlideInWrapperByCenter:', err);
+        }
+        try {
+          updateWrapperPlayback(w);
+        } catch(err){
+          console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - updateWrapperPlayback:', err);
+        }
+        if (slide){
+          try {
+            playVideos(slide);
+          } catch(err){
+            console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - playVideos:', err);
+          }
+        }
       });
 
       // Дополнительно запустить все уже активные слайды в активном кейсе
       var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
-      each(activeSlides, function(s){ try { playVideos(s); } catch(_){ } });
-    } catch(_){ }
+      each(activeSlides, function(s){
+        try {
+          playVideos(s);
+        } catch(err){
+          console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce - playVideos for active slide:', err);
+        }
+      });
+    } catch(err){
+      console.error('[snapSlider] Error in initializeActiveCasePlaybackOnce:', err);
+    }
   }
 
   // Инициализация всего snap-слайдера
@@ -697,7 +909,9 @@
       document.addEventListener('touchmove', activateOnGesture, { passive: true, once: true });
       // Также обрабатываем click на случай, если touch не сработал
       document.addEventListener('click', activateOnGesture, { passive: true, once: true });
-    } catch(_){ }
+    } catch(err){
+      console.error('[snapSlider] Error in initSnapSlider - setup user gesture handlers:', err);
+    }
 
     var wrappers = qsa(document, '.story-track-wrapper');
     if (!wrappers || !wrappers.length) return;
@@ -707,20 +921,46 @@
 
       // Строим прогресс, если он ещё не создан
       if (!qs(wrapper, '.story-progress')){
-        try { buildProgress(wrapper, slides.length); } catch(_){ }
+        try {
+          buildProgress(wrapper, slides.length);
+        } catch(err){
+          console.error('[snapSlider] Error in initSnapSlider - buildProgress:', err);
+        }
       }
 
       // Синхронизируем длительности сегментов с длительностями видео
-      syncProgressDurations(wrapper);
+      try {
+        syncProgressDurations(wrapper);
+      } catch(err){
+        console.error('[snapSlider] Error in initSnapSlider - syncProgressDurations:', err);
+      }
 
       // Запускаем наблюдатель за активным слайдом
-      setupActiveObserver(wrapper);
+      try {
+        setupActiveObserver(wrapper);
+      } catch(err){
+        console.error('[snapSlider] Error in initSnapSlider - setupActiveObserver:', err);
+      }
 
       // Обновляем при изменении размеров окна
       try {
-        window.addEventListener('resize', function(){ updateWrapperPlayback(wrapper); }, { passive: true });
-        window.addEventListener('orientationchange', function(){ updateWrapperPlayback(wrapper); }, { passive: true });
-      } catch(_){ }
+        window.addEventListener('resize', function(){
+          try {
+            updateWrapperPlayback(wrapper);
+          } catch(err){
+            console.error('[snapSlider] Error in initSnapSlider - resize handler:', err);
+          }
+        }, { passive: true });
+        window.addEventListener('orientationchange', function(){
+          try {
+            updateWrapperPlayback(wrapper);
+          } catch(err){
+            console.error('[snapSlider] Error in initSnapSlider - orientationchange handler:', err);
+          }
+        }, { passive: true });
+      } catch(err){
+        console.error('[snapSlider] Error in initSnapSlider - window event listeners:', err);
+      }
 
       // Отслеживаем пользовательские свайпы/прокрутки внутри wrapper, чтобы не перебивать их автопереходами
       try {
