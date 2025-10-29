@@ -28,6 +28,134 @@
 
   if (typeof window !== 'undefined') {
     window.buildSnapSliderProgress = buildProgress;
+    // Экспортируем функцию для включения звука для ленты (для переключателя звука)
+    window.setSnapSliderSoundPreferred = function(enabled){
+      soundPreferred = !!enabled;
+      // Если включили звук, пробуем включить его у активных видео
+      if (soundPreferred && isTelegramAndroid){
+        var activeCase = qs(document, '.cases-grid__item.active, .case.active');
+        if (activeCase){
+          var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
+          each(activeSlides, function(slide){
+            var videos = qsa(slide, 'video');
+            each(videos, function(v){
+              tryUnmuteInGestureWindow(v);
+            });
+          });
+          var talkingHead = getTalkingHeadVideo(activeCase);
+          if (talkingHead) tryUnmuteInGestureWindow(talkingHead);
+        }
+      }
+    };
+  }
+
+  // Детект Telegram WebView на Android
+  var ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+  var isTelegram = /Telegram/i.test(ua);
+  var isAndroid = /Android/i.test(ua);
+  var isTelegramAndroid = isTelegram && isAndroid;
+
+  // Состояние для разблокировки медиа и отслеживания user activation
+  var mediaUnlocked = false;
+  var lastGestureAt = 0;
+  var soundPreferred = false; // можно будет сделать переключатель звука для ленты
+
+  // Разблокировка медиа на первый тап (критично для Telegram WebView)
+  function unlockMediaOnce(){
+    if (mediaUnlocked) return;
+    mediaUnlocked = true;
+
+    try {
+      // 1) Скрытое немое видео для "пробуждения" медиасистемы
+      // Используем минимальный подход: создаем video элемент и пробуем play без src
+      // Это "пробуждает" медиасистему Telegram без необходимости загружать данные
+      var v = document.createElement('video');
+      v.muted = true;
+      v.playsInline = true;
+      v.style.position = 'fixed';
+      v.style.width = v.style.height = '1px';
+      v.style.opacity = '0';
+      v.style.pointerEvents = 'none';
+      if (document.body) document.body.appendChild(v);
+      // Пробуем play() даже без src - это должно "пробудить" медиасистему
+      v.play().catch(function(){
+        // Если не получилось без src, пробуем с крошечным blob
+        try {
+          var blob = new Blob([''], { type: 'video/mp4' });
+          v.src = URL.createObjectURL(blob);
+          v.play().catch(function(){});
+        } catch(__){}
+      });
+      // Удаляем через 1 секунду
+      setTimeout(function(){
+        try {
+          if (v.src && v.src.startsWith('blob:')) URL.revokeObjectURL(v.src);
+          if (v.parentNode) v.parentNode.removeChild(v);
+        } catch(_){}
+      }, 1000);
+    } catch(_){}
+
+    try {
+      // 2) Аудиоконтекст для "пробуждения" в Telegram
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx){
+        var ctx = new AudioCtx();
+        if (ctx.state === 'suspended') ctx.resume().catch(function(){});
+        // Держим ссылку, чтобы GC не убил
+        window.__tgAudioCtx = ctx;
+      }
+    } catch(_){}
+  }
+
+  // Инициализация разблокировки на первый жест (только для Telegram Android)
+  if (isTelegramAndroid && typeof document !== 'undefined'){
+    ['touchstart','pointerdown','click'].forEach(function(evt){
+      document.addEventListener(evt, unlockMediaOnce, { once: true, passive: true });
+    });
+  }
+
+  // Отслеживание жестов для окна user activation
+  if (isTelegramAndroid && typeof document !== 'undefined'){
+    ['touchstart','pointerdown'].forEach(function(evt){
+      document.addEventListener(evt, function(){
+        lastGestureAt = Date.now();
+      }, { passive: true });
+    });
+  }
+
+  // Безопасный play для Telegram WebView: всегда начинаем с muted
+  async function safePlay(video){
+    if (!video || typeof video.play !== 'function') return;
+    try {
+      // Критично: всегда muted при автоплее
+      video.muted = true;
+      if (!video.hasAttribute('playsinline')) video.setAttribute('playsinline', '');
+      var p = video.play();
+      if (p && typeof p.then === 'function') await p;
+    } catch (e) {
+      // В Telegram ошибки часто "тихие", логируем для отладки
+      if (isTelegramAndroid) {
+        console.warn('[TG webview] play blocked:', e?.name || 'unknown', e?.message || '');
+      }
+    }
+  }
+
+  // Попытка включить звук в окне user activation (для Telegram)
+  async function tryUnmuteInGestureWindow(video){
+    if (!isTelegramAndroid || !soundPreferred || !video) return;
+    
+    var withinGesture = (Date.now() - lastGestureAt) < 600; // окно 600мс
+    if (!withinGesture) return;
+    
+    try {
+      video.muted = false;
+      video.volume = 1.0;
+      var p = video.play();
+      if (p && typeof p.then === 'function') await p;
+    } catch (e) {
+      // Telegram WebView обычно даст NotAllowedError — тихо откатываемся в mute
+      video.muted = true;
+    }
   }
 
   // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
@@ -36,7 +164,21 @@
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
     each(videos, function(video){
-      try { if (video && typeof video.play === 'function') { var p = video.play(); if (p && p.catch) p.catch(function(){}); } } catch(_){ }
+      if (!video || typeof video.play !== 'function') return;
+      
+      if (isTelegramAndroid){
+        // Для Telegram используем safePlay
+        safePlay(video).then(function(){
+          // После успешного mute-автоплея пробуем включить звук в окне жеста
+          tryUnmuteInGestureWindow(video);
+        }).catch(function(){});
+      } else {
+        // Для обычных браузеров оставляем как есть
+        try {
+          var p = video.play();
+          if (p && p.catch) p.catch(function(){});
+        } catch(_){ }
+      }
     });
   }
 
@@ -186,7 +328,20 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
+  function playTalkingHead(root){
+    var v = getTalkingHeadVideo(root);
+    if (!v) return;
+    if (isTelegramAndroid){
+      safePlay(v).then(function(){
+        tryUnmuteInGestureWindow(v);
+      }).catch(function(){});
+    } else {
+      try {
+        var p = v.play();
+        if (p && p.catch) p.catch(function(){});
+      } catch(_){ }
+    }
+  }
   function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
 
   // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
@@ -197,7 +352,14 @@
       var onMeta = function(){
         try {
           if (caseEl.classList && caseEl.classList.contains('active')){
-            playTalkingHead(caseEl);
+            if (isTelegramAndroid){
+              // Для Telegram используем safePlay напрямую
+              safePlay(v).then(function(){
+                tryUnmuteInGestureWindow(v);
+              }).catch(function(){});
+            } else {
+              playTalkingHead(caseEl);
+            }
           }
         } catch(_){ }
       };
@@ -643,8 +805,62 @@
     } catch(_){ }
   }
 
+  // Установка необходимых атрибутов для видео (критично для Telegram WebView)
+  function ensureVideoAttributes(){
+    var videos = qsa(document, 'video');
+    each(videos, function(video){
+      try {
+        if (!video.hasAttribute('muted')) video.setAttribute('muted', '');
+        if (!video.hasAttribute('playsinline')) video.setAttribute('playsinline', '');
+        // Устанавливаем muted как свойство (важно для Telegram)
+        video.muted = true;
+        // playsinline как свойство
+        video.playsInline = true;
+      } catch(_){}
+    });
+  }
+
   // Инициализация всего snap-слайдера
   function initSnapSlider(){
+    // Устанавливаем атрибуты для всех видео (особенно важно для Telegram)
+    if (isTelegramAndroid){
+      ensureVideoAttributes();
+      // Также устанавливаем при динамическом добавлении видео
+      if (typeof MutationObserver !== 'undefined'){
+        var videoObserver = new MutationObserver(function(mutations){
+          mutations.forEach(function(mutation){
+            if (mutation.addedNodes){
+              each(mutation.addedNodes, function(node){
+                if (node.nodeType === 1){
+                  if (node.tagName === 'VIDEO'){
+                    try {
+                      node.muted = true;
+                      node.playsInline = true;
+                      if (!node.hasAttribute('muted')) node.setAttribute('muted', '');
+                      if (!node.hasAttribute('playsinline')) node.setAttribute('playsinline', '');
+                    } catch(_){}
+                  } else {
+                    var videos = qsa(node, 'video');
+                    each(videos, function(v){
+                      try {
+                        v.muted = true;
+                        v.playsInline = true;
+                        if (!v.hasAttribute('muted')) v.setAttribute('muted', '');
+                        if (!v.hasAttribute('playsinline')) v.setAttribute('playsinline', '');
+                      } catch(_){}
+                    });
+                  }
+                }
+              });
+            }
+          });
+        });
+        if (document.body){
+          videoObserver.observe(document.body, { childList: true, subtree: true });
+        }
+      }
+    }
+
     var wrappers = qsa(document, '.story-track-wrapper');
     if (!wrappers || !wrappers.length) return;
     each(wrappers, function(wrapper){
