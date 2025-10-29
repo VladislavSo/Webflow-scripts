@@ -89,16 +89,26 @@
                     paused: video.paused
                   });
                 } else {
-                  // Если видео не должно воспроизводиться - ставим на паузу и восстанавливаем состояние
-                  video.pause();
-                  video.currentTime = currentTime; // Возвращаем на исходное время
-                  if (!originalMuted) {
-                    video.muted = originalMuted; // Восстанавливаем muted если был не muted
-                  }
-                  console.log('[snapSlider] ✅ Видео разблокировано и приостановлено [' + unlockedCount + '/' + allVideos.length + ']:', {
-                    src: video.src || video.currentSrc || 'no src',
-                    index: idx + 1
-                  });
+                  // Если видео не должно воспроизводиться - даём немного времени браузеру
+                  // зарегистрировать успешный запуск, затем ставим на паузу
+                  // Это предотвращает ошибку "play() interrupted by pause()"
+                  setTimeout(function(){
+                    try {
+                      if (!video.paused) {
+                        video.pause();
+                      }
+                      video.currentTime = currentTime; // Возвращаем на исходное время
+                      if (!originalMuted) {
+                        video.muted = originalMuted; // Восстанавливаем muted если был не muted
+                      }
+                      console.log('[snapSlider] ✅ Видео разблокировано и приостановлено [' + unlockedCount + '/' + allVideos.length + ']:', {
+                        src: video.src || video.currentSrc || 'no src',
+                        index: idx + 1
+                      });
+                    } catch(pauseErr){
+                      console.warn('[snapSlider] Ошибка при паузе видео после разблокировки:', pauseErr);
+                    }
+                  }, 100); // 100ms достаточно для регистрации успешного запуска
                 }
               } catch(restoreErr){
                 console.warn('[snapSlider] Ошибка при восстановлении состояния видео:', restoreErr);
@@ -117,9 +127,16 @@
               unlockedCount++;
               video.__unlockedByGesture = true;
               
-              if (!shouldBePlaying && !video.paused) {
-                video.pause();
-                video.currentTime = currentTime;
+              if (!shouldBePlaying) {
+                // Даём время для регистрации запуска
+                setTimeout(function(){
+                  try {
+                    if (!video.paused) {
+                      video.pause();
+                    }
+                    video.currentTime = currentTime;
+                  } catch(_){}
+                }, 100);
               }
               // Если должно быть активным - оставляем играть
             } catch(_){}
@@ -1039,21 +1056,31 @@
       var playPromise = video.play();
       if (playPromise && typeof playPromise.then === 'function') {
         playPromise.then(function(){
-          try {
-            video.pause();
-            video.currentTime = currentTime;
-            if (!originalMuted) {
-              video.muted = originalMuted;
-            }
-            video.__unlockedByGesture = true;
-            return true;
-          } catch(_){ return false; }
+          // Даём время браузеру зарегистрировать успешный запуск
+          setTimeout(function(){
+            try {
+              if (!video.paused) {
+                video.pause();
+              }
+              video.currentTime = currentTime;
+              if (!originalMuted) {
+                video.muted = originalMuted;
+              }
+              video.__unlockedByGesture = true;
+            } catch(_){}
+          }, 100);
+          return true;
         }).catch(function(){ return false; });
       } else {
-        if (!video.paused) {
-          video.pause();
-          video.currentTime = currentTime;
-        }
+        // Если play() не вернул Promise - используем задержку
+        setTimeout(function(){
+          try {
+            if (!video.paused) {
+              video.pause();
+            }
+            video.currentTime = currentTime;
+          } catch(_){}
+        }, 100);
         video.__unlockedByGesture = true;
         return true;
       }
