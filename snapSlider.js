@@ -1,35 +1,4 @@
 (function(){
-  // Защита от ошибок Telegram WebView: "Error invoking post: Method not found"
-  // Перехватываем post и молча игнорируем неизвестные/внешние методы, чтобы не ломать страницу
-  try {
-    var __tw = (typeof window !== 'undefined') && (window.TelegramWebview || window.TelegramWebviewProxy || (window.Telegram && (window.Telegram.WebView || window.Telegram.WebApp)));
-    if (__tw && typeof __tw.post === 'function' && !__tw.__snapSafePatched){
-      var __origPost = __tw.post.bind(__tw);
-      __tw.post = function(method){
-        try {
-          // Игнорируем сторонние вызовы, часто встречающиеся в интеграциях
-          if (method === 'siteName' || method === 'siteNameEmpty') { return; }
-          // Разрешаем только известные web_app методы, остальные игнорируем без ошибок
-          var known = [
-            'web_app_data_send',
-            'web_app_expand',
-            'web_app_close',
-            'web_app_setup_main_button',
-            'web_app_setup_back_button',
-            'web_app_set_header_color',
-            'web_app_set_background_color',
-            'web_app_setup_swipe_behavior'
-          ];
-          if (typeof method === 'string' && method.indexOf('web_app_') === 0 && known.indexOf(method) !== -1){
-            return __origPost.apply(__tw, arguments);
-          }
-          // Неизвестный метод — ничего не делаем, чтобы не провоцировать исключение в Telegram WebView
-          return;
-        } catch(__e){ /* проглатываем любые ошибки телеграм‑моста */ }
-      };
-      __tw.__snapSafePatched = true;
-    }
-  } catch(__ignore){}
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
   // Утилиты
   var PROGRESS_ADVANCE_THRESHOLD = 0.98;
@@ -521,37 +490,42 @@
         if (d < bestDist) { bestDist = d; best = items[i]; }
       }
       if (best){
-        // Если активный кейс не изменился — ничего не делаем, чтобы избежать дёрганий
-        if (best === lastActiveCase) return;
-
-        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (el === best) { el.classList.add('active'); playTalkingHead(el); try { ensureTalkingHeadAutoPlay(el); } catch(_){ } }
-          else { el.classList.remove('active'); pauseTalkingHead(el); }
-        });
-
-        // Синхронизируем мини‑вью бренда и opacity (card-style назначаем ТОЛЬКО при open-stack)
-        try {
-          var brandKey = extractBrandKeyFromCase(best);
-          setStackMiniViewCurrent(brandKey);
-          updateStackOpacityByCurrent();
-        } catch(_){ }
-
-        // Снимаем active со всех слайдов внутри неактивных кейсов
-        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (!el.classList || el.classList.contains('active')) return;
-          var nonActiveSlides = qsa(el, '.story-track-wrapper__slide.active');
-          (nonActiveSlides.forEach ? nonActiveSlides.forEach : Array.prototype.forEach).call(nonActiveSlides, function(s){
-            try { s.classList.remove('active'); } catch(_){ }
+        var caseChanged = (best !== lastActiveCase);
+        
+        // Если активный кейс изменился — обновляем все
+        if (caseChanged){
+          (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
+            if (el === best) { el.classList.add('active'); playTalkingHead(el); try { ensureTalkingHeadAutoPlay(el); } catch(_){ } }
+            else { el.classList.remove('active'); pauseTalkingHead(el); }
           });
-        });
 
-        // Ставим на паузу и сбрасываем все видео внутри неактивных кейсов
-        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (!el.classList || el.classList.contains('active')) return;
-          pauseAndResetVideosInElement(el);
-        });
+          // Синхронизируем мини‑вью бренда и opacity (card-style назначаем ТОЛЬКО при open-stack)
+          try {
+            var brandKey = extractBrandKeyFromCase(best);
+            setStackMiniViewCurrent(brandKey);
+            updateStackOpacityByCurrent();
+          } catch(_){ }
 
-        // Переопределяем active для слайда внутри каждого wrapper по центру
+          // Снимаем active со всех слайдов внутри неактивных кейсов
+          (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
+            if (!el.classList || el.classList.contains('active')) return;
+            var nonActiveSlides = qsa(el, '.story-track-wrapper__slide.active');
+            (nonActiveSlides.forEach ? nonActiveSlides.forEach : Array.prototype.forEach).call(nonActiveSlides, function(s){
+              try { s.classList.remove('active'); } catch(_){ }
+            });
+          });
+
+          // Ставим на паузу и сбрасываем все видео внутри неактивных кейсов
+          (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
+            if (!el.classList || el.classList.contains('active')) return;
+            pauseAndResetVideosInElement(el);
+          });
+
+          lastActiveCase = best;
+        }
+
+        // Даже если кейс не изменился, обновляем активные слайды и воспроизведение
+        // (это важно при скролле внутри кейса или когда видео не запустились)
         var wrappersInCase = qsa(best, '.story-track-wrapper');
         each(wrappersInCase, function(w){
           var activeSlide = null;
@@ -563,8 +537,6 @@
         // Запускаем видео только в активных слайдах внутри активного кейса
         var activeSlidesInCase = qsa(best, '.story-track-wrapper__slide.active');
         each(activeSlidesInCase, function(s){ try { playVideos(s); } catch(_){ } });
-
-        lastActiveCase = best;
       }
     }
 
@@ -575,7 +547,17 @@
       settleTimer = setTimeout(updateActive, 140); // даём snap «досесть»
     }
 
+    function onTouchEnd(){
+      // После завершения touch-жеста принудительно обновляем с небольшой задержкой
+      // чтобы snap успел "досесть"
+      if (settleTimer) { clearTimeout(settleTimer); }
+      settleTimer = setTimeout(updateActive, 200);
+    }
+
     scroller.addEventListener('scroll', onScroll, { passive:true });
+    // Добавляем обработчик touchend для гарантированного обновления после завершения жеста
+    scroller.addEventListener('touchend', onTouchEnd, { passive:true });
+    scroller.addEventListener('touchcancel', onTouchEnd, { passive:true });
     window.addEventListener('resize', onScroll, { passive:true });
     window.addEventListener('orientationchange', onScroll, { passive:true });
     updateActive();
