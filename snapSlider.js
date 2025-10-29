@@ -10,25 +10,151 @@
   var userGestureState = {
     lastGestureTime: null,
     gestureWindowMs: 5000, // Окно жеста обычно 5 секунд, но может варьироваться
-    gestureTypes: ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown', 'pointerup']
+    gestureTypes: ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown', 'pointerup'],
+    videosUnlocked: false, // Флаг того, что видео были разблокированы при первом жесте
+    unlockInProgress: false // Флаг процесса разблокировки
   };
+
+  // Разблокировка всех видео при первом жесте пользователя
+  function unlockAllVideosOnFirstGesture(){
+    if (userGestureState.videosUnlocked || userGestureState.unlockInProgress) return;
+    
+    userGestureState.unlockInProgress = true;
+    
+    try {
+      var allVideos = qsa(document, 'video');
+      if (!allVideos || !allVideos.length) {
+        userGestureState.unlockInProgress = false;
+        return;
+      }
+      
+      console.log('[snapSlider] 🔓 Разблокировка всех видео при первом жесте пользователя. Всего видео:', allVideos.length);
+      
+      var unlockedCount = 0;
+      var failedCount = 0;
+      
+      each(allVideos, function(video, idx){
+        try {
+          if (!video || typeof video.play !== 'function') return;
+          
+          // Сохраняем текущее состояние
+          var wasPaused = video.paused;
+          var wasMuted = video.muted;
+          var currentTime = video.currentTime || 0;
+          
+          // Убеждаемся что видео muted для автовоспроизведения
+          var originalMuted = video.muted;
+          if (!video.muted) {
+            video.muted = true;
+          }
+          
+          // Пытаемся запустить видео в контексте жеста
+          var playPromise = video.play();
+          
+          if (playPromise && typeof playPromise.then === 'function') {
+            playPromise.then(function(){
+              // Видео успешно запущено - сразу ставим на паузу и восстанавливаем состояние
+              try {
+                video.pause();
+                video.currentTime = currentTime; // Возвращаем на исходное время
+                if (!originalMuted) {
+                  video.muted = originalMuted; // Восстанавливаем muted если был не muted
+                }
+                unlockedCount++;
+                
+                // Помечаем видео как разблокированное
+                video.__unlockedByGesture = true;
+                
+                if (idx === 0 || unlockedCount === allVideos.length) {
+                  console.log('[snapSlider] ✅ Видео разблокировано [' + unlockedCount + '/' + allVideos.length + ']:', {
+                    src: video.src || video.currentSrc || 'no src',
+                    index: idx + 1
+                  });
+                }
+              } catch(restoreErr){
+                console.warn('[snapSlider] Ошибка при восстановлении состояния видео:', restoreErr);
+              }
+            }).catch(function(err){
+              failedCount++;
+              console.warn('[snapSlider] ⚠️ Не удалось разблокировать видео [' + failedCount + ']:', {
+                src: video.src || video.currentSrc || 'no src',
+                error: err ? (err.message || err.name) : 'Unknown',
+                index: idx + 1
+              });
+            });
+          } else {
+            // Если play() не вернул Promise (старый браузер)
+            try {
+              if (!video.paused) {
+                video.pause();
+                video.currentTime = currentTime;
+              }
+              video.__unlockedByGesture = true;
+              unlockedCount++;
+            } catch(_){}
+          }
+        } catch(videoErr){
+          failedCount++;
+          console.warn('[snapSlider] Ошибка при обработке видео:', videoErr);
+        }
+      });
+      
+      // Устанавливаем флаг разблокировки после небольшой задержки, чтобы дать промисам выполниться
+      setTimeout(function(){
+        userGestureState.videosUnlocked = true;
+        userGestureState.unlockInProgress = false;
+        console.log('[snapSlider] ✅ Разблокировка завершена. Успешно:', unlockedCount, 'Ошибок:', failedCount);
+      }, 500);
+      
+    } catch(err){
+      console.error('[snapSlider] Ошибка при разблокировке видео:', err);
+      userGestureState.unlockInProgress = false;
+    }
+  }
 
   // Инициализация отслеживания жестов
   function initUserGestureTracking(){
     try {
-      function recordGesture(ev){
+      // Приоритетный обработчик для touchstart - должен сработать ПЕРВЫМ до всех других обработчиков
+      function handleFirstGesture(ev){
         var now = Date.now();
+        var isFirstGesture = userGestureState.lastGestureTime === null;
+        
         userGestureState.lastGestureTime = now;
-        console.log('[snapSlider] Пользовательский жест зафиксирован:', {
-          type: ev.type,
-          target: ev.target ? (ev.target.className || ev.target.tagName) : 'unknown',
-          time: new Date(now).toISOString()
-        });
+        
+        // При первом жесте - сразу разблокируем все видео
+        if (isFirstGesture) {
+          console.log('[snapSlider] 👆 Первый жест пользователя зафиксирован, разблокировка видео:', {
+            type: ev.type,
+            target: ev.target ? (ev.target.className || ev.target.tagName || ev.target.nodeName) : 'unknown',
+            time: new Date(now).toISOString()
+          });
+          
+          // Запускаем разблокировку сразу, без задержки
+          unlockAllVideosOnFirstGesture();
+        } else {
+          console.log('[snapSlider] Пользовательский жест зафиксирован:', {
+            type: ev.type,
+            target: ev.target ? (ev.target.className || ev.target.tagName || ev.target.nodeName) : 'unknown',
+            time: new Date(now).toISOString()
+          });
+        }
       }
       
+      // Обработчики для всех типов жестов, но touchstart/pointerdown - с максимальным приоритетом (capture phase)
+      // Используем capture: true чтобы перехватить ДО скролла/свайпа
+      // Важно: используем passive: true чтобы не блокировать нативный скролл
       userGestureState.gestureTypes.forEach(function(type){
-        document.addEventListener(type, recordGesture, { passive: true, capture: true });
+        // Capture: true обеспечивает приоритет, passive: true не блокирует скролл
+        document.addEventListener(type, handleFirstGesture, { capture: true, passive: true });
       });
+      
+      // Дополнительно добавляем touchstart на window для максимального приоритета (если возможно)
+      try {
+        if (typeof window !== 'undefined' && window.addEventListener) {
+          window.addEventListener('touchstart', handleFirstGesture, { capture: true, passive: true });
+        }
+      } catch(_){}
     } catch(_){}
   }
 
@@ -106,9 +232,19 @@
         mainMessage += ' [ЖЕСТОВ ПОЛЬЗОВАТЕЛЯ НЕ ЗАФИКСИРОВАНО]';
       }
       
+      // Проверяем статус разблокировки
+      var isUnlocked = !!(video.__unlockedByGesture);
+      if (isUnlocked && (errorInfo.name === 'NotAllowedError' || errorInfo.code === 20)) {
+        mainMessage += ' [⚠️ Видео было разблокировано при первом жесте, но браузер всё равно блокирует]';
+      }
+      
       console.error('[snapSlider] Блокировка автовоспроизведения видео:', {
         'Ошибка': errorInfo,
         'Информация о видео': videoInfo,
+        'Статус разблокировки': {
+          'Видео разблокировано при первом жесте': isUnlocked,
+          'Глобальная разблокировка активна': userGestureState.videosUnlocked
+        },
         'Пользовательские жесты': {
           'Есть зафиксированные жесты': gestureInfo.hasGesture,
           'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
@@ -152,6 +288,10 @@
                 src: video.src || video.currentSrc || 'no src',
                 context: callContext + '[' + idx + ']',
                 muted: video.muted,
+                'Статус разблокировки': {
+                  'Видео разблокировано': !!(video.__unlockedByGesture),
+                  'Глобальная разблокировка': userGestureState.videosUnlocked
+                },
                 'Пользовательские жесты': {
                   'Есть жесты': gestureInfo.hasGesture,
                   'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
@@ -784,11 +924,53 @@
     } catch(_){ }
   }
 
+  // Разблокировка одного видео (для динамически добавляемых)
+  function unlockSingleVideo(video){
+    if (!video || video.__unlockedByGesture || typeof video.play !== 'function') return false;
+    
+    try {
+      var wasPaused = video.paused;
+      var originalMuted = video.muted;
+      var currentTime = video.currentTime || 0;
+      
+      if (!video.muted) {
+        video.muted = true;
+      }
+      
+      var playPromise = video.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(function(){
+          try {
+            video.pause();
+            video.currentTime = currentTime;
+            if (!originalMuted) {
+              video.muted = originalMuted;
+            }
+            video.__unlockedByGesture = true;
+            return true;
+          } catch(_){ return false; }
+        }).catch(function(){ return false; });
+      } else {
+        if (!video.paused) {
+          video.pause();
+          video.currentTime = currentTime;
+        }
+        video.__unlockedByGesture = true;
+        return true;
+      }
+    } catch(_){ return false; }
+    return false;
+  }
+
   // Глобальная установка обработчиков ошибок воспроизведения для всех видео
   function setupVideoErrorHandlers(){
     try {
             var allVideos = qsa(document, 'video');
             each(allVideos, function(video){
+              // Если разблокировка уже выполнена, пытаемся разблокировать это видео тоже
+              if (userGestureState.videosUnlocked && !video.__unlockedByGesture) {
+                unlockSingleVideo(video);
+              }
         // Логируем ошибки загрузки/воспроизведения
         if (!video.__errorHandlerAttached) {
           video.addEventListener('error', function(ev){
