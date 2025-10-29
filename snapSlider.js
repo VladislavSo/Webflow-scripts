@@ -6,6 +6,48 @@
   function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
   function each(list, cb){ if(!list) return; (list.forEach ? list.forEach(cb) : Array.prototype.forEach.call(list, cb)); }
 
+  // Отслеживание пользовательских жестов для автовоспроизведения
+  var userGestureState = {
+    lastGestureTime: null,
+    gestureWindowMs: 5000, // Окно жеста обычно 5 секунд, но может варьироваться
+    gestureTypes: ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown', 'pointerup']
+  };
+
+  // Инициализация отслеживания жестов
+  function initUserGestureTracking(){
+    try {
+      function recordGesture(ev){
+        var now = Date.now();
+        userGestureState.lastGestureTime = now;
+        console.log('[snapSlider] Пользовательский жест зафиксирован:', {
+          type: ev.type,
+          target: ev.target ? (ev.target.className || ev.target.tagName) : 'unknown',
+          time: new Date(now).toISOString()
+        });
+      }
+      
+      userGestureState.gestureTypes.forEach(function(type){
+        document.addEventListener(type, recordGesture, { passive: true, capture: true });
+      });
+    } catch(_){}
+  }
+
+  // Проверка, не истекло ли окно жеста
+  function getUserGestureInfo(){
+    var now = Date.now();
+    var lastGesture = userGestureState.lastGestureTime;
+    var timeSinceGesture = lastGesture ? (now - lastGesture) : null;
+    var isGestureValid = lastGesture && timeSinceGesture !== null && timeSinceGesture <= userGestureState.gestureWindowMs;
+    
+    return {
+      hasGesture: lastGesture !== null,
+      timeSinceGesture: timeSinceGesture,
+      isGestureValid: isGestureValid,
+      lastGestureTime: lastGesture ? new Date(lastGesture).toISOString() : null,
+      currentTime: new Date(now).toISOString()
+    };
+  }
+
   // Построение прогресса внутри .story-track-wrapper
   function buildProgress(containerEl, slidesCount){
     if (!containerEl || !slidesCount || slidesCount <= 0) return null;
@@ -49,12 +91,32 @@
         code: error ? (error.code || 'N/A') : 'N/A'
       };
       
+      // Получаем информацию о пользовательских жестах
+      var gestureInfo = getUserGestureInfo();
+      
+      var mainMessage = errorInfo.name === 'NotAllowedError' || errorInfo.code === 20 
+        ? 'Браузер блокирует автовоспроизведение (autoplay policy). Требуется взаимодействие пользователя.' 
+        : errorInfo.message;
+      
+      // Дополнительная информация если окно жеста истекло
+      if (gestureInfo.hasGesture && !gestureInfo.isGestureValid) {
+        var secondsSince = gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) : 'N/A';
+        mainMessage += ' [ОКНО ЖЕСТА ИСТЕКЛО: прошло ' + secondsSince + ' сек с последнего жеста, лимит ~5 сек]';
+      } else if (!gestureInfo.hasGesture) {
+        mainMessage += ' [ЖЕСТОВ ПОЛЬЗОВАТЕЛЯ НЕ ЗАФИКСИРОВАНО]';
+      }
+      
       console.error('[snapSlider] Блокировка автовоспроизведения видео:', {
         'Ошибка': errorInfo,
         'Информация о видео': videoInfo,
-        'Причина': errorInfo.name === 'NotAllowedError' || errorInfo.code === 20 
-          ? 'Браузер блокирует автовоспроизведение (autoplay policy). Требуется взаимодействие пользователя.' 
-          : errorInfo.message,
+        'Пользовательские жесты': {
+          'Есть зафиксированные жесты': gestureInfo.hasGesture,
+          'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
+          'Окно жеста валидно': gestureInfo.isGestureValid,
+          'Время последнего жеста': gestureInfo.lastGestureTime || 'Нет данных',
+          'Текущее время': gestureInfo.currentTime
+        },
+        'Причина': mainMessage,
         'Время': new Date().toISOString()
       });
       
@@ -64,6 +126,9 @@
       }
       if (!video.paused) {
         console.info('[snapSlider] Видео уже воспроизводится');
+      }
+      if (gestureInfo.hasGesture && !gestureInfo.isGestureValid) {
+        console.warn('[snapSlider] ⚠️ Окно пользовательского жеста истекло! Браузер блокирует автовоспроизведение после истечения "окна жеста" (обычно 5 секунд)');
       }
     } catch(logErr){
       console.error('[snapSlider] Ошибка при логировании:', logErr);
@@ -77,21 +142,27 @@
     if (!videos || !videos.length) return;
     var callContext = context || ('playVideos(' + (slideEl.className || 'unknown') + ')');
     each(videos, function(video, idx){
-      try { 
+      try {
         if (video && typeof video.play === 'function') { 
-          var p = video.play(); 
+              var p = video.play();
           if (p && typeof p.then === 'function') {
-            p.then(function(){
+                p.then(function(){
+              var gestureInfo = getUserGestureInfo();
               console.log('[snapSlider] Видео успешно запущено:', {
                 src: video.src || video.currentSrc || 'no src',
                 context: callContext + '[' + idx + ']',
-                muted: video.muted
+                muted: video.muted,
+                'Пользовательские жесты': {
+                  'Есть жесты': gestureInfo.hasGesture,
+                  'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
+                  'Окно жеста валидно': gestureInfo.isGestureValid
+                }
               });
             }).catch(function(err){
               logVideoPlayError(video, callContext + '[' + idx + ']', err);
             });
           }
-        } 
+        }
       } catch(err){
         logVideoPlayError(video, callContext + '[' + idx + ']', err);
       }
@@ -244,22 +315,28 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ 
-    var v = getTalkingHeadVideo(root); 
+  function playTalkingHead(root){
+    var v = getTalkingHeadVideo(root);
     if (v){ 
       try { 
-        var p = v.play(); 
+            var p = v.play();
         if (p && typeof p.then === 'function') {
-          p.then(function(){
+              p.then(function(){
+            var gestureInfo = getUserGestureInfo();
             console.log('[snapSlider] Talking-head видео успешно запущено:', {
               src: v.src || v.currentSrc || 'no src',
-              muted: v.muted
+              muted: v.muted,
+              'Пользовательские жесты': {
+                'Есть жесты': gestureInfo.hasGesture,
+                'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
+                'Окно жеста валидно': gestureInfo.isGestureValid
+              }
             });
           }).catch(function(err){
             logVideoPlayError(v, 'playTalkingHead', err);
           });
-        }
-      } catch(err){ 
+      }
+    } catch(err){
         logVideoPlayError(v, 'playTalkingHead', err);
       } 
     } 
@@ -710,8 +787,8 @@
   // Глобальная установка обработчиков ошибок воспроизведения для всех видео
   function setupVideoErrorHandlers(){
     try {
-      var allVideos = qsa(document, 'video');
-      each(allVideos, function(video){
+            var allVideos = qsa(document, 'video');
+            each(allVideos, function(video){
         // Логируем ошибки загрузки/воспроизведения
         if (!video.__errorHandlerAttached) {
           video.addEventListener('error', function(ev){
@@ -730,10 +807,16 @@
           
           // Логируем когда видео заблокировано политикой автовоспроизведения
           video.addEventListener('play', function(){
-            console.log('[snapSlider] Видео начало воспроизведение:', {
+            var gestureInfo = getUserGestureInfo();
+            console.log('[snapSlider] Видео начало воспроизведение (событие play):', {
               src: video.src || video.currentSrc || 'no src',
               muted: video.muted,
-              paused: video.paused
+              paused: video.paused,
+              'Пользовательские жесты': {
+                'Есть жесты': gestureInfo.hasGesture,
+                'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
+                'Окно жеста валидно': gestureInfo.isGestureValid
+              }
             });
           }, { passive: true });
           
@@ -747,7 +830,7 @@
   function initSnapSlider(){
     // Устанавливаем глобальные обработчики ошибок для видео
     setupVideoErrorHandlers();
-    
+
     var wrappers = qsa(document, '.story-track-wrapper');
     if (!wrappers || !wrappers.length) return;
     each(wrappers, function(wrapper){
@@ -951,6 +1034,9 @@
   }
 
   if (typeof document !== 'undefined'){
+    // Инициализируем отслеживание жестов как можно раньше
+    initUserGestureTracking();
+    
     if (document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', function(){
         initSnapSlider();
