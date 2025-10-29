@@ -34,8 +34,8 @@
       var failedCount = 0;
       
       each(allVideos, function(video, idx){
-        try {
-          if (!video || typeof video.play !== 'function') return;
+                  try {
+                    if (!video || typeof video.play !== 'function') return;
           
           // Сохраняем текущее состояние
           var wasPaused = video.paused;
@@ -155,6 +155,74 @@
           window.addEventListener('touchstart', handleFirstGesture, { capture: true, passive: true });
         }
       } catch(_){}
+      
+      // КРИТИЧНО: добавляем обработчики непосредственно на .main-section - основной скроллируемый контейнер
+      // Это гарантирует перехват жестов ДО обработки скролла
+      var mainSectionHandlersAttached = false;
+      
+      function attachToMainSection(){
+        // Защита от повторного подключения
+        if (mainSectionHandlersAttached) return true;
+        
+        var mainSection = qs(document, '.main-section');
+        if (mainSection && mainSection.addEventListener) {
+          mainSectionHandlersAttached = true;
+          console.log('[snapSlider] Добавлены обработчики жестов на .main-section');
+          
+          // Приоритетные жесты для перехвата ДО скролла
+          var priorityTypes = ['touchstart', 'pointerdown', 'mousedown'];
+          priorityTypes.forEach(function(type){
+            try {
+              mainSection.addEventListener(type, handleFirstGesture, { capture: true, passive: true });
+            } catch(_){}
+          });
+          
+          // Остальные жесты тоже добавляем
+          userGestureState.gestureTypes.forEach(function(type){
+            if (priorityTypes.indexOf(type) === -1) {
+              try {
+                mainSection.addEventListener(type, handleFirstGesture, { capture: true, passive: true });
+              } catch(_){}
+            }
+          });
+          return true; // Успешно подключено
+        }
+        return false; // Элемент еще не найден
+      }
+      
+      // Пытаемся подключить сразу
+      if (!attachToMainSection()) {
+        // Если .main-section еще не готов, пробуем с задержками
+        setTimeout(function(){
+          if (!attachToMainSection()) {
+            setTimeout(function(){
+              attachToMainSection();
+            }, 150);
+          }
+        }, 50);
+        
+        // Также используем MutationObserver для динамически загружаемых элементов
+        try {
+          if (typeof MutationObserver !== 'undefined') {
+            var observer = new MutationObserver(function(mutations){
+              if (!mainSectionHandlersAttached && attachToMainSection()) {
+                observer.disconnect();
+              }
+            });
+            
+            observer.observe(document.body || document.documentElement, {
+              childList: true,
+              subtree: true
+            });
+            
+            // Отключаем observer через 5 секунд если элемент не найден
+            setTimeout(function(){
+              observer.disconnect();
+            }, 5000);
+          }
+        } catch(_){}
+      }
+      
     } catch(_){}
   }
 
