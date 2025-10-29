@@ -48,9 +48,16 @@
               if (videos && videos.length > 0){
                 each(videos, function(video){
                   try {
-                    if (video && typeof video.play === 'function'){
-                      var p = video.play();
-                      if (p && p.catch) p.catch(function(err){
+                    if (!video || typeof video.play !== 'function') return;
+                    // Проверяем состояние загрузки - пропускаем если загружается
+                    var isFetching = video.dataset && video.dataset.fetching === 'true';
+                    if (isFetching) return;
+                    
+                    var p = video.play();
+                    if (p && p.catch){
+                      p.catch(function(err){
+                        // Не логируем ожидаемые ошибки при активации
+                        if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
                         console.error('[snapSlider] Error activating video playback:', err);
                       });
                     }
@@ -65,10 +72,17 @@
           try {
             var talkingVideo = getTalkingHeadVideo(caseEl);
             if (talkingVideo && typeof talkingVideo.play === 'function'){
-              var pt = talkingVideo.play();
-              if (pt && pt.catch) pt.catch(function(err){
-                console.error('[snapSlider] Error activating talking-head playback:', err);
-              });
+              var isFetching = talkingVideo.dataset && talkingVideo.dataset.fetching === 'true';
+              if (!isFetching){
+                var pt = talkingVideo.play();
+                if (pt && pt.catch){
+                  pt.catch(function(err){
+                    // Не логируем ожидаемые ошибки при активации
+                    if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+                    console.error('[snapSlider] Error activating talking-head playback:', err);
+                  });
+                }
+              }
             }
           } catch(err){
             console.error('[snapSlider] Error in activateUserGesture talking-head:', err);
@@ -91,10 +105,70 @@
     if (!videos || !videos.length) return;
     each(videos, function(video){
       try {
-        if (video && typeof video.play === 'function'){
+        if (!video || typeof video.play !== 'function') return;
+        
+        // Проверяем, загружается ли видео (если есть атрибут fetching или нет loaded)
+        var isFetching = video.dataset && video.dataset.fetching === 'true';
+        var isLoaded = video.dataset && video.dataset.loaded === 'true';
+        var hasSource = video.readyState > 0 || (video.src || (video.querySelector && video.querySelector('source')));
+        
+        // Если видео загружается через lazy loader, ждем завершения загрузки
+        if (isFetching || (!isLoaded && hasSource)){
+          var tryPlayWhenReady = function(){
+            if (video.dataset && video.dataset.fetching === 'true'){
+              setTimeout(tryPlayWhenReady, 100);
+              return;
+            }
+            try {
+              if (video.readyState >= 2 && !video.paused) return; // Уже играет или почти готово
+              var p = video.play();
+              if (p && p.catch){
+                p.catch(function(err){
+                  // AbortError ожидаем во время загрузки - не логируем
+                  if (err && err.name === 'AbortError') return;
+                  // NotAllowedError - user gesture еще не активирован
+                  if (err && err.name === 'NotAllowedError'){
+                    if (!USER_GESTURE_ACTIVATED){
+                      activateUserGesture();
+                      // Повторная попытка после небольшой задержки
+                      setTimeout(function(){
+                        try {
+                          var p2 = video.play();
+                          if (p2 && p2.catch) p2.catch(function(){});
+                        } catch(_){}
+                      }, 100);
+                    }
+                    return;
+                  }
+                  console.error('[snapSlider] Error in playVideos - video.play() rejected:', err);
+                });
+              }
+            } catch(_){}
+          };
+          setTimeout(tryPlayWhenReady, 100);
+          return;
+        }
+        
+        // Если видео готово, пытаемся сразу запустить
+        if (video.readyState >= 2 || !hasSource){
           var p = video.play();
           if (p && p.catch){
             p.catch(function(err){
+              // AbortError ожидаем если видео перезагружается - не логируем
+              if (err && err.name === 'AbortError') return;
+              // NotAllowedError - пробуем активировать user gesture и повторить
+              if (err && err.name === 'NotAllowedError'){
+                if (!USER_GESTURE_ACTIVATED){
+                  activateUserGesture();
+                  setTimeout(function(){
+                    try {
+                      var p2 = video.play();
+                      if (p2 && p2.catch) p2.catch(function(){});
+                    } catch(_){}
+                  }, 100);
+                }
+                return;
+              }
               console.error('[snapSlider] Error in playVideos - video.play() rejected:', err);
             });
           }
@@ -277,17 +351,71 @@
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
   function playTalkingHead(root){
     var v = getTalkingHeadVideo(root);
-    if (v){
-      try {
+    if (!v) return;
+    try {
+      // Проверяем, загружается ли видео
+      var isFetching = v.dataset && v.dataset.fetching === 'true';
+      var isLoaded = v.dataset && v.dataset.loaded === 'true';
+      var hasSource = v.readyState > 0 || (v.src || (v.querySelector && v.querySelector('source')));
+      
+      // Если видео загружается, ждем завершения
+      if (isFetching || (!isLoaded && hasSource)){
+        var tryPlayWhenReady = function(){
+          if (v.dataset && v.dataset.fetching === 'true'){
+            setTimeout(tryPlayWhenReady, 100);
+            return;
+          }
+          try {
+            if (v.readyState >= 2 && !v.paused) return;
+            var p = v.play();
+            if (p && p.catch){
+              p.catch(function(err){
+                if (err && err.name === 'AbortError') return;
+                if (err && err.name === 'NotAllowedError'){
+                  if (!USER_GESTURE_ACTIVATED){
+                    activateUserGesture();
+                    setTimeout(function(){
+                      try {
+                        var p2 = v.play();
+                        if (p2 && p2.catch) p2.catch(function(){});
+                      } catch(_){}
+                    }, 100);
+                  }
+                  return;
+                }
+                console.error('[snapSlider] Error in playTalkingHead - video.play() rejected:', err);
+              });
+            }
+          } catch(_){}
+        };
+        setTimeout(tryPlayWhenReady, 100);
+        return;
+      }
+      
+      // Если видео готово
+      if (v.readyState >= 2 || !hasSource){
         var p = v.play();
         if (p && p.catch){
           p.catch(function(err){
+            if (err && err.name === 'AbortError') return;
+            if (err && err.name === 'NotAllowedError'){
+              if (!USER_GESTURE_ACTIVATED){
+                activateUserGesture();
+                setTimeout(function(){
+                  try {
+                    var p2 = v.play();
+                    if (p2 && p2.catch) p2.catch(function(){});
+                  } catch(_){}
+                }, 100);
+              }
+              return;
+            }
             console.error('[snapSlider] Error in playTalkingHead - video.play() rejected:', err);
           });
         }
-      } catch(err){
-        console.error('[snapSlider] Error in playTalkingHead:', err);
       }
+    } catch(err){
+      console.error('[snapSlider] Error in playTalkingHead:', err);
     }
   }
   function pauseTalkingHead(root){
