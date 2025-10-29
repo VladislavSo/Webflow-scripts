@@ -258,107 +258,57 @@
     }
   }
 
+  // Функция для запуска видео в контексте жеста - удовлетворяет autoplay policy
+  // Autoplay policy требует: видео muted + прямой жест пользователя
+  function playVideoInGestureContext(video, event){
+    if (!video || typeof video.play !== 'function') return false;
+    
+    try {
+      // КРИТИЧНО для autoplay policy: видео ДОЛЖНО быть muted для автовоспроизведения
+      var wasMuted = video.muted;
+      var needsMute = !video.muted;
+      
+      if (needsMute) {
+        video.muted = true;
+      }
+      
+      // Запускаем СИНХРОННО в контексте жеста (прямо в обработчике события)
+      var playPromise = video.play();
+      
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise.then(function(){
+          // Успешно запущено - помечаем как разблокированное
+          video.__unlockedByGesture = true;
+          // Восстанавливаем muted если нужно, но только после того как видео запустилось
+          if (needsMute && !wasMuted) {
+            // Даём время браузеру зарегистрировать успешный запуск (200ms)
+            setTimeout(function(){
+              try { video.muted = wasMuted; } catch(_){}
+            }, 200);
+          }
+          return true;
+        }).catch(function(err){
+          // Игнорируем AbortError (это нормально если играет другое видео)
+          if (err && err.name !== 'AbortError') {
+            console.warn('[snapSlider] Ошибка play() в контексте жеста:', err);
+          }
+          return false;
+        });
+      } else {
+        // Старый браузер без Promise
+        video.__unlockedByGesture = true;
+        return true;
+      }
+    } catch(videoErr){
+      console.warn('[snapSlider] Ошибка при запуске видео:', videoErr);
+      return false;
+    }
+    return false;
+  }
+
   // Инициализация отслеживания жестов
   function initUserGestureTracking(){
     try {
-      // Функция для запуска активных видео при жесте (в контексте жеста)
-      function playActiveVideosInGestureContext(){
-        try {
-          // Находим активный кейс
-          var activeCase = qs(document, '.cases-grid__item.active, .case.active');
-          if (!activeCase) return;
-          
-          // Находим все активные слайды в активном кейсе
-          var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
-          var activeVideos = [];
-          
-          each(activeSlides, function(slide){
-            var videos = qsa(slide, 'video');
-            each(videos, function(v){
-              // Проверяем, нет ли уже этого видео в массиве
-              var found = false;
-              for (var j = 0; j < activeVideos.length; j++) {
-                if (activeVideos[j] === v) {
-                  found = true;
-                  break;
-                }
-              }
-              if (!found) {
-                activeVideos.push(v);
-              }
-            });
-          });
-          
-          // Talking-head видео тоже
-          var talkingHeadVideo = qs(activeCase, '.cases-grid__item__container__wrap__talking-head__video video');
-          if (talkingHeadVideo) {
-            var foundTalking = false;
-            for (var k = 0; k < activeVideos.length; k++) {
-              if (activeVideos[k] === talkingHeadVideo) {
-                foundTalking = true;
-                break;
-              }
-            }
-            if (!foundTalking) {
-              activeVideos.push(talkingHeadVideo);
-            }
-          }
-          
-          // Запускаем все активные видео СИНХРОННО в контексте жеста
-          // ВАЖНО: НЕ вызываем pause() для этих видео, они должны играть
-          each(activeVideos, function(video){
-            try {
-              if (!video || typeof video.play !== 'function') return;
-              
-              // Проверяем, не играет ли уже видео - если да, не трогаем
-              // Это предотвращает конфликты с другими функциями
-              var wasPlaying = !video.paused;
-              
-              // Убеждаемся что muted для автовоспроизведения
-              var wasMuted = video.muted;
-              if (!video.muted) video.muted = true;
-              
-              // ВАЖНО: запускаем СИНХРОННО, в контексте жеста
-              // НО только если видео на паузе или еще не играет
-              if (!wasPlaying) {
-                var playPromise = video.play();
-                
-                // Помечаем как разблокированное
-                video.__unlockedByGesture = true;
-                
-                // Обрабатываем промис асинхронно, но запуск уже в контексте жеста
-                if (playPromise && typeof playPromise.then === 'function') {
-                  playPromise.then(function(){
-                    // Успешно запущено - восстанавливаем muted если нужно
-                    // НЕ вызываем pause() - видео должно продолжать играть
-                    if (!wasMuted) {
-                      setTimeout(function(){
-                        try { video.muted = wasMuted; } catch(_){}
-                      }, 50);
-                    }
-                  }).catch(function(err){
-                    // Логируем только если это не AbortError от pause()
-                    if (err && err.name !== 'AbortError') {
-                      console.warn('[snapSlider] Ошибка при запуске активного видео:', err);
-                    }
-                  });
-                }
-              } else {
-                // Видео уже играет - просто помечаем как разблокированное
-                video.__unlockedByGesture = true;
-              }
-            } catch(videoErr){
-              console.warn('[snapSlider] Ошибка обработки видео:', videoErr);
-            }
-          });
-          
-          if (activeVideos.length > 0) {
-            console.log('[snapSlider] Запущено активных видео в контексте жеста:', activeVideos.length);
-      }
-    } catch(err){
-          console.warn('[snapSlider] Ошибка при запуске активных видео:', err);
-        }
-      }
       
       // Приоритетный обработчик для touchstart - должен сработать ПЕРВЫМ до всех других обработчиков
       function handleFirstGesture(ev){
@@ -382,9 +332,8 @@
           });
         }
         
-        // При ЛЮБОМ жесте - запускаем только активные видео в контексте жеста
-        // Это критично - запускаем только те видео, которые должны играть
-        playActiveVideosInGestureContext();
+        // НЕ запускаем видео автоматически - только при прямом клике на слайд/видео
+        // Это требуется для удовлетворения autoplay policy браузера
       }
       
       // Обработчики для всех типов жестов, но touchstart/pointerdown - с максимальным приоритетом (capture phase)
@@ -593,29 +542,42 @@
     var callContext = context || ('playVideos(' + (slideEl.className || 'unknown') + ')');
     each(videos, function(video, idx){
       try {
-        if (video && typeof video.play === 'function') { 
-              var p = video.play();
-          if (p && typeof p.then === 'function') {
-                p.then(function(){
-              var gestureInfo = getUserGestureInfo();
-              console.log('[snapSlider] Видео успешно запущено:', {
-                src: video.src || video.currentSrc || 'no src',
-                context: callContext + '[' + idx + ']',
-                muted: video.muted,
-                'Статус разблокировки': {
-                  'Видео разблокировано': !!(video.__unlockedByGesture),
-                  'Глобальная разблокировка': userGestureState.videosUnlocked
-                },
-                'Пользовательские жесты': {
-                  'Есть жесты': gestureInfo.hasGesture,
-                  'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
-                  'Окно жеста валидно': gestureInfo.isGestureValid
-                }
-              });
-            }).catch(function(err){
-              logVideoPlayError(video, callContext + '[' + idx + ']', err);
+        if (video && typeof video.play !== 'function') return;
+        
+        // КРИТИЧНО для autoplay policy: видео должно быть muted для автовоспроизведения
+        // Если видео разблокировано, можем попробовать запустить, но лучше с muted
+        var wasMuted = video.muted;
+        if (!video.muted && !video.__unlockedByGesture) {
+          video.muted = true;
+        }
+        
+        var p = video.play();
+        if (p && typeof p.then === 'function') {
+          p.then(function(){
+            var gestureInfo = getUserGestureInfo();
+            console.log('[snapSlider] Видео успешно запущено:', {
+              src: video.src || video.currentSrc || 'no src',
+              context: callContext + '[' + idx + ']',
+              muted: video.muted,
+              'Статус разблокировки': {
+                'Видео разблокировано': !!(video.__unlockedByGesture),
+                'Глобальная разблокировка': userGestureState.videosUnlocked
+              },
+              'Пользовательские жесты': {
+                'Есть жесты': gestureInfo.hasGesture,
+                'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
+                'Окно жеста валидно': gestureInfo.isGestureValid
+              }
             });
-          }
+            // Восстанавливаем muted если нужно (для разблокированных видео)
+            if (!wasMuted && video.__unlockedByGesture) {
+              setTimeout(function(){
+                try { video.muted = wasMuted; } catch(_){}
+              }, 200);
+            }
+          }).catch(function(err){
+            logVideoPlayError(video, callContext + '[' + idx + ']', err);
+          });
         }
       } catch(err){
         logVideoPlayError(video, callContext + '[' + idx + ']', err);
@@ -1303,20 +1265,9 @@
         var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
         var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
         
-        // Если это активное видео - запускаем его используя event (прямое взаимодействие)
+        // Если это активное видео - запускаем его используя функцию, которая удовлетворяет autoplay policy
         if (isActiveSlide && isActiveCase) {
-          try {
-            if (!video.muted) video.muted = true;
-            var playPromise = video.play();
-            video.__unlockedByGesture = true;
-            if (playPromise && typeof playPromise.then === 'function') {
-              playPromise.then(function(){
-                console.log('[snapSlider] ✅ Видео запущено через прямой клик');
-                          }).catch(function(err){
-                // Игнорируем ошибки, возможно видео уже играет
-              });
-            }
-          } catch(_){}
+          playVideoInGestureContext(video, ev);
         }
       }, { capture: true, passive: true });
       
@@ -1324,7 +1275,7 @@
       document.addEventListener('touchstart', function(ev){
         var target = ev.target;
         var video = target.tagName === 'VIDEO' ? target : (target.closest ? target.closest('video') : null);
-        if (!video || typeof video.play !== 'function') return;
+                        if (!video || typeof video.play !== 'function') return;
         
         var slide = video.closest ? video.closest('.story-track-wrapper__slide') : null;
         if (!slide) return;
@@ -1333,15 +1284,12 @@
         var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
         
         if (isActiveSlide && isActiveCase) {
-          try {
-            if (!video.muted) video.muted = true;
-            var playPromise = video.play();
-            video.__unlockedByGesture = true;
-          } catch(_){}
+          playVideoInGestureContext(video, ev);
         }
       }, { capture: true, passive: true });
       
       // Обработчики кликов на слайды - запускаем видео при клике на активный слайд
+      // Это удовлетворяет autoplay policy: прямой жест пользователя на слайде
       document.addEventListener('click', function(ev){
         var target = ev.target;
         // Проверяем, кликнули ли на слайде или внутри него
@@ -1352,20 +1300,15 @@
         var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
         
         if (isActiveSlide && isActiveCase) {
-          // Запускаем все видео в этом слайде
+          // Запускаем все видео в этом слайде используя функцию, удовлетворяющую autoplay policy
           var videos = qsa(slide, 'video');
           each(videos, function(video){
-            try {
-              if (typeof video.play !== 'function') return;
-              if (!video.muted) video.muted = true;
-              var playPromise = video.play();
-              video.__unlockedByGesture = true;
-            } catch(_){}
+            playVideoInGestureContext(video, ev);
           });
         }
       }, { capture: true, passive: true });
       
-      // Также для touchstart на слайды
+      // Также для touchstart на слайды (мобильные устройства)
       document.addEventListener('touchstart', function(ev){
         var target = ev.target;
         var slide = target.closest ? target.closest('.story-track-wrapper__slide') : null;
@@ -1377,12 +1320,7 @@
         if (isActiveSlide && isActiveCase) {
           var videos = qsa(slide, 'video');
           each(videos, function(video){
-            try {
-              if (typeof video.play !== 'function') return;
-              if (!video.muted) video.muted = true;
-              var playPromise = video.play();
-              video.__unlockedByGesture = true;
-            } catch(_){}
+            playVideoInGestureContext(video, ev);
           });
         }
       }, { capture: true, passive: true });
@@ -1398,6 +1336,14 @@
     try {
             var allVideos = qsa(document, 'video');
             each(allVideos, function(video){
+              // КРИТИЧНО для autoplay: устанавливаем muted если не установлен
+              try {
+                if (!video.muted && !video.hasAttribute('muted')) {
+                  video.muted = true;
+                  video.setAttribute('muted', '');
+                }
+              } catch(_){}
+              
               // Если разблокировка уже выполнена, пытаемся разблокировать это видео тоже
               if (userGestureState.videosUnlocked && !video.__unlockedByGesture) {
                 unlockSingleVideo(video);
@@ -1439,8 +1385,30 @@
     } catch(_){}
   }
 
+  // Установка muted="true" для всех видео - КРИТИЧНО для autoplay policy
+  // Autoplay policy разрешает автоматическое воспроизведение только для muted видео
+  function setupVideoMutedForAutoplay(){
+    try {
+            var allVideos = qsa(document, 'video');
+            each(allVideos, function(video){
+        try {
+          // Устанавливаем muted если не установлен
+          if (!video.muted && !video.hasAttribute('muted')) {
+            video.muted = true;
+            video.setAttribute('muted', '');
+          }
+        } catch(_){}
+      });
+      console.log('[snapSlider] Установлен muted="true" для всех видео (требование autoplay policy)');
+    } catch(_){}
+  }
+
   // Инициализация всего snap-слайдера
   function initSnapSlider(){
+    // КРИТИЧНО: устанавливаем muted="true" для всех видео ДО всего остального
+    // Это необходимо для удовлетворения autoplay policy браузера
+    setupVideoMutedForAutoplay();
+    
     // Устанавливаем прямые обработчики кликов на видео (для разблокировки через прямое взаимодействие)
     setupDirectVideoClickHandlers();
     
