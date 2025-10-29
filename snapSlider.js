@@ -15,7 +15,105 @@
     unlockInProgress: false // Флаг процесса разблокировки
   };
 
-  // Разблокировка всех видео при первом жесте пользователя
+  // СИНХРОННАЯ разблокировка всех видео - вызывается прямо в обработчике жеста
+  // Критично: play() должен быть вызван в том же event loop, где активен жест
+  function unlockAllVideosOnFirstGestureSync(){
+    if (userGestureState.videosUnlocked || userGestureState.unlockInProgress) return;
+    
+    userGestureState.unlockInProgress = true;
+    
+    try {
+      var allVideos = qsa(document, 'video');
+      if (!allVideos || !allVideos.length) {
+        userGestureState.unlockInProgress = false;
+        return;
+      }
+      
+      console.log('[snapSlider] 🔓 СИНХРОННАЯ разблокировка всех видео. Всего:', allVideos.length);
+      
+      var unlockedCount = 0;
+      
+      // КРИТИЧНО: запускаем play() СИНХРОННО для всех видео в цикле
+      // без setTimeout, без промисов - сразу в текущем event loop
+      for (var i = 0; i < allVideos.length; i++) {
+        try {
+          var video = allVideos[i];
+          if (!video || typeof video.play !== 'function' || video.__unlockedByGesture) continue;
+          
+          // Сохраняем состояние
+          var originalMuted = video.muted;
+          var currentTime = video.currentTime || 0;
+          
+          // Проверяем активность
+          var slideEl = video.closest ? video.closest('.story-track-wrapper__slide') : null;
+          var isActiveSlide = !!(slideEl && slideEl.classList && slideEl.classList.contains('active'));
+          var caseEl = slideEl ? (slideEl.closest ? slideEl.closest('.cases-grid__item, .case') : null) : null;
+          if (!caseEl) {
+            caseEl = video.closest ? video.closest('.cases-grid__item, .case') : null;
+          }
+          var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+          var isTalkingHead = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video'));
+          var shouldBePlaying = (isActiveSlide && isActiveCase) || (isTalkingHead && isActiveCase);
+          
+          // Временно muted для автовоспроизведения
+          if (!video.muted) {
+            video.muted = true;
+          }
+          
+          // ВАЖНО: вызываем play() СИНХРОННО, без await промиса
+          var playResult = video.play();
+          
+          // Помечаем как разблокированное сразу
+          video.__unlockedByGesture = true;
+          unlockedCount++;
+          
+          // Обрабатываем результат асинхронно (но разблокировка уже произошла)
+          if (playResult && typeof playResult.then === 'function') {
+            playResult.then(function(){
+              // Успешно запущено
+              if (!shouldBePlaying) {
+                setTimeout(function(){
+                  try {
+                    if (!video.paused) video.pause();
+                    video.currentTime = currentTime;
+                    if (!originalMuted) video.muted = originalMuted;
+                  } catch(_){}
+                }, 100);
+              } else {
+                if (!originalMuted) video.muted = originalMuted;
+              }
+            }).catch(function(err){
+              // Ошибка, но разблокировка уже зафиксирована
+              console.warn('[snapSlider] Ошибка play() после разблокировки:', err);
+            });
+          } else {
+            // Старый браузер - результат сразу известен
+            if (!shouldBePlaying) {
+              setTimeout(function(){
+                try {
+                  if (!video.paused) video.pause();
+                  video.currentTime = currentTime;
+                } catch(_){}
+              }, 100);
+            }
+          }
+        } catch(videoErr){
+          console.warn('[snapSlider] Ошибка при синхронной разблокировке видео:', videoErr);
+        }
+      }
+      
+      // Устанавливаем флаг сразу
+      userGestureState.videosUnlocked = true;
+      userGestureState.unlockInProgress = false;
+      console.log('[snapSlider] ✅ Синхронная разблокировка завершена. Разблокировано:', unlockedCount);
+      
+    } catch(err){
+      console.error('[snapSlider] Ошибка при синхронной разблокировке:', err);
+      userGestureState.unlockInProgress = false;
+    }
+  }
+
+  // Асинхронная разблокировка всех видео при первом жесте пользователя (для детальной обработки)
   function unlockAllVideosOnFirstGesture(){
     if (userGestureState.videosUnlocked || userGestureState.unlockInProgress) return;
     
@@ -170,16 +268,18 @@
         
         userGestureState.lastGestureTime = now;
         
-        // При первом жесте - сразу разблокируем все видео
+        // При первом жесте - СИНХРОННО запускаем разблокировку прямо здесь
+        // Это критично - окно жеста активно только в текущем event loop
         if (isFirstGesture) {
-          console.log('[snapSlider] 👆 Первый жест пользователя зафиксирован, разблокировка видео:', {
+          console.log('[snapSlider] 👆 Первый жест пользователя зафиксирован, СИНХРОННАЯ разблокировка видео:', {
             type: ev.type,
             target: ev.target ? (ev.target.className || ev.target.tagName || ev.target.nodeName) : 'unknown',
             time: new Date(now).toISOString()
           });
           
-          // Запускаем разблокировку сразу, без задержки
-          unlockAllVideosOnFirstGesture();
+          // КРИТИЧНО: запускаем разблокировку СИНХРОННО, без setTimeout/промисов
+          // Это гарантирует, что play() вызывается в том же event loop, где активен жест
+          unlockAllVideosOnFirstGestureSync();
         } else {
           console.log('[snapSlider] Пользовательский жест зафиксирован:', {
             type: ev.type,
