@@ -56,13 +56,9 @@
                     var p = video.play();
                     if (p && p.catch){
                       p.catch(function(err){
-                        if (err && err.name === 'AbortError'){
-                          console.warn('[snapSlider] Video play interrupted (AbortError) - likely due to source change during loading:', err);
-                        } else if (err && err.name === 'NotAllowedError'){
-                          console.warn('[snapSlider] Video play blocked (NotAllowedError) - user gesture may not be activated yet:', err);
-                        } else {
-                          console.error('[snapSlider] Error activating video playback:', err);
-                        }
+                        // Не логируем ожидаемые ошибки при активации
+                        if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+                        console.error('[snapSlider] Error activating video playback:', err);
                       });
                     }
                   } catch(err){
@@ -81,13 +77,9 @@
                 var pt = talkingVideo.play();
                 if (pt && pt.catch){
                   pt.catch(function(err){
-                    if (err && err.name === 'AbortError'){
-                      console.warn('[snapSlider] Talking-head video play interrupted (AbortError) - likely due to source change during loading:', err);
-                    } else if (err && err.name === 'NotAllowedError'){
-                      console.warn('[snapSlider] Talking-head video play blocked (NotAllowedError) - user gesture may not be activated yet:', err);
-                    } else {
-                      console.error('[snapSlider] Error activating talking-head playback:', err);
-                    }
+                    // Не логируем ожидаемые ошибки при активации
+                    if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+                    console.error('[snapSlider] Error activating talking-head playback:', err);
                   });
                 }
               }
@@ -104,59 +96,98 @@
 
   // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
   function playVideos(slideEl){
-    debugger;
     if (!slideEl) return;
+    console.log('[snapSlider] playVideos called for slideEl:', slideEl);
     // Если user gesture ещё не активирован, пытаемся активировать
     if (!USER_GESTURE_ACTIVATED){
+      console.log('[snapSlider] playVideos - USER_GESTURE_ACTIVATED is false, activating...');
       activateUserGesture();
     }
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
+    console.log('[snapSlider] playVideos - found videos:', videos.length);
     if (!videos || !videos.length) return;
-    each(videos, function(video){
+    each(videos, function(video, idx){
       try {
-        if (!video || typeof video.play !== 'function') return;
+        console.log('[snapSlider] playVideos - processing video [' + idx + ']');
+        if (!video || typeof video.play !== 'function') {
+          console.log('[snapSlider] playVideos - video [' + idx + '] skipped (no video or play function)');
+          return;
+        }
         
         // Проверяем, загружается ли видео (если есть атрибут fetching или нет loaded)
         var isFetching = video.dataset && video.dataset.fetching === 'true';
         var isLoaded = video.dataset && video.dataset.loaded === 'true';
         var hasSource = video.readyState > 0 || (video.src || (video.querySelector && video.querySelector('source')));
+        var readyState = video.readyState || 0;
+        var paused = video.paused !== undefined ? video.paused : true;
+        var currentSrc = video.src || (video.querySelector && video.querySelector('source') && video.querySelector('source').src) || 'no src';
+        
+        console.log('[snapSlider] playVideos - video [' + idx + '] state:', {
+          isFetching: isFetching,
+          isLoaded: isLoaded,
+          hasSource: hasSource,
+          readyState: readyState,
+          paused: paused,
+          src: currentSrc,
+          USER_GESTURE_ACTIVATED: USER_GESTURE_ACTIVATED
+        });
         
         // Если видео загружается через lazy loader, ждем завершения загрузки
         if (isFetching || (!isLoaded && hasSource)){
+          console.log('[snapSlider] playVideos - video [' + idx + '] is loading, waiting...');
           var tryPlayWhenReady = function(){
             if (video.dataset && video.dataset.fetching === 'true'){
               setTimeout(tryPlayWhenReady, 100);
               return;
             }
             try {
-              if (video.readyState >= 2 && !video.paused) return; // Уже играет или почти готово
+              if (video.readyState >= 2 && !video.paused) {
+                console.log('[snapSlider] playVideos - video [' + idx + '] already playing, skipping');
+                return;
+              }
+              console.log('[snapSlider] playVideos - video [' + idx + '] calling play() after loading...');
               var p = video.play();
+              console.log('[snapSlider] playVideos - video [' + idx + '] play() returned:', p ? 'Promise' : 'void');
               if (p && p.catch){
-                p.catch(function(err){
-                  if (err && err.name === 'AbortError'){
-                    console.warn('[snapSlider] Video play interrupted (AbortError) in playVideos - likely due to source change during loading:', err);
-                  } else if (err && err.name === 'NotAllowedError'){
-                    console.warn('[snapSlider] Video play blocked (NotAllowedError) in playVideos - user gesture may not be activated yet:', err);
+                p.then(function(){
+                  console.log('[snapSlider] playVideos - video [' + idx + '] play() resolved successfully');
+                }).catch(function(err){
+                  console.log('[snapSlider] playVideos - video [' + idx + '] play() rejected:', err.name, err.message);
+                  // AbortError ожидаем во время загрузки - не логируем
+                  if (err && err.name === 'AbortError') {
+                    console.log('[snapSlider] playVideos - video [' + idx + '] AbortError (expected during loading), ignoring');
+                    return;
+                  }
+                  // NotAllowedError - user gesture еще не активирован
+                  if (err && err.name === 'NotAllowedError'){
+                    console.log('[snapSlider] playVideos - video [' + idx + '] NotAllowedError, attempting to activate user gesture...');
                     if (!USER_GESTURE_ACTIVATED){
                       activateUserGesture();
                       // Повторная попытка после небольшой задержки
                       setTimeout(function(){
                         try {
+                          console.log('[snapSlider] playVideos - video [' + idx + '] retrying play() after user gesture activation...');
                           var p2 = video.play();
-                          if (p2 && p2.catch) p2.catch(function(err2){
-                            console.error('[snapSlider] Error in playVideos - retry video.play() rejected:', err2);
-                          });
-                        } catch(err2){
-                          console.error('[snapSlider] Error in playVideos - retry video.play() exception:', err2);
+                          if (p2 && p2.then){
+                            p2.then(function(){
+                              console.log('[snapSlider] playVideos - video [' + idx + '] retry play() resolved successfully');
+                            }).catch(function(err2){
+                              console.log('[snapSlider] playVideos - video [' + idx + '] retry play() rejected:', err2.name, err2.message);
+                            });
+                          }
+                        } catch(retryErr){
+                          console.error('[snapSlider] playVideos - video [' + idx + '] retry play() exception:', retryErr);
                         }
                       }, 100);
                     }
-                  } else {
-                    console.error('[snapSlider] Error in playVideos - video.play() rejected:', err);
+                    return;
                   }
+                  console.error('[snapSlider] playVideos - video [' + idx + '] play() rejected with unexpected error:', err);
                 });
               }
-            } catch(_){}
+            } catch(playErr){
+              console.error('[snapSlider] playVideos - video [' + idx + '] play() exception:', playErr);
+            }
           };
           setTimeout(tryPlayWhenReady, 100);
           return;
@@ -164,34 +195,50 @@
         
         // Если видео готово, пытаемся сразу запустить
         if (video.readyState >= 2 || !hasSource){
+          console.log('[snapSlider] playVideos - video [' + idx + '] ready, calling play() immediately...');
           var p = video.play();
-          if (p && p.catch){
-            p.catch(function(err){
-              if (err && err.name === 'AbortError'){
-                console.warn('[snapSlider] Video play interrupted (AbortError) in playVideos - likely due to source change:', err);
-              } else if (err && err.name === 'NotAllowedError'){
-                console.warn('[snapSlider] Video play blocked (NotAllowedError) in playVideos - user gesture may not be activated yet:', err);
+          console.log('[snapSlider] playVideos - video [' + idx + '] play() returned:', p ? 'Promise' : 'void');
+          if (p && p.then){
+            p.then(function(){
+              console.log('[snapSlider] playVideos - video [' + idx + '] play() resolved successfully');
+            }).catch(function(err){
+              console.log('[snapSlider] playVideos - video [' + idx + '] play() rejected:', err.name, err.message);
+              // AbortError ожидаем если видео перезагружается - не логируем
+              if (err && err.name === 'AbortError') {
+                console.log('[snapSlider] playVideos - video [' + idx + '] AbortError (expected during reload), ignoring');
+                return;
+              }
+              // NotAllowedError - пробуем активировать user gesture и повторить
+              if (err && err.name === 'NotAllowedError'){
+                console.log('[snapSlider] playVideos - video [' + idx + '] NotAllowedError, attempting to activate user gesture...');
                 if (!USER_GESTURE_ACTIVATED){
                   activateUserGesture();
                   setTimeout(function(){
                     try {
+                      console.log('[snapSlider] playVideos - video [' + idx + '] retrying play() after user gesture activation...');
                       var p2 = video.play();
-                      if (p2 && p2.catch) p2.catch(function(err2){
-                        console.error('[snapSlider] Error in playVideos - retry video.play() rejected:', err2);
-                      });
-                    } catch(err2){
-                      console.error('[snapSlider] Error in playVideos - retry video.play() exception:', err2);
+                      if (p2 && p2.then){
+                        p2.then(function(){
+                          console.log('[snapSlider] playVideos - video [' + idx + '] retry play() resolved successfully');
+                        }).catch(function(err2){
+                          console.log('[snapSlider] playVideos - video [' + idx + '] retry play() rejected:', err2.name, err2.message);
+                        });
+                      }
+                    } catch(retryErr){
+                      console.error('[snapSlider] playVideos - video [' + idx + '] retry play() exception:', retryErr);
                     }
                   }, 100);
                 }
-              } else {
-                console.error('[snapSlider] Error in playVideos - video.play() rejected:', err);
+                return;
               }
+              console.error('[snapSlider] playVideos - video [' + idx + '] play() rejected with unexpected error:', err);
             });
           }
+        } else {
+          console.log('[snapSlider] playVideos - video [' + idx + '] not ready (readyState=' + readyState + ', hasSource=' + hasSource + '), skipping');
         }
       } catch(err){
-        console.error('[snapSlider] Error in playVideos:', err);
+        console.error('[snapSlider] playVideos - video [' + idx + '] exception:', err);
       }
     });
   }
@@ -367,49 +414,84 @@
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
   function playTalkingHead(root){
+    console.log('[snapSlider] playTalkingHead called for root:', root);
     var v = getTalkingHeadVideo(root);
-    if (!v) return;
+    if (!v) {
+      console.log('[snapSlider] playTalkingHead - no video found');
+      return;
+    }
     try {
       // Проверяем, загружается ли видео
       var isFetching = v.dataset && v.dataset.fetching === 'true';
       var isLoaded = v.dataset && v.dataset.loaded === 'true';
       var hasSource = v.readyState > 0 || (v.src || (v.querySelector && v.querySelector('source')));
+      var readyState = v.readyState || 0;
+      var paused = v.paused !== undefined ? v.paused : true;
+      var currentSrc = v.src || (v.querySelector && v.querySelector('source') && v.querySelector('source').src) || 'no src';
+      
+      console.log('[snapSlider] playTalkingHead - video state:', {
+        isFetching: isFetching,
+        isLoaded: isLoaded,
+        hasSource: hasSource,
+        readyState: readyState,
+        paused: paused,
+        src: currentSrc,
+        USER_GESTURE_ACTIVATED: USER_GESTURE_ACTIVATED
+      });
       
       // Если видео загружается, ждем завершения
       if (isFetching || (!isLoaded && hasSource)){
+        console.log('[snapSlider] playTalkingHead - video is loading, waiting...');
         var tryPlayWhenReady = function(){
           if (v.dataset && v.dataset.fetching === 'true'){
             setTimeout(tryPlayWhenReady, 100);
             return;
           }
           try {
-            if (v.readyState >= 2 && !v.paused) return;
+            if (v.readyState >= 2 && !v.paused) {
+              console.log('[snapSlider] playTalkingHead - video already playing, skipping');
+              return;
+            }
+            console.log('[snapSlider] playTalkingHead - calling play() after loading...');
             var p = v.play();
-            if (p && p.catch){
-              p.catch(function(err){
-                if (err && err.name === 'AbortError'){
-                  console.warn('[snapSlider] Talking-head video play interrupted (AbortError) - likely due to source change during loading:', err);
-                } else if (err && err.name === 'NotAllowedError'){
-                  console.warn('[snapSlider] Talking-head video play blocked (NotAllowedError) - user gesture may not be activated yet:', err);
+            console.log('[snapSlider] playTalkingHead - play() returned:', p ? 'Promise' : 'void');
+            if (p && p.then){
+              p.then(function(){
+                console.log('[snapSlider] playTalkingHead - play() resolved successfully');
+              }).catch(function(err){
+                console.log('[snapSlider] playTalkingHead - play() rejected:', err.name, err.message);
+                if (err && err.name === 'AbortError') {
+                  console.log('[snapSlider] playTalkingHead - AbortError (expected during loading), ignoring');
+                  return;
+                }
+                if (err && err.name === 'NotAllowedError'){
+                  console.log('[snapSlider] playTalkingHead - NotAllowedError, attempting to activate user gesture...');
                   if (!USER_GESTURE_ACTIVATED){
                     activateUserGesture();
                     setTimeout(function(){
                       try {
+                        console.log('[snapSlider] playTalkingHead - retrying play() after user gesture activation...');
                         var p2 = v.play();
-                        if (p2 && p2.catch) p2.catch(function(err2){
-                          console.error('[snapSlider] Error in playTalkingHead - retry video.play() rejected:', err2);
-                        });
-                      } catch(err2){
-                        console.error('[snapSlider] Error in playTalkingHead - retry video.play() exception:', err2);
+                        if (p2 && p2.then){
+                          p2.then(function(){
+                            console.log('[snapSlider] playTalkingHead - retry play() resolved successfully');
+                          }).catch(function(err2){
+                            console.log('[snapSlider] playTalkingHead - retry play() rejected:', err2.name, err2.message);
+                          });
+                        }
+                      } catch(retryErr){
+                        console.error('[snapSlider] playTalkingHead - retry play() exception:', retryErr);
                       }
                     }, 100);
                   }
-                } else {
-                  console.error('[snapSlider] Error in playTalkingHead - video.play() rejected:', err);
+                  return;
                 }
+                console.error('[snapSlider] playTalkingHead - play() rejected with unexpected error:', err);
               });
             }
-          } catch(_){}
+          } catch(playErr){
+            console.error('[snapSlider] playTalkingHead - play() exception:', playErr);
+          }
         };
         setTimeout(tryPlayWhenReady, 100);
         return;
@@ -417,34 +499,48 @@
       
       // Если видео готово
       if (v.readyState >= 2 || !hasSource){
+        console.log('[snapSlider] playTalkingHead - video ready, calling play() immediately...');
         var p = v.play();
-        if (p && p.catch){
-          p.catch(function(err){
-            if (err && err.name === 'AbortError'){
-              console.warn('[snapSlider] Talking-head video play interrupted (AbortError) - likely due to source change:', err);
-            } else if (err && err.name === 'NotAllowedError'){
-              console.warn('[snapSlider] Talking-head video play blocked (NotAllowedError) - user gesture may not be activated yet:', err);
+        console.log('[snapSlider] playTalkingHead - play() returned:', p ? 'Promise' : 'void');
+        if (p && p.then){
+          p.then(function(){
+            console.log('[snapSlider] playTalkingHead - play() resolved successfully');
+          }).catch(function(err){
+            console.log('[snapSlider] playTalkingHead - play() rejected:', err.name, err.message);
+            if (err && err.name === 'AbortError') {
+              console.log('[snapSlider] playTalkingHead - AbortError (expected during reload), ignoring');
+              return;
+            }
+            if (err && err.name === 'NotAllowedError'){
+              console.log('[snapSlider] playTalkingHead - NotAllowedError, attempting to activate user gesture...');
               if (!USER_GESTURE_ACTIVATED){
                 activateUserGesture();
                 setTimeout(function(){
                   try {
+                    console.log('[snapSlider] playTalkingHead - retrying play() after user gesture activation...');
                     var p2 = v.play();
-                    if (p2 && p2.catch) p2.catch(function(err2){
-                      console.error('[snapSlider] Error in playTalkingHead - retry video.play() rejected:', err2);
-                    });
-                  } catch(err2){
-                    console.error('[snapSlider] Error in playTalkingHead - retry video.play() exception:', err2);
+                    if (p2 && p2.then){
+                      p2.then(function(){
+                        console.log('[snapSlider] playTalkingHead - retry play() resolved successfully');
+                      }).catch(function(err2){
+                        console.log('[snapSlider] playTalkingHead - retry play() rejected:', err2.name, err2.message);
+                      });
+                    }
+                  } catch(retryErr){
+                    console.error('[snapSlider] playTalkingHead - retry play() exception:', retryErr);
                   }
                 }, 100);
               }
-            } else {
-              console.error('[snapSlider] Error in playTalkingHead - video.play() rejected:', err);
+              return;
             }
+            console.error('[snapSlider] playTalkingHead - play() rejected with unexpected error:', err);
           });
         }
+      } else {
+        console.log('[snapSlider] playTalkingHead - video not ready (readyState=' + readyState + ', hasSource=' + hasSource + '), skipping');
       }
     } catch(err){
-      console.error('[snapSlider] Error in playTalkingHead:', err);
+      console.error('[snapSlider] playTalkingHead - exception:', err);
     }
   }
   function pauseTalkingHead(root){
