@@ -1162,10 +1162,63 @@
   // Инициализация всего snap-слайдера
   function initSnapSlider(){
     // Активируем user gesture при первом touchstart/touchmove/click для разблокировки autoplay
+    // КРИТИЧНО: вызываем play() СРАЗУ в обработчике gesture, пока gesture действителен
     try {
-      var activateOnGesture = function(){
+      var activateOnGesture = function(ev){
         if (!USER_GESTURE_ACTIVATED){
-          activateUserGesture();
+          USER_GESTURE_ACTIVATED = true;
+          console.log('[snapSlider] User gesture detected, calling play() immediately while gesture is valid');
+          // ВАЖНО: вызываем play() СРАЗУ, пока gesture еще действителен
+          try {
+            var activeCases = qsa(document, '.cases-grid__item.active, .case.active');
+            if (activeCases && activeCases.length > 0){
+              each(activeCases, function(caseEl){
+                var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
+                if (activeSlides && activeSlides.length > 0){
+                  each(activeSlides, function(slide){
+                    var videos = qsa(slide, '.slide-inner__video-block video, video');
+                    if (videos && videos.length > 0){
+                      each(videos, function(video){
+                        try {
+                          if (!video || typeof video.play !== 'function') return;
+                          var isFetching = video.dataset && video.dataset.fetching === 'true';
+                          if (isFetching) return;
+                          // Вызываем play() СРАЗУ пока gesture действителен
+                          var p = video.play();
+                          if (p && p.then){
+                            p.then(function(){
+                              console.log('[snapSlider] Gesture handler - video play() resolved (autoplay unlocked)');
+                            }).catch(function(err){
+                              console.log('[snapSlider] Gesture handler - video play() rejected:', err.name);
+                            });
+                          }
+                        } catch(e){}
+                      });
+                    }
+                  });
+                }
+                // Talking-head видео
+                try {
+                  var talkingVideo = getTalkingHeadVideo(caseEl);
+                  if (talkingVideo && typeof talkingVideo.play === 'function'){
+                    var isFetching = talkingVideo.dataset && talkingVideo.dataset.fetching === 'true';
+                    if (!isFetching){
+                      var pt = talkingVideo.play();
+                      if (pt && pt.then){
+                        pt.then(function(){
+                          console.log('[snapSlider] Gesture handler - talking-head play() resolved (autoplay unlocked)');
+                        }).catch(function(err){
+                          console.log('[snapSlider] Gesture handler - talking-head play() rejected:', err.name);
+                        });
+                      }
+                    }
+                  }
+                } catch(e){}
+              });
+            }
+          } catch(e){
+            console.error('[snapSlider] Error in activateOnGesture:', e);
+          }
         }
       };
       // Обрабатываем touchstart и touchmove (свайпы) для Telegram WebView
@@ -1231,8 +1284,58 @@
         var st = wrapper.__snapState || (wrapper.__snapState = {});
         var onDown = function(){
           // Активируем user gesture при первом touch в wrapper
+          // КРИТИЧНО: вызываем play() СРАЗУ пока gesture действителен
           if (!USER_GESTURE_ACTIVATED){
-            activateUserGesture();
+            USER_GESTURE_ACTIVATED = true;
+            console.log('[snapSlider] Wrapper touchstart - calling play() immediately while gesture is valid');
+            try {
+              var caseEl = wrapper.closest ? wrapper.closest('.cases-grid__item, .case') : null;
+              if (caseEl && caseEl.classList && caseEl.classList.contains('active')){
+                var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
+                if (activeSlides && activeSlides.length > 0){
+                  each(activeSlides, function(slide){
+                    var videos = qsa(slide, '.slide-inner__video-block video, video');
+                    if (videos && videos.length > 0){
+                      each(videos, function(video){
+                        try {
+                          if (!video || typeof video.play !== 'function') return;
+                          var isFetching = video.dataset && video.dataset.fetching === 'true';
+                          if (!isFetching){
+                            var p = video.play();
+                            if (p && p.then){
+                              p.then(function(){
+                                console.log('[snapSlider] Wrapper gesture - video play() resolved (autoplay unlocked)');
+                              }).catch(function(err){
+                                console.log('[snapSlider] Wrapper gesture - video play() rejected:', err.name);
+                              });
+                            }
+                          }
+                        } catch(e){}
+                      });
+                    }
+                  });
+                }
+                // Talking-head
+                try {
+                  var talkingVideo = getTalkingHeadVideo(caseEl);
+                  if (talkingVideo && typeof talkingVideo.play === 'function'){
+                    var isFetching = talkingVideo.dataset && talkingVideo.dataset.fetching === 'true';
+                    if (!isFetching){
+                      var pt = talkingVideo.play();
+                      if (pt && pt.then){
+                        pt.then(function(){
+                          console.log('[snapSlider] Wrapper gesture - talking-head play() resolved (autoplay unlocked)');
+                        }).catch(function(err){
+                          console.log('[snapSlider] Wrapper gesture - talking-head play() rejected:', err.name);
+                        });
+                      }
+                    }
+                  }
+                } catch(e){}
+              }
+            } catch(e){
+              console.error('[snapSlider] Error in onDown gesture handler:', e);
+            }
           }
           st.isUserInteracting = true; if (st._uiTimer) clearTimeout(st._uiTimer);
         };
