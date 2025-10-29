@@ -2,6 +2,7 @@
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
   // Утилиты
   var PROGRESS_ADVANCE_THRESHOLD = 0.98;
+  var USER_GESTURE_ACTIVATED = false; // Флаг активации user gesture для autoplay
   function qs(root, sel){ return (root||document).querySelector ? (root||document).querySelector(sel) : null; }
   function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
   function each(list, cb){ if(!list) return; (list.forEach ? list.forEach(cb) : Array.prototype.forEach.call(list, cb)); }
@@ -30,9 +31,51 @@
     window.buildSnapSliderProgress = buildProgress;
   }
 
+  // Активация user gesture для разблокировки autoplay (особенно важно для Telegram WebView)
+  function activateUserGesture(){
+    if (USER_GESTURE_ACTIVATED) return;
+    USER_GESTURE_ACTIVATED = true;
+    // При активации сразу запускаем видео в активных слайдах активных кейсов
+    try {
+      var activeCases = qsa(document, '.cases-grid__item.active, .case.active');
+      if (activeCases && activeCases.length > 0){
+        each(activeCases, function(caseEl){
+          var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
+          if (activeSlides && activeSlides.length > 0){
+            each(activeSlides, function(slide){
+              var videos = qsa(slide, '.slide-inner__video-block video, video');
+              if (videos && videos.length > 0){
+                each(videos, function(video){
+                  try {
+                    if (video && typeof video.play === 'function'){
+                      var p = video.play();
+                      if (p && p.catch) p.catch(function(){});
+                    }
+                  } catch(_){ }
+                });
+              }
+            });
+          }
+          // Также активируем talking-head видео
+          try {
+            var talkingVideo = getTalkingHeadVideo(caseEl);
+            if (talkingVideo && typeof talkingVideo.play === 'function'){
+              var pt = talkingVideo.play();
+              if (pt && pt.catch) pt.catch(function(){});
+            }
+          } catch(_){ }
+        });
+      }
+    } catch(_){ }
+  }
+
   // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
   function playVideos(slideEl){
     if (!slideEl) return;
+    // Если user gesture ещё не активирован, пытаемся активировать
+    if (!USER_GESTURE_ACTIVATED){
+      activateUserGesture();
+    }
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
     each(videos, function(video){
@@ -452,8 +495,14 @@
     var settleTimer = null;
     var lastEligibility = null;
     var lastActiveCase = null;
+    var firstScrollHappened = false;
 
     function updateActive(){
+      // При первом скролле активируем user gesture (если ещё не активирован)
+      if (!firstScrollHappened && !USER_GESTURE_ACTIVATED){
+        firstScrollHappened = true;
+        activateUserGesture();
+      }
       rafId = null;
       // Гейт: активируем кейсы только когда .main-container покрывает вьюпорт сверху и снизу
       var eligible = isMainContainerEligible();
@@ -538,6 +587,10 @@
     }
 
     function onScroll(){
+      // Активируем user gesture при первом скролле
+      if (!USER_GESTURE_ACTIVATED){
+        activateUserGesture();
+      }
       if (rafId) return;
       rafId = requestAnimationFrame(updateActive);
       if (settleTimer) { clearTimeout(settleTimer); }
@@ -632,6 +685,20 @@
 
   // Инициализация всего snap-слайдера
   function initSnapSlider(){
+    // Активируем user gesture при первом touchstart/touchmove/click для разблокировки autoplay
+    try {
+      var activateOnGesture = function(){
+        if (!USER_GESTURE_ACTIVATED){
+          activateUserGesture();
+        }
+      };
+      // Обрабатываем touchstart и touchmove (свайпы) для Telegram WebView
+      document.addEventListener('touchstart', activateOnGesture, { passive: true, once: true });
+      document.addEventListener('touchmove', activateOnGesture, { passive: true, once: true });
+      // Также обрабатываем click на случай, если touch не сработал
+      document.addEventListener('click', activateOnGesture, { passive: true, once: true });
+    } catch(_){ }
+
     var wrappers = qsa(document, '.story-track-wrapper');
     if (!wrappers || !wrappers.length) return;
     each(wrappers, function(wrapper){
@@ -658,9 +725,19 @@
       // Отслеживаем пользовательские свайпы/прокрутки внутри wrapper, чтобы не перебивать их автопереходами
       try {
         var st = wrapper.__snapState || (wrapper.__snapState = {});
-        var onDown = function(){ st.isUserInteracting = true; if (st._uiTimer) clearTimeout(st._uiTimer); };
+        var onDown = function(){
+          // Активируем user gesture при первом touch в wrapper
+          if (!USER_GESTURE_ACTIVATED){
+            activateUserGesture();
+          }
+          st.isUserInteracting = true; if (st._uiTimer) clearTimeout(st._uiTimer);
+        };
         var onUp = function(){ if (st._uiTimer) clearTimeout(st._uiTimer); st._uiTimer = setTimeout(function(){ st.isUserInteracting = false; }, 300); };
         var onScrollEvt = function(){
+          // Активируем user gesture при первом scroll в wrapper
+          if (!USER_GESTURE_ACTIVATED){
+            activateUserGesture();
+          }
           st.isUserInteracting = true;
           if (st._uiTimer) clearTimeout(st._uiTimer);
           st._uiTimer = setTimeout(function(){ st.isUserInteracting = false; }, 150);
@@ -669,6 +746,12 @@
         wrapper.addEventListener('pointerup', onUp, { passive: true });
         wrapper.addEventListener('pointercancel', onUp, { passive: true });
         wrapper.addEventListener('touchstart', onDown, { passive: true });
+        wrapper.addEventListener('touchmove', function(){
+          // Также активируем при touchmove для надежности
+          if (!USER_GESTURE_ACTIVATED){
+            activateUserGesture();
+          }
+        }, { passive: true });
         wrapper.addEventListener('touchend', onUp, { passive: true });
         wrapper.addEventListener('wheel', onScrollEvt, { passive: true });
         wrapper.addEventListener('scroll', onScrollEvt, { passive: true });
