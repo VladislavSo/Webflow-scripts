@@ -42,7 +42,21 @@
           var wasMuted = video.muted;
           var currentTime = video.currentTime || 0;
           
-          // Убеждаемся что видео muted для автовоспроизведения
+          // Проверяем, должно ли это видео быть активным (в активном слайде активного кейса)
+          var slideEl = video.closest ? video.closest('.story-track-wrapper__slide') : null;
+          var isActiveSlide = !!(slideEl && slideEl.classList && slideEl.classList.contains('active'));
+          var caseEl = slideEl ? (slideEl.closest ? slideEl.closest('.cases-grid__item, .case') : null) : null;
+          if (!caseEl) {
+            // Также проверяем talking-head видео, которые могут быть вне слайдов
+            caseEl = video.closest ? video.closest('.cases-grid__item, .case') : null;
+          }
+          var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+          
+          // Talking-head видео тоже должны играть если кейс активен
+          var isTalkingHead = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video'));
+          var shouldBePlaying = (isActiveSlide && isActiveCase) || (isTalkingHead && isActiveCase);
+          
+          // Убеждаемся что видео muted для автовоспроизведения (временно)
           var originalMuted = video.muted;
           if (!video.muted) {
             video.muted = true;
@@ -53,20 +67,35 @@
           
           if (playPromise && typeof playPromise.then === 'function') {
             playPromise.then(function(){
-              // Видео успешно запущено - сразу ставим на паузу и восстанавливаем состояние
+              // Видео успешно запущено и разблокировано
               try {
-                video.pause();
-                video.currentTime = currentTime; // Возвращаем на исходное время
-                if (!originalMuted) {
-                  video.muted = originalMuted; // Восстанавливаем muted если был не muted
-                }
                 unlockedCount++;
-                
-                // Помечаем видео как разблокированное
                 video.__unlockedByGesture = true;
                 
-                if (idx === 0 || unlockedCount === allVideos.length) {
-                  console.log('[snapSlider] ✅ Видео разблокировано [' + unlockedCount + '/' + allVideos.length + ']:', {
+                if (shouldBePlaying) {
+                  // Если видео должно воспроизводиться - оставляем его играть
+                  // Не сбрасываем currentTime, чтобы видео продолжало с того места где было
+                  // Восстанавливаем muted если нужно
+                  if (!originalMuted) {
+                    video.muted = originalMuted;
+                  }
+                  // Убеждаемся что видео не на паузе
+                  if (video.paused) {
+                    video.play().catch(function(){});
+                  }
+                  console.log('[snapSlider] ✅ Видео разблокировано и оставлено играть [' + unlockedCount + '/' + allVideos.length + ']:', {
+                    src: video.src || video.currentSrc || 'no src',
+                    index: idx + 1,
+                    paused: video.paused
+                  });
+                } else {
+                  // Если видео не должно воспроизводиться - ставим на паузу и восстанавливаем состояние
+                  video.pause();
+                  video.currentTime = currentTime; // Возвращаем на исходное время
+                  if (!originalMuted) {
+                    video.muted = originalMuted; // Восстанавливаем muted если был не muted
+                  }
+                  console.log('[snapSlider] ✅ Видео разблокировано и приостановлено [' + unlockedCount + '/' + allVideos.length + ']:', {
                     src: video.src || video.currentSrc || 'no src',
                     index: idx + 1
                   });
@@ -85,12 +114,14 @@
           } else {
             // Если play() не вернул Promise (старый браузер)
             try {
-              if (!video.paused) {
+              unlockedCount++;
+              video.__unlockedByGesture = true;
+              
+              if (!shouldBePlaying && !video.paused) {
                 video.pause();
                 video.currentTime = currentTime;
               }
-              video.__unlockedByGesture = true;
-              unlockedCount++;
+              // Если должно быть активным - оставляем играть
             } catch(_){}
           }
         } catch(videoErr){
