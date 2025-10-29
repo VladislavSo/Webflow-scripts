@@ -1,1289 +1,398 @@
-(function(){
-  if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
-  // Утилиты
-  var PROGRESS_ADVANCE_THRESHOLD = 0.98;
-  function qs(root, sel){ return (root||document).querySelector ? (root||document).querySelector(sel) : null; }
-  function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
-  function each(list, cb){ if(!list) return; (list.forEach ? list.forEach(cb) : Array.prototype.forEach.call(list, cb)); }
+  (function(){
+    if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
+    // Утилиты
+    var PROGRESS_ADVANCE_THRESHOLD = 0.98;
+    function qs(root, sel){ return (root||document).querySelector ? (root||document).querySelector(sel) : null; }
+    function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
+    function each(list, cb){ if(!list) return; (list.forEach ? list.forEach(cb) : Array.prototype.forEach.call(list, cb)); }
 
-  // ===== One-Player Controller for TG WebView =====
-  // Один общий плеер на всю ленту - решает проблему autoplay policy
-  var sharedPlayerState = {
-    player: null,
-    unlocked: false,
-    currentSrc: null,
-    switching: false,
-    currentVideoElement: null // Ссылка на оригинальный video элемент для синхронизации
-  };
+    // Построение прогресса внутри .story-track-wrapper
+    function buildProgress(containerEl, slidesCount){
+      if (!containerEl || !slidesCount || slidesCount <= 0) return null;
+      var existing = qs(containerEl, '.story-progress');
+      if (existing) return { root: existing, segments: qsa(containerEl, '.story-progress__segment'), fills: qsa(containerEl, '.story-progress__fill') };
 
-  // Создание одного общего плеера
-  function createSharedPlayer(){
-    if (sharedPlayerState.player) return sharedPlayerState.player;
-    
-    try {
-      var player = document.getElementById('snap-slider-shared-player');
-      if (player) {
-        sharedPlayerState.player = player;
-        return player;
+      var bar = document.createElement('div');
+      bar.className = 'story-progress';
+      for (var i=0; i<slidesCount; i++){
+        var seg = document.createElement('div');
+        seg.className = 'story-progress__segment';
+        var fill = document.createElement('div');
+        fill.className = 'story-progress__fill';
+        seg.appendChild(fill);
+        bar.appendChild(seg);
       }
-      
-      player = document.createElement('video');
-      player.id = 'snap-slider-shared-player';
-      player.muted = true;
-      player.playsInline = true;
-      player.preload = 'auto';
-      player.style.position = 'fixed';
-      player.style.left = '-9999px';
-      player.style.top = '-9999px';
-      player.style.width = '1px';
-      player.style.height = '1px';
-      player.style.opacity = '0';
-      player.style.pointerEvents = 'none';
-      
-      document.body.appendChild(player);
-      sharedPlayerState.player = player;
-      
-      console.log('[snapSlider] ✅ Создан общий плеер для автовоспроизведения');
-      return player;
-    } catch(err){
-      console.error('[snapSlider] Ошибка создания общего плеера:', err);
-      return null;
+      containerEl.appendChild(bar);
+      return { root: bar, segments: qsa(containerEl, '.story-progress__segment'), fills: qsa(containerEl, '.story-progress__fill') };
     }
-  }
 
-  // Безопасная установка src у общего плеера
-  function safeSetSrcOnPlayer(url){
-    var player = sharedPlayerState.player;
-    if (!player || !url) return;
-    
-    try {
-      // КРИТИЧНО: атрибуты ДО src
-      player.muted = true;
-      player.playsInline = true;
-      player.preload = 'auto';
-      player.removeAttribute('src');
-      player.src = url;
-      // НИКАКИХ player.load() после play - load делаем implicit через смену src
-    } catch(_){}
-  }
-
-  // Ожидание готовности видео к воспроизведению
-  function waitCanPlay(timeout){
-    timeout = timeout || 900;
-    var player = sharedPlayerState.player;
-    if (!player) return Promise.resolve();
-    
-    if (player.readyState >= 3) return Promise.resolve();
-    
-    return Promise.race([
-      new Promise(function(resolve){
-        player.addEventListener('canplay', resolve, { once: true });
-      }),
-      new Promise(function(resolve){
-        player.addEventListener('loadeddata', resolve, { once: true });
-      }),
-      new Promise(function(resolve){
-        setTimeout(resolve, timeout);
-      })
-    ]);
-  }
-
-  // Попытка запустить плеер с ретраями (Promise-based, без async/await)
-  function tryPlayShared(tries, gap){
-    tries = tries || 3;
-    gap = gap || 180;
-    var player = sharedPlayerState.player;
-    if (!player) return Promise.resolve(false);
-    
-    var attempt = function(iteration){
-      if (iteration >= tries) return Promise.resolve(false);
-      
-      return new Promise(function(resolve){
-        try {
-          var p = player.play();
-          if (p && typeof p.then === 'function') {
-            p.then(function(){
-              if (!player.paused) {
-                resolve(true);
-              } else {
-                setTimeout(function(){
-                  attempt(iteration + 1).then(resolve);
-                }, gap);
-              }
-            }).catch(function(err){
-              if (iteration === tries - 1) {
-                console.warn('[snapSlider] Не удалось запустить общий плеер после ' + tries + ' попыток:', err);
-                resolve(false);
-              } else {
-                setTimeout(function(){
-                  attempt(iteration + 1).then(resolve);
-                }, gap);
-              }
-            });
-          } else {
-            if (!player.paused) {
-              resolve(true);
-            } else {
-              setTimeout(function(){
-                attempt(iteration + 1).then(resolve);
-              }, gap);
-            }
-          }
-        } catch(err){
-          if (iteration === tries - 1) {
-            resolve(false);
-          } else {
-            setTimeout(function(){
-              attempt(iteration + 1).then(resolve);
-            }, gap);
-          }
-        }
-      });
-    };
-    
-    return attempt(0);
-  }
-
-  // Запуск URL в общем плеере (в контексте жеста)
-  function startUrlInSharedPlayer(url){
-    if (!url || !sharedPlayerState.player) return Promise.resolve(false);
-    sharedPlayerState.currentSrc = url;
-    safeSetSrcOnPlayer(url);
-    return waitCanPlay(900).then(function(){
-      return tryPlayShared(3, 180);
-    });
-  }
-
-  // Переключение URL в общем плеере (смена src)
-  function switchUrlInSharedPlayer(url){
-    if (!url || sharedPlayerState.switching) return Promise.resolve(false);
-    if (url === sharedPlayerState.currentSrc) return Promise.resolve(true);
-    
-    sharedPlayerState.switching = true;
-    var player = sharedPlayerState.player;
-    if (!player) {
-      sharedPlayerState.switching = false;
-      return Promise.resolve(false);
+    if (typeof window !== 'undefined') {
+      window.buildSnapSliderProgress = buildProgress;
     }
-    
-    sharedPlayerState.currentSrc = url;
-    
-    // Останавливаем, НО не трогаем load() - только смена src
-    try {
-      player.pause();
-    } catch(_){}
-    
-    safeSetSrcOnPlayer(url);
-    
-    return waitCanPlay(900).then(function(){
-      // После первого успешного play() на том же элементе
-      // WebView обычно НЕ требует нового жеста - одного ретрая достаточно
-      return tryPlayShared(2, 180).then(function(success){
-        if (!success) {
-          console.warn('[snapSlider] ⚠️ Не удалось переключить видео в общем плеере, требуется взаимодействие пользователя');
-        }
-        sharedPlayerState.switching = false;
-        return success;
-      });
-    }).catch(function(err){
-      console.error('[snapSlider] Ошибка переключения видео:', err);
-      sharedPlayerState.switching = false;
-      return false;
-    });
-  }
 
-  // Получение URL активного слайда
-  function getCurrentActiveSlideVideoUrl(){
-    try {
-      // Ищем активный слайд в активном кейсе
-      var activeCase = qs(document, '.cases-grid__item.active, .case.active');
-      if (!activeCase) return null;
-      
-      var activeSlide = qs(activeCase, '.story-track-wrapper__slide.active');
-      if (!activeSlide) return null;
-      
-      // Ищем video элемент в активном слайде
-      var video = qs(activeSlide, '.slide-inner__video-block video') || qs(activeSlide, 'video');
-      if (!video) return null;
-      
-      // Получаем src
-      var url = video.src || video.currentSrc || (video.getAttribute ? video.getAttribute('src') : null);
-      if (!url && video.dataset && video.dataset.src) {
-        url = video.dataset.src;
-      }
-      
-      return url || null;
-    } catch(_){
-      return null;
-    }
-  }
-
-  // Синхронизация общего плеера с активным слайдом
-  function syncSharedPlayerWithActiveSlide(){
-    var url = getCurrentActiveSlideVideoUrl();
-    if (!url) return;
-    
-    // Если это первый запуск - нужно в контексте жеста (через обработчик)
-    // Если уже разблокировано - просто переключаем
-    if (sharedPlayerState.unlocked) {
-      switchUrlInSharedPlayer(url).then(function(success){
-        if (success) {
-          syncSharedPlayerWithOriginalVideo();
-        }
+    // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
+    function playVideos(slideEl){
+      if (!slideEl) return;
+      var videos = qsa(slideEl, '.slide-inner__video-block video, video');
+      if (!videos || !videos.length) return;
+      each(videos, function(video){
+        try { if (video && typeof video.play === 'function') { var p = video.play(); if (p && p.catch) p.catch(function(){}); } } catch(_){ }
       });
     }
-  }
 
-  // Синхронизация общего плеера с оригинальным video элементом (currentTime, playback state)
-  function syncSharedPlayerWithOriginalVideo(){
-    try {
-      var activeCase = qs(document, '.cases-grid__item.active, .case.active');
-      if (!activeCase) return;
-      
-      var activeSlide = qs(activeCase, '.story-track-wrapper__slide.active');
-      if (!activeSlide) return;
-      
-      var originalVideo = qs(activeSlide, '.slide-inner__video-block video') || qs(activeSlide, 'video');
-      if (!originalVideo || !sharedPlayerState.player) return;
-      
-      var sharedPlayer = sharedPlayerState.player;
-      
-      // Устанавливаем ссылку на текущее видео
-      sharedPlayerState.currentVideoElement = originalVideo;
-      
-      // Синхронизируем currentTime при старте
-      if (isFinite(sharedPlayer.currentTime) && sharedPlayer.currentTime > 0) {
-        try {
-          originalVideo.currentTime = sharedPlayer.currentTime;
-        } catch(_){}
-      }
-      
-      // Обновляем обработчики прогресса в updateWrapperPlayback
-      // (они уже подключены через updateWrapperPlayback)
-    } catch(_){}
-  }
-
-  // Отслеживание пользовательских жестов для автовоспроизведения
-  var userGestureState = {
-    lastGestureTime: null,
-    gestureWindowMs: 5000, // Окно жеста обычно 5 секунд, но может варьироваться
-    gestureTypes: ['click', 'touchstart', 'touchend', 'keydown', 'pointerdown', 'pointerup'],
-    videosUnlocked: false, // Флаг того, что видео были разблокированы при первом жесте
-    unlockInProgress: false // Флаг процесса разблокировки
-  };
-
-  // СИНХРОННАЯ разблокировка всех видео - вызывается прямо в обработчике жеста
-  // Критично: play() должен быть вызван в том же event loop, где активен жест
-  function unlockAllVideosOnFirstGestureSync(){
-    if (userGestureState.videosUnlocked || userGestureState.unlockInProgress) return;
-    
-    userGestureState.unlockInProgress = true;
-    
-    try {
-      var allVideos = qsa(document, 'video');
-      if (!allVideos || !allVideos.length) {
-        userGestureState.unlockInProgress = false;
-        return;
-      }
-      
-      console.log('[snapSlider] 🔓 СИНХРОННАЯ разблокировка всех видео. Всего:', allVideos.length);
-      
-      var unlockedCount = 0;
-      
-      // КРИТИЧНО: запускаем play() СИНХРОННО для всех видео в цикле
-      // без setTimeout, без промисов - сразу в текущем event loop
-      for (var i = 0; i < allVideos.length; i++) {
-        try {
-          var video = allVideos[i];
-          if (!video || typeof video.play !== 'function' || video.__unlockedByGesture) continue;
-          
-          // Сохраняем состояние
-          var originalMuted = video.muted;
-          var currentTime = video.currentTime || 0;
-          
-          // Проверяем активность
-          var slideEl = video.closest ? video.closest('.story-track-wrapper__slide') : null;
-          var isActiveSlide = !!(slideEl && slideEl.classList && slideEl.classList.contains('active'));
-          var caseEl = slideEl ? (slideEl.closest ? slideEl.closest('.cases-grid__item, .case') : null) : null;
-          if (!caseEl) {
-            caseEl = video.closest ? video.closest('.cases-grid__item, .case') : null;
-          }
-          var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-          var isTalkingHead = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video'));
-          var shouldBePlaying = (isActiveSlide && isActiveCase) || (isTalkingHead && isActiveCase);
-          
-          // Временно muted для автовоспроизведения
-          if (!video.muted) {
-            video.muted = true;
-          }
-          
-          // ВАЖНО: вызываем play() СИНХРОННО, без await промиса
-          var playResult = video.play();
-          
-          // Помечаем как разблокированное сразу
-          video.__unlockedByGesture = true;
-          unlockedCount++;
-          
-          // Обрабатываем результат асинхронно (но разблокировка уже произошла)
-          if (playResult && typeof playResult.then === 'function') {
-            playResult.then(function(){
-              // Успешно запущено
-              if (!shouldBePlaying) {
-                setTimeout(function(){
-                  try {
-                    if (!video.paused) video.pause();
-                    video.currentTime = currentTime;
-                    if (!originalMuted) video.muted = originalMuted;
-                  } catch(_){}
-                }, 100);
-              } else {
-                if (!originalMuted) video.muted = originalMuted;
-              }
-            }).catch(function(err){
-              // Ошибка, но разблокировка уже зафиксирована
-              console.warn('[snapSlider] Ошибка play() после разблокировки:', err);
-            });
-          } else {
-            // Старый браузер - результат сразу известен
-            if (!shouldBePlaying) {
-              setTimeout(function(){
-                try {
-                  if (!video.paused) video.pause();
-                  video.currentTime = currentTime;
-                } catch(_){}
-              }, 100);
-            }
-          }
-        } catch(videoErr){
-          console.warn('[snapSlider] Ошибка при синхронной разблокировке видео:', videoErr);
-        }
-      }
-      
-      // Устанавливаем флаг сразу
-      userGestureState.videosUnlocked = true;
-      userGestureState.unlockInProgress = false;
-      console.log('[snapSlider] ✅ Синхронная разблокировка завершена. Разблокировано:', unlockedCount);
-      
-    } catch(err){
-      console.error('[snapSlider] Ошибка при синхронной разблокировке:', err);
-      userGestureState.unlockInProgress = false;
-    }
-  }
-
-  // Асинхронная разблокировка всех видео при первом жесте пользователя (для детальной обработки)
-  function unlockAllVideosOnFirstGesture(){
-    if (userGestureState.videosUnlocked || userGestureState.unlockInProgress) return;
-    
-    userGestureState.unlockInProgress = true;
-    
-    try {
-      var allVideos = qsa(document, 'video');
-      if (!allVideos || !allVideos.length) {
-        userGestureState.unlockInProgress = false;
-        return;
-      }
-      
-      console.log('[snapSlider] 🔓 Разблокировка всех видео при первом жесте пользователя. Всего видео:', allVideos.length);
-      
-      var unlockedCount = 0;
-      var failedCount = 0;
-      
-      each(allVideos, function(video, idx){
-                  try {
-                    if (!video || typeof video.play !== 'function') return;
-          
-          // Сохраняем текущее состояние
-          var wasPaused = video.paused;
-          var wasMuted = video.muted;
-          var currentTime = video.currentTime || 0;
-          
-          // Проверяем, должно ли это видео быть активным (в активном слайде активного кейса)
-          var slideEl = video.closest ? video.closest('.story-track-wrapper__slide') : null;
-          var isActiveSlide = !!(slideEl && slideEl.classList && slideEl.classList.contains('active'));
-          var caseEl = slideEl ? (slideEl.closest ? slideEl.closest('.cases-grid__item, .case') : null) : null;
-          if (!caseEl) {
-            // Также проверяем talking-head видео, которые могут быть вне слайдов
-            caseEl = video.closest ? video.closest('.cases-grid__item, .case') : null;
-          }
-          var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-          
-          // Talking-head видео тоже должны играть если кейс активен
-          var isTalkingHead = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video'));
-          var shouldBePlaying = (isActiveSlide && isActiveCase) || (isTalkingHead && isActiveCase);
-          
-          // Убеждаемся что видео muted для автовоспроизведения (временно)
-          var originalMuted = video.muted;
-          if (!video.muted) {
-            video.muted = true;
-          }
-          
-          // Пытаемся запустить видео в контексте жеста
-          var playPromise = video.play();
-          
-          if (playPromise && typeof playPromise.then === 'function') {
-            playPromise.then(function(){
-              // Видео успешно запущено и разблокировано
-              try {
-                unlockedCount++;
-                video.__unlockedByGesture = true;
-                
-                if (shouldBePlaying) {
-                  // Если видео должно воспроизводиться - оставляем его играть
-                  // Не сбрасываем currentTime, чтобы видео продолжало с того места где было
-                  // Восстанавливаем muted если нужно
-                  if (!originalMuted) {
-                    video.muted = originalMuted;
-                  }
-                  // Убеждаемся что видео не на паузе
-                  if (video.paused) {
-                    video.play().catch(function(){});
-                  }
-                  console.log('[snapSlider] ✅ Видео разблокировано и оставлено играть [' + unlockedCount + '/' + allVideos.length + ']:', {
-                    src: video.src || video.currentSrc || 'no src',
-                    index: idx + 1,
-                    paused: video.paused
-                  });
-                } else {
-                  // Если видео не должно воспроизводиться - даём немного времени браузеру
-                  // зарегистрировать успешный запуск, затем ставим на паузу
-                  // Это предотвращает ошибку "play() interrupted by pause()"
-                  setTimeout(function(){
-                    try {
-                      if (!video.paused) {
-                        video.pause();
-                      }
-                      video.currentTime = currentTime; // Возвращаем на исходное время
-                      if (!originalMuted) {
-                        video.muted = originalMuted; // Восстанавливаем muted если был не muted
-                      }
-                      console.log('[snapSlider] ✅ Видео разблокировано и приостановлено [' + unlockedCount + '/' + allVideos.length + ']:', {
-                        src: video.src || video.currentSrc || 'no src',
-                        index: idx + 1
-                      });
-                    } catch(pauseErr){
-                      console.warn('[snapSlider] Ошибка при паузе видео после разблокировки:', pauseErr);
-                    }
-                  }, 100); // 100ms достаточно для регистрации успешного запуска
-                }
-              } catch(restoreErr){
-                console.warn('[snapSlider] Ошибка при восстановлении состояния видео:', restoreErr);
-              }
-            }).catch(function(err){
-              failedCount++;
-              console.warn('[snapSlider] ⚠️ Не удалось разблокировать видео [' + failedCount + ']:', {
-                src: video.src || video.currentSrc || 'no src',
-                error: err ? (err.message || err.name) : 'Unknown',
-                index: idx + 1
-              });
-            });
-          } else {
-            // Если play() не вернул Promise (старый браузер)
-            try {
-              unlockedCount++;
-              video.__unlockedByGesture = true;
-              
-              if (!shouldBePlaying) {
-                // Даём время для регистрации запуска
-                setTimeout(function(){
-                  try {
-                    if (!video.paused) {
-                      video.pause();
-                    }
-                    video.currentTime = currentTime;
-                  } catch(_){}
-                }, 100);
-              }
-              // Если должно быть активным - оставляем играть
-            } catch(_){}
-          }
-        } catch(videoErr){
-          failedCount++;
-          console.warn('[snapSlider] Ошибка при обработке видео:', videoErr);
-        }
-      });
-      
-      // Устанавливаем флаг разблокировки после небольшой задержки, чтобы дать промисам выполниться
-      setTimeout(function(){
-        userGestureState.videosUnlocked = true;
-        userGestureState.unlockInProgress = false;
-        console.log('[snapSlider] ✅ Разблокировка завершена. Успешно:', unlockedCount, 'Ошибок:', failedCount);
-      }, 500);
-      
-    } catch(err){
-      console.error('[snapSlider] Ошибка при разблокировке видео:', err);
-      userGestureState.unlockInProgress = false;
-    }
-  }
-
-  // Функция для запуска ОДНОГО видео в контексте жеста - КРИТИЧНО: только одно видео за жест!
-  // Autoplay policy: первый play() забирает активацию жеста, остальные блокируются
-  function playVideoInGestureContext(video, event){
-    if (!video || typeof video.play !== 'function') return false;
-    
-    try {
-      // ЗАПРЕЩЕНО: менять src/load после play() - браузер прерывает старт
-      // ЗАПРЕЩЕНО: вызывать pause() сразу после play() - теряется активация
-      
-      // КРИТИЧНО: устанавливаем muted + playsinline ДО play()
-      var wasMuted = video.muted;
-      var wasPlaysInline = video.playsInline !== false;
-      
-      if (!video.muted) {
-        video.muted = true;
-      }
-      if (video.setAttribute && !video.hasAttribute('playsinline')) {
-        video.setAttribute('playsinline', '');
-        video.playsInline = true;
-      }
-      
-      // Запускаем СИНХРОННО в контексте жеста (прямо в обработчике события)
-      var playPromise = video.play();
-      
-      if (playPromise && typeof playPromise.then === 'function') {
-        playPromise.then(function(){
-          // Успешно запущено
-          video.__unlockedByGesture = true;
-          
-          // ЗАПРЕЩЕНО: pause() и изменения src в ближайшие 800ms после успешного play()
-          video.__playLockedUntil = Date.now() + 800;
-          
-          // Включаем защиту от pause()/load() после успешного запуска
-          protectVideoAfterPlay(video);
-          
-          // Восстанавливаем muted если нужно, но только после 800ms
-          if (!wasMuted) {
-            setTimeout(function(){
-              try {
-                // Проверяем что video не был заблокирован для паузы
-                if (!video.__playLockedUntil || Date.now() >= video.__playLockedUntil) {
-                  video.muted = wasMuted;
-                }
-              } catch(_){}
-            }, 800);
-          }
-          return true;
-        }).catch(function(err){
-          if (err && err.name !== 'AbortError') {
-            console.warn('[snapSlider] Ошибка play() в контексте жеста:', err.name, err.message);
-          }
-          return false;
-        });
-      } else {
-        video.__unlockedByGesture = true;
-        video.__playLockedUntil = Date.now() + 800;
-        return true;
-      }
-    } catch(videoErr){
-      console.warn('[snapSlider] Ошибка при запуске видео:', videoErr);
-      return false;
-    }
-    return false;
-  }
-  
-  // Защита от pause() и load() после play() - просто помечаем, проверки в функциях pause
-  function protectVideoAfterPlay(video){
-    if (!video) return;
-    // Флаг установлен в playVideoInGestureContext, проверки будут в pauseAndResetVideos и других функциях
-  }
-  
-  // Безопасный pause с проверкой защиты
-  function safePauseVideo(video){
-    if (!video) return;
-    if (video.__playLockedUntil && Date.now() < video.__playLockedUntil) {
-      console.warn('[snapSlider] ⚠️ pause() заблокирован: видео запущено менее 800ms назад');
-      return false;
-    }
-    try {
-      if (typeof video.pause === 'function') {
-        video.pause();
-        return true;
-      }
-    } catch(_){}
-    return false;
-  }
-  
-  // Безопасный load с проверкой защиты
-  function safeLoadVideo(video){
-    if (!video) return;
-    if (video.__playLockedUntil && Date.now() < video.__playLockedUntil) {
-      console.warn('[snapSlider] ⚠️ load() заблокирован: видео запущено менее 800ms назад');
-      return false;
-    }
-    try {
-      if (typeof video.load === 'function') {
-        video.load();
-        return true;
-      }
-    } catch(_){}
-    return false;
-  }
-
-  // Инициализация отслеживания жестов
-  function initUserGestureTracking(){
-    try {
-      
-      // Приоритетный обработчик для touchstart - должен сработать ПЕРВЫМ до всех других обработчиков
-      function handleFirstGesture(ev){
-        var now = Date.now();
-        var isFirstGesture = userGestureState.lastGestureTime === null;
-        
-        userGestureState.lastGestureTime = now;
-        
-        // При первом жесте - КРИТИЧНО: запускаем общий плеер СИНХРОННО в контексте жеста
-        if (isFirstGesture && !sharedPlayerState.unlocked) {
-          console.log('[snapSlider] 👆 Первый жест пользователя зафиксирован, запуск общего плеера:', {
-            type: ev.type,
-            target: ev.target ? (ev.target.className || ev.target.tagName || ev.target.nodeName) : 'unknown',
-            time: new Date(now).toISOString()
-          });
-          
-          // Запускаем общий плеер СИНХРОННО в контексте жеста
-          var url = getCurrentActiveSlideVideoUrl();
-          if (url && sharedPlayerState.player) {
-            sharedPlayerState.unlocked = true;
-            startUrlInSharedPlayer(url).then(function(success){
-              if (success) {
-                console.log('[snapSlider] ✅ Общий плеер успешно запущен при первом жесте');
-                // Синхронизируем с оригинальным video элементом
-                syncSharedPlayerWithOriginalVideo();
-              } else {
-                console.warn('[snapSlider] ⚠️ Не удалось запустить общий плеер при первом жесте');
-              }
-            }).catch(function(err){
-              console.error('[snapSlider] Ошибка запуска общего плеера:', err);
-            });
-          }
-        } else {
-          console.log('[snapSlider] Пользовательский жест зафиксирован:', {
-            type: ev.type,
-            target: ev.target ? (ev.target.className || ev.target.tagName || ev.target.nodeName) : 'unknown',
-            time: new Date(now).toISOString()
-          });
-        }
-      }
-      
-      // Обработчики для всех типов жестов, но touchstart/pointerdown - с максимальным приоритетом (capture phase)
-      // Используем capture: true чтобы перехватить ДО скролла/свайпа
-      // Важно: используем passive: true чтобы не блокировать нативный скролл
-      userGestureState.gestureTypes.forEach(function(type){
-        // Capture: true обеспечивает приоритет, passive: true не блокирует скролл
-        document.addEventListener(type, handleFirstGesture, { capture: true, passive: true });
-      });
-      
-      // Дополнительно добавляем touchstart на window для максимального приоритета (если возможно)
-      try {
-        if (typeof window !== 'undefined' && window.addEventListener) {
-          window.addEventListener('touchstart', handleFirstGesture, { capture: true, passive: true });
-        }
-      } catch(_){}
-      
-      // КРИТИЧНО: добавляем обработчики непосредственно на .main-section - основной скроллируемый контейнер
-      // Это гарантирует перехват жестов ДО обработки скролла
-      var mainSectionHandlersAttached = false;
-      
-      function attachToMainSection(){
-        // Защита от повторного подключения
-        if (mainSectionHandlersAttached) return true;
-        
-        var mainSection = qs(document, '.main-section');
-        if (mainSection && mainSection.addEventListener) {
-          mainSectionHandlersAttached = true;
-          console.log('[snapSlider] Добавлены обработчики жестов на .main-section');
-          
-          // Приоритетные жесты для перехвата ДО скролла
-          var priorityTypes = ['touchstart', 'pointerdown', 'mousedown'];
-          priorityTypes.forEach(function(type){
-            try {
-              mainSection.addEventListener(type, handleFirstGesture, { capture: true, passive: true });
-            } catch(_){}
-          });
-          
-          // Остальные жесты тоже добавляем
-          userGestureState.gestureTypes.forEach(function(type){
-            if (priorityTypes.indexOf(type) === -1) {
-              try {
-                mainSection.addEventListener(type, handleFirstGesture, { capture: true, passive: true });
-              } catch(_){}
-            }
-          });
-          return true; // Успешно подключено
-        }
-        return false; // Элемент еще не найден
-      }
-      
-      // Пытаемся подключить сразу
-      if (!attachToMainSection()) {
-        // Если .main-section еще не готов, пробуем с задержками
-                      setTimeout(function(){
-          if (!attachToMainSection()) {
-            setTimeout(function(){
-              attachToMainSection();
-            }, 150);
-          }
-        }, 50);
-        
-        // Также используем MutationObserver для динамически загружаемых элементов
-        try {
-          if (typeof MutationObserver !== 'undefined') {
-            var observer = new MutationObserver(function(mutations){
-              if (!mainSectionHandlersAttached && attachToMainSection()) {
-                observer.disconnect();
-              }
-            });
-            
-            observer.observe(document.body || document.documentElement, {
-              childList: true,
-              subtree: true
-            });
-            
-            // Отключаем observer через 5 секунд если элемент не найден
-            setTimeout(function(){
-              observer.disconnect();
-            }, 5000);
-          }
-        } catch(_){}
-      }
-      
-    } catch(_){}
-  }
-
-  // Проверка, не истекло ли окно жеста
-  function getUserGestureInfo(){
-    var now = Date.now();
-    var lastGesture = userGestureState.lastGestureTime;
-    var timeSinceGesture = lastGesture ? (now - lastGesture) : null;
-    var isGestureValid = lastGesture && timeSinceGesture !== null && timeSinceGesture <= userGestureState.gestureWindowMs;
-    
-    return {
-      hasGesture: lastGesture !== null,
-      timeSinceGesture: timeSinceGesture,
-      isGestureValid: isGestureValid,
-      lastGestureTime: lastGesture ? new Date(lastGesture).toISOString() : null,
-      currentTime: new Date(now).toISOString()
-    };
-  }
-
-  // Построение прогресса внутри .story-track-wrapper
-  function buildProgress(containerEl, slidesCount){
-    if (!containerEl || !slidesCount || slidesCount <= 0) return null;
-    var existing = qs(containerEl, '.story-progress');
-    if (existing) return { root: existing, segments: qsa(containerEl, '.story-progress__segment'), fills: qsa(containerEl, '.story-progress__fill') };
-
-    var bar = document.createElement('div');
-    bar.className = 'story-progress';
-    for (var i=0; i<slidesCount; i++){
-      var seg = document.createElement('div');
-      seg.className = 'story-progress__segment';
-      var fill = document.createElement('div');
-      fill.className = 'story-progress__fill';
-      seg.appendChild(fill);
-      bar.appendChild(seg);
-    }
-    containerEl.appendChild(bar);
-    return { root: bar, segments: qsa(containerEl, '.story-progress__segment'), fills: qsa(containerEl, '.story-progress__fill') };
-  }
-
-  if (typeof window !== 'undefined') {
-    window.buildSnapSliderProgress = buildProgress;
-  }
-
-  // Утилита для логирования ошибок воспроизведения видео
-  function logVideoPlayError(video, context, error){
-    try {
-      var videoInfo = {
-        src: video.src || video.currentSrc || 'no src',
-        muted: video.muted,
-        autoplay: video.autoplay || false,
-        paused: video.paused,
-        readyState: video.readyState,
-        networkState: video.networkState,
-        context: context || 'unknown'
-      };
-      
-      var errorInfo = {
-        name: error ? (error.name || 'Unknown') : 'Play Promise Rejected',
-        message: error ? (error.message || 'No message') : 'Video play() promise was rejected by browser',
-        code: error ? (error.code || 'N/A') : 'N/A'
-      };
-      
-      // Получаем информацию о пользовательских жестах
-      var gestureInfo = getUserGestureInfo();
-      
-      var mainMessage = errorInfo.name === 'NotAllowedError' || errorInfo.code === 20 
-        ? 'Браузер блокирует автовоспроизведение (autoplay policy). Требуется взаимодействие пользователя.' 
-        : errorInfo.message;
-      
-      // Дополнительная информация если окно жеста истекло
-      if (gestureInfo.hasGesture && !gestureInfo.isGestureValid) {
-        var secondsSince = gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) : 'N/A';
-        mainMessage += ' [ОКНО ЖЕСТА ИСТЕКЛО: прошло ' + secondsSince + ' сек с последнего жеста, лимит ~5 сек]';
-      } else if (!gestureInfo.hasGesture) {
-        mainMessage += ' [ЖЕСТОВ ПОЛЬЗОВАТЕЛЯ НЕ ЗАФИКСИРОВАНО]';
-      }
-      
-      // Проверяем статус разблокировки
-      var isUnlocked = !!(video.__unlockedByGesture);
-      if (isUnlocked && (errorInfo.name === 'NotAllowedError' || errorInfo.code === 20)) {
-        mainMessage += ' [⚠️ Видео было разблокировано при первом жесте, но браузер всё равно блокирует]';
-      }
-      
-      console.error('[snapSlider] Блокировка автовоспроизведения видео:', {
-        'Ошибка': errorInfo,
-        'Информация о видео': videoInfo,
-        'Статус разблокировки': {
-          'Видео разблокировано при первом жесте': isUnlocked,
-          'Глобальная разблокировка активна': userGestureState.videosUnlocked
-        },
-        'Пользовательские жесты': {
-          'Есть зафиксированные жесты': gestureInfo.hasGesture,
-          'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
-          'Окно жеста валидно': gestureInfo.isGestureValid,
-          'Время последнего жеста': gestureInfo.lastGestureTime || 'Нет данных',
-          'Текущее время': gestureInfo.currentTime
-        },
-        'Причина': mainMessage,
-        'Время': new Date().toISOString()
-      });
-      
-      // Дополнительная диагностика
-      if (video.muted === false) {
-        console.warn('[snapSlider] Видео не muted - это может быть причиной блокировки. Попробуйте установить video.muted = true');
-      }
-      if (!video.paused) {
-        console.info('[snapSlider] Видео уже воспроизводится');
-      }
-      if (gestureInfo.hasGesture && !gestureInfo.isGestureValid) {
-        console.warn('[snapSlider] ⚠️ Окно пользовательского жеста истекло! Браузер блокирует автовоспроизведение после истечения "окна жеста" (обычно 5 секунд)');
-      }
-    } catch(logErr){
-      console.error('[snapSlider] Ошибка при логировании:', logErr);
-    }
-  }
-
-  // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
-  function playVideos(slideEl, context){
-    if (!slideEl) return;
-    var videos = qsa(slideEl, '.slide-inner__video-block video, video');
-    if (!videos || !videos.length) return;
-    var callContext = context || ('playVideos(' + (slideEl.className || 'unknown') + ')');
-    each(videos, function(video, idx){
-      try {
-        if (video && typeof video.play !== 'function') return;
-        
-        // КРИТИЧНО для autoplay policy: видео должно быть muted для автовоспроизведения
-        // Если видео разблокировано, можем попробовать запустить, но лучше с muted
-        var wasMuted = video.muted;
-        if (!video.muted && !video.__unlockedByGesture) {
-          video.muted = true;
-        }
-        
-        var p = video.play();
-        if (p && typeof p.then === 'function') {
-          p.then(function(){
-            var gestureInfo = getUserGestureInfo();
-            console.log('[snapSlider] Видео успешно запущено:', {
-              src: video.src || video.currentSrc || 'no src',
-              context: callContext + '[' + idx + ']',
-              muted: video.muted,
-              'Статус разблокировки': {
-                'Видео разблокировано': !!(video.__unlockedByGesture),
-                'Глобальная разблокировка': userGestureState.videosUnlocked
-              },
-              'Пользовательские жесты': {
-                'Есть жесты': gestureInfo.hasGesture,
-                'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
-                'Окно жеста валидно': gestureInfo.isGestureValid
-              }
-            });
-            // Восстанавливаем muted если нужно (для разблокированных видео)
-            if (!wasMuted && video.__unlockedByGesture) {
-              setTimeout(function(){
-                try { video.muted = wasMuted; } catch(_){}
-              }, 200);
-            }
-          }).catch(function(err){
-            logVideoPlayError(video, callContext + '[' + idx + ']', err);
-          });
-        }
-      } catch(err){
-        logVideoPlayError(video, callContext + '[' + idx + ']', err);
-      }
-    });
-  }
-
-  function pauseAndResetVideos(slideEl){
-    if (!slideEl) return;
-    var videos = qsa(slideEl, '.slide-inner__video-block video, video');
-    if (!videos || !videos.length) return;
-    each(videos, function(video){
-      // Используем безопасный pause с проверкой защиты
-      safePauseVideo(video);
-      try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
-    });
-  }
-
-  function pauseAndResetVideosInElement(rootEl){
-    if (!rootEl) return;
-    var videos = qsa(rootEl, 'video');
-    if (!videos || !videos.length) return;
-    each(videos, function(video){
-      // Используем безопасный pause с проверкой защиты
-      safePauseVideo(video);
-      // talking-head: не сбрасываем время, только пауза
-      var isTalking = false;
-      try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
-      if (!isTalking){
+    function pauseAndResetVideos(slideEl){
+      if (!slideEl) return;
+      var videos = qsa(slideEl, '.slide-inner__video-block video, video');
+      if (!videos || !videos.length) return;
+      each(videos, function(video){
+        try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
         try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
-      }
-    });
-  }
-
-  // Пауза всех видео без сброса времени (используем при выходе .cases-grid из зоны)
-  function pauseAllVideosInElement(rootEl){
-    if (!rootEl) return;
-    var videos = qsa(rootEl, 'video');
-    if (!videos || !videos.length) return;
-    each(videos, function(video){
-      // Используем безопасный pause с проверкой защиты
-      safePauseVideo(video);
-    });
-  }
-
-  // Сброс/загрузка видео не в зоне ответственности этого скрипта
-
-  // Помощники прогресса
-  function updateSegmentDurationByIndexInWrapper(wrapperEl, index, durationSec){
-    if (!wrapperEl || !isFinite(durationSec) || durationSec <= 0) return;
-    var segs = qsa(wrapperEl, '.story-progress__segment');
-    if (!segs || !segs.length || index < 0 || index >= segs.length) return;
-    var seg = segs[index];
-    try {
-      seg.style.animationDuration = durationSec + 's';
-      seg.style.setProperty('--progress-duration', durationSec + 's');
-    } catch(_){ }
-  }
-
-  function syncProgressDurations(wrapperEl){
-    if (!wrapperEl) return;
-    var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
-    if (!slides || !slides.length) return;
-    each(slides, function(slide, idx){
-      var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
-      if (!video) return;
-      var apply = function(){ updateSegmentDurationByIndexInWrapper(wrapperEl, idx, video.duration); };
-      if (isFinite(video.duration) && video.duration > 0){
-        apply();
-      } else {
-        try { video.addEventListener('loadedmetadata', apply, { once: true }); } catch(_){ }
-      }
-    });
-  }
-
-  // Гейты по положению элементов относительно вьюпорта (с зазором 2px)
-  function isEligibleBySelector(selector){
-    var el = qs(document, selector);
-    if (!el) return false;
-    var r = el.getBoundingClientRect();
-    var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : ((document.documentElement && document.documentElement.clientHeight) ? document.documentElement.clientHeight : 0);
-    var m = 2; // зазор 2px
-    return (r.top <= 0 + m) && (r.bottom >= vh - m);
-  }
-
-  function isCasesGridEligible(){
-    return isEligibleBySelector('.cases-grid');
-  }
-
-  function isMainContainerEligible(){
-    return isEligibleBySelector('.main-container');
-  }
-
-  function setCasesGridInProgress(_ignored){
-    var grid = qs(document, '.cases-grid');
-    var container = qs(document, '.main-container');
-    var contEligible = isMainContainerEligible();
-    var gridEligible = isCasesGridEligible();
-    // Ставим классы независимо: контейнеру — in-progress, гриду — state-view
-    try { if (container){ if (contEligible) container.classList.add('in-progress'); else container.classList.remove('in-progress'); } } catch(_){ }
-    try { if (grid){ if (gridEligible) grid.classList.add('state-view'); else grid.classList.remove('state-view'); } } catch(_){ }
-  }
-  
-  // Установить .active для слайда внутри wrapper по близости к центру wrapper
-  function setActiveSlideInWrapperByCenter(wrapperEl){
-    if (!wrapperEl) return null;
-    var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
-    if (!slides || !slides.length) return null;
-    var rootRect = wrapperEl.getBoundingClientRect();
-    var centerX = rootRect.left + (rootRect.width || 0) / 2;
-    var best = null; var bestDist = Infinity;
-    for (var i=0; i<slides.length; i++){
-      var r = slides[i].getBoundingClientRect();
-      var ix = r.left + (r.width || 0) / 2;
-      var d = Math.abs(ix - centerX);
-      if (d < bestDist){ bestDist = d; best = slides[i]; }
-    }
-    if (best){
-      (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s){
-        if (s === best) { try { s.classList.add('active'); } catch(_){ } }
-        else { try { s.classList.remove('active'); } catch(_){ } }
       });
     }
-    return best;
-  }
 
-  // Извлекаем ключ бренда из id кейса (убираем суффикс -case)
-  function extractBrandKeyFromCase(el){
-    try {
-      var id = el && (el.id || (el.getAttribute ? el.getAttribute('id') : null));
-      if (!id) return null;
-      return id.replace(/-case$/i, '');
-    } catch(_){ return null; }
-  }
+    function pauseAndResetVideosInElement(rootEl){
+      if (!rootEl) return;
+      var videos = qsa(rootEl, 'video');
+      if (!videos || !videos.length) return;
+      each(videos, function(video){
+        try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
+        // talking-head: не сбрасываем время, только пауза
+        var isTalking = false;
+        try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+        if (!isTalking){
+          try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
+        }
+      });
+    }
 
-  // Устанавливаем .current в списке мини‑вью по brand-data="<brand>-mini-view"
-  function setStackMiniViewCurrent(brandKey){
-    if (!brandKey) return;
-    var list = qs(document, '.main-container__stack-wrap__wrapper__list');
-    if (!list) return;
-    try {
-      var target = qs(list, '[brand-data="' + brandKey + '-mini-view"]');
-      if (!target) return;
-      var currents = qsa(list, '.current');
-      each(currents, function(el){ try { el.classList.remove('current'); } catch(_){ } });
-      try { target.classList.add('current'); } catch(_){ }
-      try { updateStackOpacityByCurrent(); } catch(_){ }
-    } catch(_){ }
-  }
+    // Пауза всех видео без сброса времени (используем при выходе .cases-grid из зоны)
+    function pauseAllVideosInElement(rootEl){
+      if (!rootEl) return;
+      var videos = qsa(rootEl, 'video');
+      if (!videos || !videos.length) return;
+      each(videos, function(video){
+        try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
+      });
+    }
 
-  function getStackList(){ return qs(document, '.main-container__stack-wrap__wrapper__list'); }
-  function getStackItems(){ var l = getStackList(); return l ? qsa(l, '.main-container__stack-wrap__wrapper__list__item') : []; }
-  function getStackContainer(){ return qs(document, '.main-container__stack-wrap'); }
+    // Сброс/загрузка видео не в зоне ответственности этого скрипта
 
-  // Talking-head helpers
-  function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){
-    var v = getTalkingHeadVideo(root);
-    if (v){ 
-      try { 
-            var p = v.play();
-        if (p && typeof p.then === 'function') {
-              p.then(function(){
-            var gestureInfo = getUserGestureInfo();
-            console.log('[snapSlider] Talking-head видео успешно запущено:', {
-              src: v.src || v.currentSrc || 'no src',
-              muted: v.muted,
-              'Пользовательские жесты': {
-                'Есть жесты': gestureInfo.hasGesture,
-                'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
-                'Окно жеста валидно': gestureInfo.isGestureValid
-              }
-            });
-          }).catch(function(err){
-            logVideoPlayError(v, 'playTalkingHead', err);
-          });
-      }
-    } catch(err){
-        logVideoPlayError(v, 'playTalkingHead', err);
-      } 
-    } 
-  }
-  function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
-
-  // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
-  function ensureTalkingHeadAutoPlay(caseEl){
-    try {
-      var v = getTalkingHeadVideo(caseEl);
-      if (!v) return;
-      var onMeta = function(){
-        try {
-          if (caseEl.classList && caseEl.classList.contains('active')){
-            playTalkingHead(caseEl);
-          }
-        } catch(_){ }
-      };
-      try { v.addEventListener('loadedmetadata', onMeta, { once: true }); } catch(_){ }
-    } catch(_){ }
-  }
-
-  // Извлекаем ключ бренда из айтема стека: brand-data="xx-mini-view" на самом айтеме или его потомке
-  function extractBrandKeyFromStackItem(item){
-    if (!item) return null;
-    try {
-      var attr = item.getAttribute ? item.getAttribute('brand-data') : null;
-      if (!attr){
-        var inner = item.querySelector ? item.querySelector('[brand-data$="-mini-view"]') : null;
-        if (inner) { attr = inner.getAttribute('brand-data'); }
-      }
-      if (!attr) return null;
-      var m = attr.match(/^(.+)-mini-view$/);
-      return m ? m[1] : null;
-    } catch(_){ return null; }
-  }
-
-  function scrollToCaseByBrand(brandKey, opts){
-    if (!brandKey) return;
-    var caseEl = document.getElementById(brandKey + '-case') || qs(document, '#' + brandKey + '-case');
-    if (!caseEl) return;
-    try {
-      var scroller = qs(document, '.main-section');
-      if (!scroller){
-        var behavior = (opts && opts.instant) ? 'auto' : 'smooth';
-        caseEl.scrollIntoView({ behavior: behavior, block: 'start', inline: 'nearest' });
-        return;
-      }
-
-      // Целевая позиция внутри скроллера
-      var beforeTop = scroller.scrollTop || 0;
-      var scrRect = scroller.getBoundingClientRect();
-      var tgtRect = caseEl.getBoundingClientRect();
-      var targetTopWithin = (tgtRect.top - scrRect.top) + beforeTop;
-      var desiredTop = Math.max(0, targetTopWithin);
-
-      // Временно отключаем scroll-snap для плавного скролла
-      var prevSnap = scroller.style.scrollSnapType;
-      scroller.style.scrollSnapType = 'none';
-
-      var instant = !!(opts && opts.instant);
-      if (instant){
-        scroller.scrollTop = desiredTop;
-      } else if (typeof scroller.scrollTo === 'function') {
-        scroller.scrollTo({ top: desiredTop, behavior: 'smooth' });
-      } else {
-        scroller.scrollTop = desiredTop;
-      }
-
-      // Возвращаем snap чуть позже, затем доснапливаем к началу элемента
-      var restoreMs = instant ? 60 : 400;
-      if (scroller.__snapRestoreTimer) { clearTimeout(scroller.__snapRestoreTimer); }
-      scroller.__snapRestoreTimer = setTimeout(function(){
-        try { scroller.style.scrollSnapType = prevSnap || 'y mandatory'; } catch(__){}
-        try { caseEl.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' }); } catch(__){}
-        try { scroller.__snapRestoreTimer = null; } catch(__){}
-      }, restoreMs);
-    } catch(_){ }
-  }
-
-  function initializeStackZIndex(){
-    var items = getStackItems();
-    if (!items || !items.length) return;
-    var n = items.length;
-    each(items, function(el, idx){ try { el.style.zIndex = String((n - idx) + 1); } catch(_){ } });
-  }
-
-  function clearStackCardStyles(){
-    var items = getStackItems();
-    each(items, function(el){
+    // Помощники прогресса
+    function updateSegmentDurationByIndexInWrapper(wrapperEl, index, durationSec){
+      if (!wrapperEl || !isFinite(durationSec) || durationSec <= 0) return;
+      var segs = qsa(wrapperEl, '.story-progress__segment');
+      if (!segs || !segs.length || index < 0 || index >= segs.length) return;
+      var seg = segs[index];
       try {
-        var cls = (el.className || '').split(/\s+/);
-        for (var i=cls.length-1; i>=0; i--){ if (/-card-style$/.test(cls[i])) { el.classList.remove(cls[i]); } }
+        seg.style.animationDuration = durationSec + 's';
+        seg.style.setProperty('--progress-duration', durationSec + 's');
       } catch(_){ }
-    });
-  }
-
-  function updateStackOpacityByCurrent(){
-    var items = getStackItems(); if (!items || !items.length) return;
-    var container = getStackContainer();
-    var isOpen = !!(container && container.classList && container.classList.contains('open-stack'));
-    var currentIndex = -1;
-    for (var i=0; i<items.length; i++){ if (items[i].classList && items[i].classList.contains('current')) { currentIndex = i; break; } }
-    if (isOpen){
-      each(items, function(el){ try { el.style.opacity = '1'; } catch(_){ } });
-    } else if (currentIndex >= 0){
-      // При закрытом стеке показываем только current; элементы до и после — скрываем
-      each(items, function(el, idx){ try { el.style.opacity = (idx === currentIndex) ? '1' : '0'; } catch(_){ } });
-    }
-  }
-
-  // Индекс активного слайда в wrapper
-  function getActiveSlideIndex(wrapperEl){
-    var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
-    if (!slides || !slides.length) return -1;
-    for (var i=0; i<slides.length; i++){
-      if (slides[i].classList && slides[i].classList.contains('active')) return i;
-    }
-    return -1;
-  }
-
-  // Прокрутка к целевому слайду (программный свайп)
-  function scrollToSlide(wrapperEl, slides, index, options){
-    if (!wrapperEl || !slides || !slides.length) return;
-    var target = slides[index];
-    if (!target) return;
-    try {
-      var st = wrapperEl.__snapState || (wrapperEl.__snapState = {});
-      var force = options && options.forceIgnoreUser === true;
-      if (st.isUserInteracting && !force) return;
-      if (st._autoLockTimer) { clearTimeout(st._autoLockTimer); }
-      st.autoScrollLock = true;
-      st._autoLockTimer = setTimeout(function(){ st.autoScrollLock = false; }, 600);
-    } catch(_){ }
-    try {
-      target.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
-    } catch(_){
-      try { wrapperEl.scrollTo({ left: target.offsetLeft, behavior: 'smooth' }); }
-      catch(__){ try { wrapperEl.scrollLeft = target.offsetLeft; } catch(___){ } }
-    }
-  }
-
-  // Обновление воспроизведения и заполнения прогресса для текущего wrapper
-  function updateWrapperPlayback(wrapperEl){
-    if (!wrapperEl) return;
-    var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
-    var fills = qsa(wrapperEl, '.story-progress__fill');
-    if (!slides || !slides.length) return;
-
-    // Обновляем проигрывание только если родительский кейс активен
-    var caseEl = wrapperEl.closest ? wrapperEl.closest('.cases-grid__item, .case') : null;
-    var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-
-    var activeIdx = -1;
-    for (var i=0; i<slides.length; i++){
-      if (slides[i].classList && slides[i].classList.contains('active')){ activeIdx = i; break; }
     }
 
-    each(slides, function(slide, idx){
-      var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
-      var fill = (fills && fills[idx]) ? fills[idx] : null;
+    function syncProgressDurations(wrapperEl){
+      if (!wrapperEl) return;
+      var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
+      if (!slides || !slides.length) return;
+      each(slides, function(slide, idx){
+        var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
+        if (!video) return;
+        var apply = function(){ updateSegmentDurationByIndexInWrapper(wrapperEl, idx, video.duration); };
+        if (isFinite(video.duration) && video.duration > 0){
+          apply();
+        } else {
+          try { video.addEventListener('loadedmetadata', apply, { once: true }); } catch(_){ }
+        }
+      });
+    }
 
-      function detachHandlers(v){
-        if(!v) return;
-        try { if(v.__progressHandler){ v.removeEventListener('timeupdate', v.__progressHandler); v.__progressHandler = null; } } catch(_){ }
-        try { if(v.__metaHandler){ v.removeEventListener('loadedmetadata', v.__metaHandler); v.__metaHandler = null; } } catch(_){ }
-        try { if(v.__endedHandler){ v.removeEventListener('ended', v.__endedHandler); v.__endedHandler = null; } } catch(_){ }
-        // загрузочные обработчики не используются здесь
-        if (v.__rafProgressId){ try { cancelAnimationFrame(v.__rafProgressId); } catch(_){ } v.__rafProgressId = null; }
+    // Гейты по положению элементов относительно вьюпорта (с зазором 2px)
+    function isEligibleBySelector(selector){
+      var el = qs(document, selector);
+      if (!el) return false;
+      var r = el.getBoundingClientRect();
+      var vh = (typeof window !== 'undefined' && window.innerHeight) ? window.innerHeight : ((document.documentElement && document.documentElement.clientHeight) ? document.documentElement.clientHeight : 0);
+      var m = 2; // зазор 2px
+      return (r.top <= 0 + m) && (r.bottom >= vh - m);
+    }
+
+    function isCasesGridEligible(){
+      return isEligibleBySelector('.cases-grid');
+    }
+
+    function isMainContainerEligible(){
+      return isEligibleBySelector('.main-container');
+    }
+
+    function setCasesGridInProgress(_ignored){
+      var grid = qs(document, '.cases-grid');
+      var container = qs(document, '.main-container');
+      var contEligible = isMainContainerEligible();
+      var gridEligible = isCasesGridEligible();
+      // Ставим классы независимо: контейнеру — in-progress, гриду — state-view
+      try { if (container){ if (contEligible) container.classList.add('in-progress'); else container.classList.remove('in-progress'); } } catch(_){ }
+      try { if (grid){ if (gridEligible) grid.classList.add('state-view'); else grid.classList.remove('state-view'); } } catch(_){ }
+    }
+
+    // Установить .active для слайда внутри wrapper по близости к центру wrapper
+    function setActiveSlideInWrapperByCenter(wrapperEl){
+      if (!wrapperEl) return null;
+      var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
+      if (!slides || !slides.length) return null;
+      var rootRect = wrapperEl.getBoundingClientRect();
+      var centerX = rootRect.left + (rootRect.width || 0) / 2;
+      var best = null; var bestDist = Infinity;
+      for (var i=0; i<slides.length; i++){
+        var r = slides[i].getBoundingClientRect();
+        var ix = r.left + (r.width || 0) / 2;
+        var d = Math.abs(ix - centerX);
+        if (d < bestDist){ bestDist = d; best = slides[i]; }
+      }
+      if (best){
+        (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s){
+          if (s === best) { try { s.classList.add('active'); } catch(_){ } }
+          else { try { s.classList.remove('active'); } catch(_){ } }
+        });
+      }
+      return best;
+    }
+
+    // Извлекаем ключ бренда из id кейса (убираем суффикс -case)
+    function extractBrandKeyFromCase(el){
+      try {
+        var id = el && (el.id || (el.getAttribute ? el.getAttribute('id') : null));
+        if (!id) return null;
+        return id.replace(/-case$/i, '');
+      } catch(_){ return null; }
+    }
+
+    // Устанавливаем .current в списке мини‑вью по brand-data="<brand>-mini-view"
+    function setStackMiniViewCurrent(brandKey){
+      if (!brandKey) return;
+      var list = qs(document, '.main-container__stack-wrap__wrapper__list');
+      if (!list) return;
+      try {
+        var target = qs(list, '[brand-data="' + brandKey + '-mini-view"]');
+        if (!target) return;
+        var currents = qsa(list, '.current');
+        each(currents, function(el){ try { el.classList.remove('current'); } catch(_){ } });
+        try { target.classList.add('current'); } catch(_){ }
+        try { updateStackOpacityByCurrent(); } catch(_){ }
+      } catch(_){ }
+    }
+
+    function getStackList(){ return qs(document, '.main-container__stack-wrap__wrapper__list'); }
+    function getStackItems(){ var l = getStackList(); return l ? qsa(l, '.main-container__stack-wrap__wrapper__list__item') : []; }
+    function getStackContainer(){ return qs(document, '.main-container__stack-wrap'); }
+
+    // Talking-head helpers
+    function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
+    function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
+    function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
+
+    // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
+    function ensureTalkingHeadAutoPlay(caseEl){
+      try {
+        var v = getTalkingHeadVideo(caseEl);
+        if (!v) return;
+        var onMeta = function(){
+          try {
+            if (caseEl.classList && caseEl.classList.contains('active')){
+              playTalkingHead(caseEl);
+            }
+          } catch(_){ }
+        };
+        try { v.addEventListener('loadedmetadata', onMeta, { once: true }); } catch(_){ }
+      } catch(_){ }
+    }
+
+    // Извлекаем ключ бренда из айтема стека: brand-data="xx-mini-view" на самом айтеме или его потомке
+    function extractBrandKeyFromStackItem(item){
+      if (!item) return null;
+      try {
+        var attr = item.getAttribute ? item.getAttribute('brand-data') : null;
+        if (!attr){
+          var inner = item.querySelector ? item.querySelector('[brand-data$="-mini-view"]') : null;
+          if (inner) { attr = inner.getAttribute('brand-data'); }
+        }
+        if (!attr) return null;
+        var m = attr.match(/^(.+)-mini-view$/);
+        return m ? m[1] : null;
+      } catch(_){ return null; }
+    }
+
+    function scrollToCaseByBrand(brandKey, opts){
+      if (!brandKey) return;
+      var caseEl = document.getElementById(brandKey + '-case') || qs(document, '#' + brandKey + '-case');
+      if (!caseEl) return;
+      try {
+        var scroller = qs(document, '.main-section');
+        if (!scroller){
+          var behavior = (opts && opts.instant) ? 'auto' : 'smooth';
+          caseEl.scrollIntoView({ behavior: behavior, block: 'start', inline: 'nearest' });
+          return;
+        }
+
+        // Целевая позиция внутри скроллера
+        var beforeTop = scroller.scrollTop || 0;
+        var scrRect = scroller.getBoundingClientRect();
+        var tgtRect = caseEl.getBoundingClientRect();
+        var targetTopWithin = (tgtRect.top - scrRect.top) + beforeTop;
+        var desiredTop = Math.max(0, targetTopWithin);
+
+        // Временно отключаем scroll-snap для плавного скролла
+        var prevSnap = scroller.style.scrollSnapType;
+        scroller.style.scrollSnapType = 'none';
+
+        var instant = !!(opts && opts.instant);
+        if (instant){
+          scroller.scrollTop = desiredTop;
+        } else if (typeof scroller.scrollTo === 'function') {
+          scroller.scrollTo({ top: desiredTop, behavior: 'smooth' });
+        } else {
+          scroller.scrollTop = desiredTop;
+        }
+
+        // Возвращаем snap чуть позже, затем доснапливаем к началу элемента
+        var restoreMs = instant ? 60 : 400;
+        if (scroller.__snapRestoreTimer) { clearTimeout(scroller.__snapRestoreTimer); }
+        scroller.__snapRestoreTimer = setTimeout(function(){
+          try { scroller.style.scrollSnapType = prevSnap || 'y mandatory'; } catch(__){}
+          try { caseEl.scrollIntoView({ behavior: 'auto', block: 'start', inline: 'nearest' }); } catch(__){}
+          try { scroller.__snapRestoreTimer = null; } catch(__){}
+        }, restoreMs);
+      } catch(_){ }
+    }
+
+    function initializeStackZIndex(){
+      var items = getStackItems();
+      if (!items || !items.length) return;
+      var n = items.length;
+      each(items, function(el, idx){ try { el.style.zIndex = String((n - idx) + 1); } catch(_){ } });
+    }
+
+    function clearStackCardStyles(){
+      var items = getStackItems();
+      each(items, function(el){
+        try {
+          var cls = (el.className || '').split(/\s+/);
+          for (var i=cls.length-1; i>=0; i--){ if (/-card-style$/.test(cls[i])) { el.classList.remove(cls[i]); } }
+        } catch(_){ }
+      });
+    }
+
+    function updateStackOpacityByCurrent(){
+      var items = getStackItems(); if (!items || !items.length) return;
+      var container = getStackContainer();
+      var isOpen = !!(container && container.classList && container.classList.contains('open-stack'));
+      var currentIndex = -1;
+      for (var i=0; i<items.length; i++){ if (items[i].classList && items[i].classList.contains('current')) { currentIndex = i; break; } }
+      if (isOpen){
+        each(items, function(el){ try { el.style.opacity = '1'; } catch(_){ } });
+      } else if (currentIndex >= 0){
+        // При закрытом стеке показываем только current; элементы до и после — скрываем
+        each(items, function(el, idx){ try { el.style.opacity = (idx === currentIndex) ? '1' : '0'; } catch(_){ } });
+      }
+    }
+
+    // Индекс активного слайда в wrapper
+    function getActiveSlideIndex(wrapperEl){
+      var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
+      if (!slides || !slides.length) return -1;
+      for (var i=0; i<slides.length; i++){
+        if (slides[i].classList && slides[i].classList.contains('active')) return i;
+      }
+      return -1;
+    }
+
+    // Прокрутка к целевому слайду (программный свайп)
+    function scrollToSlide(wrapperEl, slides, index, options){
+      if (!wrapperEl || !slides || !slides.length) return;
+      var target = slides[index];
+      if (!target) return;
+      try {
+        var st = wrapperEl.__snapState || (wrapperEl.__snapState = {});
+        var force = options && options.forceIgnoreUser === true;
+        if (st.isUserInteracting && !force) return;
+        if (st._autoLockTimer) { clearTimeout(st._autoLockTimer); }
+        st.autoScrollLock = true;
+        st._autoLockTimer = setTimeout(function(){ st.autoScrollLock = false; }, 600);
+      } catch(_){ }
+      try {
+        target.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+      } catch(_){
+        try { wrapperEl.scrollTo({ left: target.offsetLeft, behavior: 'smooth' }); }
+        catch(__){ try { wrapperEl.scrollLeft = target.offsetLeft; } catch(___){ } }
+      }
+    }
+
+    // Обновление воспроизведения и заполнения прогресса для текущего wrapper
+    function updateWrapperPlayback(wrapperEl){
+      if (!wrapperEl) return;
+      var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
+      var fills = qsa(wrapperEl, '.story-progress__fill');
+      if (!slides || !slides.length) return;
+
+      // Обновляем проигрывание только если родительский кейс активен
+      var caseEl = wrapperEl.closest ? wrapperEl.closest('.cases-grid__item, .case') : null;
+      var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+
+      var activeIdx = -1;
+      for (var i=0; i<slides.length; i++){
+        if (slides[i].classList && slides[i].classList.contains('active')){ activeIdx = i; break; }
       }
 
-      if (idx !== activeIdx || !caseIsActive){
-        detachHandlers(video);
-        if (fill) { try { fill.style.transform = 'scaleX(0)'; } catch(_){ } }
-        // сбрасываем видео в неактивных слайдах
-        try { pauseAndResetVideos(slide); } catch(_){ }
-        try { delete slide.__progressAdvancedOnce; } catch(_){ }
-      } else {
-        if (video){
+      each(slides, function(slide, idx){
+        var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
+        var fill = (fills && fills[idx]) ? fills[idx] : null;
+
+        function detachHandlers(v){
+          if(!v) return;
+          try { if(v.__progressHandler){ v.removeEventListener('timeupdate', v.__progressHandler); v.__progressHandler = null; } } catch(_){ }
+          try { if(v.__metaHandler){ v.removeEventListener('loadedmetadata', v.__metaHandler); v.__metaHandler = null; } } catch(_){ }
+          try { if(v.__endedHandler){ v.removeEventListener('ended', v.__endedHandler); v.__endedHandler = null; } } catch(_){ }
+          // загрузочные обработчики не используются здесь
+          if (v.__rafProgressId){ try { cancelAnimationFrame(v.__rafProgressId); } catch(_){ } v.__rafProgressId = null; }
+        }
+
+        if (idx !== activeIdx || !caseIsActive){
           detachHandlers(video);
-          
-          // КРИТИЧНО: используем общий плеер для отслеживания прогресса, если он активен
-          var playerToTrack = sharedPlayerState.unlocked && sharedPlayerState.player && 
-                             sharedPlayerState.currentVideoElement === video ? sharedPlayerState.player : video;
-          
-          // rAF апдейтер прогресса, чтобы бар заполнялся стабильно
-          var startRafIfNeeded = function(){
-            if (video.__rafProgressId) return;
-            var rafFn = function(){
-              var dur = (isFinite(playerToTrack.duration) && playerToTrack.duration > 0) ? playerToTrack.duration : 0;
-              var ct = Math.max(0, playerToTrack.currentTime || 0);
+          if (fill) { try { fill.style.transform = 'scaleX(0)'; } catch(_){ } }
+          // сбрасываем видео в неактивных слайдах
+          try { pauseAndResetVideos(slide); } catch(_){ }
+          try { delete slide.__progressAdvancedOnce; } catch(_){ }
+        } else {
+          if (video){
+            detachHandlers(video);
+            // rAF апдейтер прогресса, чтобы бар заполнялся стабильно
+            var startRafIfNeeded = function(){
+              if (video.__rafProgressId) return;
+              var rafFn = function(){
+                var dur = (isFinite(video.duration) && video.duration > 0) ? video.duration : 0;
+                var ct = Math.max(0, video.currentTime || 0);
+                var p = dur > 0 ? Math.min(1, ct / dur) : 0;
+                if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
+                // автопереход по 98%
+                try {
+                  if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
+                    slide.__progressAdvancedOnce = true;
+                    var st = wrapperEl.__snapState || {};
+                    if (!st.isUserInteracting && !st.autoScrollLock){
+                      var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
+                      scrollToSlide(wrapperEl, slides, nextIndex);
+                    }
+                  }
+                } catch(_){ }
+                if (!video.paused && !video.ended){ video.__rafProgressId = requestAnimationFrame(rafFn); } else { video.__rafProgressId = null; }
+              };
+              video.__rafProgressId = requestAnimationFrame(rafFn);
+            };
+
+            video.__progressHandler = function(){
+              var dur = (isFinite(video.duration) && video.duration > 0) ? video.duration : 0;
+              var ct = Math.max(0, video.currentTime || 0);
               var p = dur > 0 ? Math.min(1, ct / dur) : 0;
               if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
-              
-              // Синхронизируем оригинальное video с общим плеером
-              if (playerToTrack !== video && isFinite(playerToTrack.currentTime)) {
-                try {
-                  video.currentTime = playerToTrack.currentTime;
-                } catch(_){}
-              }
-              
-              // автопереход по 98%
+              // Переход к следующему слайду на 98%, если видео зациклено (ended может не сработать)
               try {
                 if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
                   slide.__progressAdvancedOnce = true;
@@ -1294,830 +403,448 @@
                   }
                 }
               } catch(_){ }
-              if (!playerToTrack.paused && !playerToTrack.ended){ video.__rafProgressId = requestAnimationFrame(rafFn); } else { video.__rafProgressId = null; }
+              // Стартуем rAF-поток при первом обновлении времени
+              startRafIfNeeded();
             };
-            video.__rafProgressId = requestAnimationFrame(rafFn);
-          };
-
-          video.__progressHandler = function(){
-            var dur = (isFinite(playerToTrack.duration) && playerToTrack.duration > 0) ? playerToTrack.duration : 0;
-            var ct = Math.max(0, playerToTrack.currentTime || 0);
-            var p = dur > 0 ? Math.min(1, ct / dur) : 0;
-            if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
-            
-            // Синхронизируем оригинальное video с общим плеером
-            if (playerToTrack !== video && isFinite(playerToTrack.currentTime)) {
+            video.__metaHandler = function(){
+              if (video.__progressHandler) video.__progressHandler();
+              // После появления метаданных у активного слайда в активном кейсе — запустим воспроизведение
               try {
-                video.currentTime = playerToTrack.currentTime;
-              } catch(_){}
-            }
-            
-            // Переход к следующему слайду на 98%, если видео зациклено (ended может не сработать)
-            try {
-              if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
-                slide.__progressAdvancedOnce = true;
+                if (idx === activeIdx && caseIsActive) { playVideos(slide); }
+              } catch(_){ }
+            };
+            video.__endedHandler = function(){
+              if (fill) { try { fill.style.transform = 'scaleX(1)'; } catch(_){ } }
+              try {
                 var st = wrapperEl.__snapState || {};
                 if (!st.isUserInteracting && !st.autoScrollLock){
                   var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
                   scrollToSlide(wrapperEl, slides, nextIndex);
                 }
-              }
-            } catch(_){ }
-            // Стартуем rAF-поток при первом обновлении времени
-            startRafIfNeeded();
-          };
-          video.__metaHandler = function(){
-            if (video.__progressHandler) video.__progressHandler();
-            // НЕ запускаем видео здесь - это происходит через общий плеер при жесте пользователя
-          };
-          video.__endedHandler = function(){
-            if (fill) { try { fill.style.transform = 'scaleX(1)'; } catch(_){ } }
-            try {
-              var st = wrapperEl.__snapState || {};
-              if (!st.isUserInteracting && !st.autoScrollLock){
-                var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
-                scrollToSlide(wrapperEl, slides, nextIndex);
-              }
-            } catch(_){ }
-          };
-          
-          // Подключаем обработчики к плееру (общему или оригинальному)
-          if (playerToTrack === sharedPlayerState.player) {
-            // Используем общий плеер - подключаем к нему
-            try { sharedPlayerState.player.addEventListener('timeupdate', video.__progressHandler); } catch(_){ }
-            try { sharedPlayerState.player.addEventListener('loadedmetadata', video.__metaHandler, { once: true }); } catch(_){ }
-            try { sharedPlayerState.player.addEventListener('ended', video.__endedHandler, { once: true }); } catch(_){ }
-          } else {
-            // Используем оригинальное video
+              } catch(_){ }
+            };
             try { video.addEventListener('timeupdate', video.__progressHandler); } catch(_){ }
             try { video.addEventListener('loadedmetadata', video.__metaHandler, { once: true }); } catch(_){ }
             try { video.addEventListener('ended', video.__endedHandler, { once: true }); } catch(_){ }
           }
+          // Управление запуском выполняется внешним скриптом; здесь не трогаем playback
         }
-        // Управление запуском выполняется через общий плеер
-      }
-    });
+      });
 
-    // Обновляем заполнения для сегментов до/после активного
-    if (fills && activeIdx >= 0){
-      for (var f=0; f<fills.length; f++){
-        if (f < activeIdx){ try { fills[f].style.transform = 'scaleX(1)'; } catch(_){ }
-                          } else if (f > activeIdx){ try { fills[f].style.transform = 'scaleX(0)'; } catch(_){ }
-                                                    }
+      // Обновляем заполнения для сегментов до/после активного
+      if (fills && activeIdx >= 0){
+        for (var f=0; f<fills.length; f++){
+          if (f < activeIdx){ try { fills[f].style.transform = 'scaleX(1)'; } catch(_){ }
+                            } else if (f > activeIdx){ try { fills[f].style.transform = 'scaleX(0)'; } catch(_){ }
+                                                     }
+        }
       }
     }
-    
-    // КРИТИЧНО: синхронизируем общий плеер с активным слайдом
-    // Если плеер разблокирован - переключаем src на видео активного слайда
-    if (activeIdx >= 0 && caseIsActive && sharedPlayerState.unlocked) {
-      var activeSlide = slides[activeIdx];
-      var activeVideo = qs(activeSlide, '.slide-inner__video-block video') || qs(activeSlide, 'video');
-      if (activeVideo) {
-        var url = activeVideo.src || activeVideo.currentSrc || (activeVideo.getAttribute ? activeVideo.getAttribute('src') : null);
-        if (!url && activeVideo.dataset && activeVideo.dataset.src) {
-          url = activeVideo.dataset.src;
+
+    // Переключение .active у .cases-grid__item с учётом scroll-snap
+    function setupCasesActiveOnScrollSnap(){
+      var scroller = (document && document.querySelector) ? document.querySelector('.main-section') : null;
+      if (!scroller) return;
+      var items = scroller.querySelectorAll ? scroller.querySelectorAll('.cases-grid__item, .case') : null;
+      if (!items || !items.length) return;
+
+      var rafId = null;
+      var settleTimer = null;
+      var lastEligibility = null;
+      var lastActiveCase = null;
+
+      function updateActive(){
+        rafId = null;
+        // Гейт: активируем кейсы только когда .main-container покрывает вьюпорт сверху и снизу
+        var eligible = isMainContainerEligible();
+        setCasesGridInProgress(eligible);
+        if (!eligible){
+          lastEligibility = false;
+          // Вне активной зоны — ставим все видео на паузу и не меняем active
+          pauseAllVideosInElement(document);
+          return;
         }
-        if (url && url !== sharedPlayerState.currentSrc) {
-          switchUrlInSharedPlayer(url).then(function(success){
-            if (success) {
-              syncSharedPlayerWithOriginalVideo();
-            }
+        // Вернулись в активную зону после паузы — синхронизируем и запускаем активный слайд
+        if (lastEligibility === false){
+          var activeCase = qs(document, '.cases-grid__item.active, .case.active');
+          if (activeCase){
+            var wrappersInCase0 = qsa(activeCase, '.story-track-wrapper');
+            each(wrappersInCase0, function(w){ try { updateWrapperPlayback(w); } catch(_){ } });
+            var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
+            if (activeSlides && activeSlides.length){ each(activeSlides, function(s){ try { playVideos(s); } catch(_){ } }); }
+            // talking-head автозапуск после возврата в зону
+            try { ensureTalkingHeadAutoPlay(activeCase); } catch(_){ }
+          }
+        }
+        lastEligibility = true;
+        var rootRect = scroller.getBoundingClientRect();
+        var isHorizontal = (scroller.scrollWidth - scroller.clientWidth) > (scroller.scrollHeight - scroller.clientHeight);
+        var centerX = rootRect.left + (rootRect.width || 0) / 2;
+        var centerY = rootRect.top + (rootRect.height || 0) / 2;
+        var best = null; var bestDist = Infinity;
+        for (var i=0; i<items.length; i++){
+          var r = items[i].getBoundingClientRect();
+          var ix = r.left + (r.width || 0) / 2;
+          var iy = r.top + (r.height || 0) / 2;
+          var d = isHorizontal ? Math.abs(ix - centerX) : Math.abs(iy - centerY);
+          if (d < bestDist) { bestDist = d; best = items[i]; }
+        }
+        if (best){
+          // Если активный кейс не изменился — ничего не делаем, чтобы избежать дёрганий
+          if (best === lastActiveCase) return;
+
+          (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
+            if (el === best) { el.classList.add('active'); playTalkingHead(el); try { ensureTalkingHeadAutoPlay(el); } catch(_){ } }
+            else { el.classList.remove('active'); pauseTalkingHead(el); }
           });
-        } else if (url === sharedPlayerState.currentSrc) {
-          // Тот же URL - просто синхронизируем состояние
-          syncSharedPlayerWithOriginalVideo();
-        }
-      }
-    }
-  }
 
-  // Переключение .active у .cases-grid__item с учётом scroll-snap
-  function setupCasesActiveOnScrollSnap(){
-    var scroller = (document && document.querySelector) ? document.querySelector('.main-section') : null;
-    if (!scroller) return;
-    var items = scroller.querySelectorAll ? scroller.querySelectorAll('.cases-grid__item, .case') : null;
-    if (!items || !items.length) return;
-
-    var rafId = null;
-    var settleTimer = null;
-    var lastEligibility = null;
-    var lastActiveCase = null;
-
-    function updateActive(){
-      rafId = null;
-      // Гейт: активируем кейсы только когда .main-container покрывает вьюпорт сверху и снизу
-      var eligible = isMainContainerEligible();
-      setCasesGridInProgress(eligible);
-      if (!eligible){
-        lastEligibility = false;
-        // Вне активной зоны — ставим все видео на паузу и не меняем active
-        pauseAllVideosInElement(document);
-        return;
-      }
-      // Вернулись в активную зону после паузы — синхронизируем состояние
-      if (lastEligibility === false){
-        var activeCase = qs(document, '.cases-grid__item.active, .case.active');
-        if (activeCase){
-          var wrappersInCase0 = qsa(activeCase, '.story-track-wrapper');
-          each(wrappersInCase0, function(w){ try { updateWrapperPlayback(w); } catch(_){ } });
-          // НЕ запускаем видео здесь - происходит через rAF после окна жеста
-          // Видео запустится при прямом клике/тапе пользователя
-          // talking-head автозапуск после возврата в зону
-          try { ensureTalkingHeadAutoPlay(activeCase); } catch(_){ }
-        }
-      }
-      lastEligibility = true;
-      var rootRect = scroller.getBoundingClientRect();
-      var isHorizontal = (scroller.scrollWidth - scroller.clientWidth) > (scroller.scrollHeight - scroller.clientHeight);
-      var centerX = rootRect.left + (rootRect.width || 0) / 2;
-      var centerY = rootRect.top + (rootRect.height || 0) / 2;
-      var best = null; var bestDist = Infinity;
-      for (var i=0; i<items.length; i++){
-        var r = items[i].getBoundingClientRect();
-        var ix = r.left + (r.width || 0) / 2;
-        var iy = r.top + (r.height || 0) / 2;
-        var d = isHorizontal ? Math.abs(ix - centerX) : Math.abs(iy - centerY);
-        if (d < bestDist) { bestDist = d; best = items[i]; }
-      }
-      if (best){
-        // Если активный кейс не изменился — ничего не делаем, чтобы избежать дёрганий
-        if (best === lastActiveCase) return;
-
-        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (el === best) { el.classList.add('active'); playTalkingHead(el); try { ensureTalkingHeadAutoPlay(el); } catch(_){ } }
-          else { el.classList.remove('active'); pauseTalkingHead(el); }
-        });
-
-        // Синхронизируем мини‑вью бренда и opacity (card-style назначаем ТОЛЬКО при open-stack)
-        try {
-          var brandKey = extractBrandKeyFromCase(best);
-          setStackMiniViewCurrent(brandKey);
-          updateStackOpacityByCurrent();
-        } catch(_){ }
-
-        // Снимаем active со всех слайдов внутри неактивных кейсов
-        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (!el.classList || el.classList.contains('active')) return;
-          var nonActiveSlides = qsa(el, '.story-track-wrapper__slide.active');
-          (nonActiveSlides.forEach ? nonActiveSlides.forEach : Array.prototype.forEach).call(nonActiveSlides, function(s){
-            try { s.classList.remove('active'); } catch(_){ }
-          });
-        });
-
-        // Ставим на паузу и сбрасываем все видео внутри неактивных кейсов
-        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (!el.classList || el.classList.contains('active')) return;
-          pauseAndResetVideosInElement(el);
-        });
-
-        // Переопределяем active для слайда внутри каждого wrapper по центру
-        var wrappersInCase = qsa(best, '.story-track-wrapper');
-        each(wrappersInCase, function(w){
-          var activeSlide = null;
-          try { activeSlide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
-          try { updateWrapperPlayback(w); } catch(_){ }
-          // НЕ запускаем видео здесь - происходит через rAF/setTimeout после окна жеста
-          // Видео запустится при прямом клике/тапе пользователя
-        });
-
-        // НЕ запускаем видео автоматически - только при прямом взаимодействии
-
-        lastActiveCase = best;
-      }
-    }
-
-    function onScroll(){
-      if (rafId) return;
-      rafId = requestAnimationFrame(updateActive);
-      if (settleTimer) { clearTimeout(settleTimer); }
-      settleTimer = setTimeout(updateActive, 140); // даём snap «досесть»
-    }
-
-    scroller.addEventListener('scroll', onScroll, { passive:true });
-    window.addEventListener('resize', onScroll, { passive:true });
-    window.addEventListener('orientationchange', onScroll, { passive:true });
-    updateActive();
-  }
-
-  // Наблюдатель активности слайда в зоне видимости wrapper-а
-  function setupActiveObserver(wrapperEl){
-    if (!wrapperEl) return;
-    var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
-    if (!slides || !slides.length) return;
-
-    var ratios = new Map();
-    var ACTIVE_THRESHOLD = 0.6; // Слайд считается активным при видимости >= 60%
-
-    var io = new IntersectionObserver(function(entries){
-      each(entries, function(entry){
-        ratios.set(entry.target, entry.intersectionRatio || 0);
-      });
-
-      // Выбираем максимально видимый слайд
-      var bestSlide = null; var bestRatio = 0;
-      each(slides, function(slide){
-        var r = ratios.get(slide) || 0;
-        if (r > bestRatio){ bestRatio = r; bestSlide = slide; }
-      });
-
-      if (bestSlide && bestRatio >= ACTIVE_THRESHOLD){
-        // Меняем active только если родительский кейс активен
-        var caseEl = wrapperEl.closest ? wrapperEl.closest('.cases-grid__item, .case') : null;
-        var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-        if (caseIsActive){
-          each(slides, function(slide){
-            if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
-            else { try { slide.classList.remove('active'); } catch(_){ } }
-          });
-          updateWrapperPlayback(wrapperEl);
-          // НЕ запускаем видео здесь - IntersectionObserver работает асинхронно, после окна жеста
-          // Видео запустится при прямом клике/тапе пользователя на слайд
-        }
-      }
-    }, { root: wrapperEl, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] });
-
-    each(slides, function(slide){ io.observe(slide); });
-
-    // Начальная инициализация
-    setTimeout(function(){ updateWrapperPlayback(wrapperEl); }, 0);
-  }
-
-  // Начальная синхронизация: оставить активным текущий кейс, остальные — пауза+сброс; в активном — выбрать слайды по центру и запустить
-  function initializeActiveCasePlaybackOnce(){
-    try {
-      var scroller = qs(document, '.main-section');
-      var cases = scroller ? qsa(scroller, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
-      if (!cases || !cases.length) return;
-      var activeCase = qs(document, '.cases-grid__item.active, .case.active');
-      if (!activeCase) return;
-
-      // Снимаем active с остальных кейсов, ставим паузу+0 для видео; talking-head только пауза
-      (cases.forEach ? cases.forEach : Array.prototype.forEach).call(cases, function(el){
-        if (el === activeCase){
-          try { el.classList.add('active'); } catch(_){ }
-          try { playTalkingHead(el); } catch(_){ }
-          try { ensureTalkingHeadAutoPlay(el); } catch(_){ }
-        } else {
-          try { el.classList.remove('active'); } catch(_){ }
-          try { pauseTalkingHead(el); } catch(_){ }
-          try { pauseAndResetVideosInElement(el); } catch(_){ }
-        }
-      });
-
-      // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс
-      var wrappers = qsa(activeCase, '.story-track-wrapper');
-      each(wrappers, function(w){
-        var slide = null;
-        try { slide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
-        try { updateWrapperPlayback(w); } catch(_){ }
-        // НЕ запускаем видео здесь - инициализация происходит без жеста пользователя
-        // Видео запустится при первом клике/тапе пользователя
-      });
-
-      // НЕ запускаем видео автоматически - только при прямом взаимодействии
-    } catch(_){ }
-  }
-
-  // Разблокировка одного видео (для динамически добавляемых)
-  function unlockSingleVideo(video){
-    if (!video || video.__unlockedByGesture || typeof video.play !== 'function') return false;
-    
-    try {
-      var wasPaused = video.paused;
-      var originalMuted = video.muted;
-      var currentTime = video.currentTime || 0;
-      
-      if (!video.muted) {
-        video.muted = true;
-      }
-      
-      var playPromise = video.play();
-      if (playPromise && typeof playPromise.then === 'function') {
-        playPromise.then(function(){
-          // Даём время браузеру зарегистрировать успешный запуск
-          setTimeout(function(){
-            try {
-              if (!video.paused) {
-                video.pause();
-              }
-              video.currentTime = currentTime;
-              if (!originalMuted) {
-                video.muted = originalMuted;
-              }
-              video.__unlockedByGesture = true;
-            } catch(_){}
-          }, 100);
-          return true;
-        }).catch(function(){ return false; });
-      } else {
-        // Если play() не вернул Promise - используем задержку
-        setTimeout(function(){
+          // Синхронизируем мини‑вью бренда и opacity (card-style назначаем ТОЛЬКО при open-stack)
           try {
-            if (!video.paused) {
-              video.pause();
-            }
-            video.currentTime = currentTime;
-          } catch(_){}
-        }, 100);
-        video.__unlockedByGesture = true;
-        return true;
+            var brandKey = extractBrandKeyFromCase(best);
+            setStackMiniViewCurrent(brandKey);
+            updateStackOpacityByCurrent();
+          } catch(_){ }
+
+          // Снимаем active со всех слайдов внутри неактивных кейсов
+          (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
+            if (!el.classList || el.classList.contains('active')) return;
+            var nonActiveSlides = qsa(el, '.story-track-wrapper__slide.active');
+            (nonActiveSlides.forEach ? nonActiveSlides.forEach : Array.prototype.forEach).call(nonActiveSlides, function(s){
+              try { s.classList.remove('active'); } catch(_){ }
+            });
+          });
+
+          // Ставим на паузу и сбрасываем все видео внутри неактивных кейсов
+          (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
+            if (!el.classList || el.classList.contains('active')) return;
+            pauseAndResetVideosInElement(el);
+          });
+
+          // Переопределяем active для слайда внутри каждого wrapper по центру
+          var wrappersInCase = qsa(best, '.story-track-wrapper');
+          each(wrappersInCase, function(w){
+            var activeSlide = null;
+            try { activeSlide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
+            try { updateWrapperPlayback(w); } catch(_){ }
+            if (activeSlide) { try { playVideos(activeSlide); } catch(_){ } }
+          });
+
+          // Запускаем видео только в активных слайдах внутри активного кейса
+          var activeSlidesInCase = qsa(best, '.story-track-wrapper__slide.active');
+          each(activeSlidesInCase, function(s){ try { playVideos(s); } catch(_){ } });
+
+          lastActiveCase = best;
+        }
       }
-    } catch(_){ return false; }
-    return false;
-  }
 
-  // Установка прямых обработчиков кликов на видео для разблокировки
-  function setupDirectVideoClickHandlers(){
-    try {
-      // Используем делегирование на document для всех видео - используем общий плеер
-      document.addEventListener('click', function(ev){
-        var target = ev.target;
-        // Находим ближайшее видео
-        var video = target.tagName === 'VIDEO' ? target : (target.closest ? target.closest('video') : null);
-        if (!video || typeof video.play !== 'function') return;
-        
-        // Проверяем, что видео в активном слайде
-        var slide = video.closest ? video.closest('.story-track-wrapper__slide') : null;
-        if (!slide) return;
-        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
-        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
-        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-        
-        // Если это активное видео - используем общий плеер
-        if (isActiveSlide && isActiveCase) {
-          var url = video.src || video.currentSrc || (video.getAttribute ? video.getAttribute('src') : null);
-          if (!url && video.dataset && video.dataset.src) {
-            url = video.dataset.src;
-          }
-          if (url) {
-            if (!sharedPlayerState.unlocked) {
-              sharedPlayerState.unlocked = true;
-              startUrlInSharedPlayer(url).then(function(success){
-                if (success) {
-                  syncSharedPlayerWithOriginalVideo();
-                }
-              });
-            } else {
-              switchUrlInSharedPlayer(url).then(function(success){
-                if (success) {
-                  syncSharedPlayerWithOriginalVideo();
-                }
-              });
-            }
-          }
-        }
-      }, { capture: true, passive: true });
-      
-      // Также для touchstart (для мобильных)
-      document.addEventListener('touchstart', function(ev){
-        var target = ev.target;
-        var video = target.tagName === 'VIDEO' ? target : (target.closest ? target.closest('video') : null);
-        if (!video || typeof video.play !== 'function') return;
-        
-        var slide = video.closest ? video.closest('.story-track-wrapper__slide') : null;
-        if (!slide) return;
-        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
-        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
-        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-        
-        if (isActiveSlide && isActiveCase) {
-          var url = video.src || video.currentSrc || (video.getAttribute ? video.getAttribute('src') : null);
-          if (!url && video.dataset && video.dataset.src) {
-            url = video.dataset.src;
-          }
-          if (url) {
-            if (!sharedPlayerState.unlocked) {
-              sharedPlayerState.unlocked = true;
-              startUrlInSharedPlayer(url).then(function(success){
-                if (success) {
-                  syncSharedPlayerWithOriginalVideo();
-                }
-              });
-            } else {
-              switchUrlInSharedPlayer(url).then(function(success){
-                if (success) {
-                  syncSharedPlayerWithOriginalVideo();
-                }
-              });
-            }
-          }
-        }
-      }, { capture: true, passive: true });
-      
-      // Обработчики кликов на слайды - используют общий плеер
-      document.addEventListener('click', function(ev){
-        var target = ev.target;
-        // Проверяем, кликнули ли на слайде или внутри него
-        var slide = target.closest ? target.closest('.story-track-wrapper__slide') : null;
-        if (!slide) return;
-        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
-        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
-        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-        
-        if (isActiveSlide && isActiveCase) {
-          // Используем общий плеер
-          var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
-          if (video) {
-            var url = video.src || video.currentSrc || (video.getAttribute ? video.getAttribute('src') : null);
-            if (!url && video.dataset && video.dataset.src) {
-              url = video.dataset.src;
-            }
-            if (url) {
-              if (!sharedPlayerState.unlocked) {
-                sharedPlayerState.unlocked = true;
-                startUrlInSharedPlayer(url).then(function(success){
-                  if (success) {
-                    syncSharedPlayerWithOriginalVideo();
-                  }
-                });
-              } else {
-                switchUrlInSharedPlayer(url).then(function(success){
-                  if (success) {
-                    syncSharedPlayerWithOriginalVideo();
-                  }
-                });
-              }
-            }
-          }
-        }
-      }, { capture: true, passive: true });
-      
-      // Также для touchstart на слайды (мобильные устройства)
-      document.addEventListener('touchstart', function(ev){
-        var target = ev.target;
-        var slide = target.closest ? target.closest('.story-track-wrapper__slide') : null;
-        if (!slide) return;
-        var isActiveSlide = !!(slide.classList && slide.classList.contains('active'));
-        var caseEl = slide.closest ? slide.closest('.cases-grid__item, .case') : null;
-        var isActiveCase = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
-        
-        if (isActiveSlide && isActiveCase) {
-          // Используем общий плеер
-          var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
-          if (video) {
-            var url = video.src || video.currentSrc || (video.getAttribute ? video.getAttribute('src') : null);
-            if (!url && video.dataset && video.dataset.src) {
-              url = video.dataset.src;
-            }
-            if (url) {
-              if (!sharedPlayerState.unlocked) {
-                sharedPlayerState.unlocked = true;
-                startUrlInSharedPlayer(url).then(function(success){
-                  if (success) {
-                    syncSharedPlayerWithOriginalVideo();
-                  }
-                });
-              } else {
-                switchUrlInSharedPlayer(url).then(function(success){
-                  if (success) {
-                    syncSharedPlayerWithOriginalVideo();
-                  }
-                });
-              }
-            }
-          }
-        }
-      }, { capture: true, passive: true });
-      
-      console.log('[snapSlider] Установлены прямые обработчики кликов на видео');
-    } catch(err){
-      console.warn('[snapSlider] Ошибка при установке обработчиков кликов:', err);
+      function onScroll(){
+        if (rafId) return;
+        rafId = requestAnimationFrame(updateActive);
+        if (settleTimer) { clearTimeout(settleTimer); }
+        settleTimer = setTimeout(updateActive, 140); // даём snap «досесть»
+      }
+
+      scroller.addEventListener('scroll', onScroll, { passive:true });
+      window.addEventListener('resize', onScroll, { passive:true });
+      window.addEventListener('orientationchange', onScroll, { passive:true });
+      updateActive();
     }
-  }
 
-  // Глобальная установка обработчиков ошибок воспроизведения для всех видео
-  function setupVideoErrorHandlers(){
-    try {
-            var allVideos = qsa(document, 'video');
-            each(allVideos, function(video){
-              // КРИТИЧНО для autoplay: устанавливаем muted и playsinline если не установлены
-              try {
-                if (!video.muted && !video.hasAttribute('muted')) {
-                  video.muted = true;
-                  video.setAttribute('muted', '');
-                }
-                if (video.setAttribute && !video.hasAttribute('playsinline')) {
-                  video.setAttribute('playsinline', '');
-                  video.playsInline = true;
-                }
-              } catch(_){}
-              
-              // Если разблокировка уже выполнена, пытаемся разблокировать это видео тоже
-              if (userGestureState.videosUnlocked && !video.__unlockedByGesture) {
-                unlockSingleVideo(video);
-              }
-        // Логируем ошибки загрузки/воспроизведения
-        if (!video.__errorHandlerAttached) {
-          video.addEventListener('error', function(ev){
-            var err = video.error;
-            console.error('[snapSlider] Ошибка видео элемента:', {
-              src: video.src || video.currentSrc || 'no src',
-              error: err ? {
-                code: err.code,
-                message: err.message || 'Unknown video error'
-              } : 'Unknown error',
-              readyState: video.readyState,
-              networkState: video.networkState,
-              time: new Date().toISOString()
-            });
-          }, { passive: true });
-          
-          // Логируем когда видео заблокировано политикой автовоспроизведения
-          video.addEventListener('play', function(){
-            var gestureInfo = getUserGestureInfo();
-            console.log('[snapSlider] Видео начало воспроизведение (событие play):', {
-              src: video.src || video.currentSrc || 'no src',
-              muted: video.muted,
-              paused: video.paused,
-              'Пользовательские жесты': {
-                'Есть жесты': gestureInfo.hasGesture,
-                'Время с последнего жеста': gestureInfo.timeSinceGesture ? (gestureInfo.timeSinceGesture / 1000).toFixed(2) + ' сек' : 'Нет данных',
-                'Окно жеста валидно': gestureInfo.isGestureValid
-              }
-            });
-          }, { passive: true });
-          
-          video.__errorHandlerAttached = true;
-        }
-      });
-    } catch(_){}
-  }
-
-  // Установка muted="true" и playsinline для всех видео - КРИТИЧНО для autoplay policy
-  // Autoplay policy разрешает автоматическое воспроизведение только для muted видео
-  // playsinline нужен для мобильных устройств
-  function setupVideoMutedForAutoplay(){
-    try {
-      var allVideos = qsa(document, 'video');
-      each(allVideos, function(video){
-        try {
-          // Устанавливаем muted если не установлен
-          if (!video.muted && !video.hasAttribute('muted')) {
-            video.muted = true;
-            video.setAttribute('muted', '');
-          }
-          // Устанавливаем playsinline для мобильных устройств
-          if (video.setAttribute && !video.hasAttribute('playsinline')) {
-            video.setAttribute('playsinline', '');
-            video.playsInline = true;
-          }
-        } catch(_){}
-      });
-      console.log('[snapSlider] Установлен muted="true" и playsinline для всех видео (требование autoplay policy)');
-    } catch(_){}
-  }
-
-  // Инициализация всего snap-слайдера
-  function initSnapSlider(){
-    // КРИТИЧНО: создаем один общий плеер для всей ленты (решает проблему autoplay policy)
-    createSharedPlayer();
-    
-    // КРИТИЧНО: устанавливаем muted="true" для всех видео ДО всего остального
-    // Это необходимо для удовлетворения autoplay policy браузера
-    setupVideoMutedForAutoplay();
-    
-    // Устанавливаем прямые обработчики кликов на видео (для разблокировки через прямое взаимодействие)
-    setupDirectVideoClickHandlers();
-    
-    // Устанавливаем глобальные обработчики ошибок для видео
-    setupVideoErrorHandlers();
-
-    var wrappers = qsa(document, '.story-track-wrapper');
-    if (!wrappers || !wrappers.length) return;
-    each(wrappers, function(wrapper){
-      var slides = qsa(wrapper, '.story-track-wrapper__slide');
+    // Наблюдатель активности слайда в зоне видимости wrapper-а
+    function setupActiveObserver(wrapperEl){
+      if (!wrapperEl) return;
+      var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
       if (!slides || !slides.length) return;
 
-      // Строим прогресс, если он ещё не создан
-      if (!qs(wrapper, '.story-progress')){
-        try { buildProgress(wrapper, slides.length); } catch(_){ }
-      }
+      var ratios = new Map();
+      var ACTIVE_THRESHOLD = 0.6; // Слайд считается активным при видимости >= 60%
 
-      // Синхронизируем длительности сегментов с длительностями видео
-      syncProgressDurations(wrapper);
+      var io = new IntersectionObserver(function(entries){
+        each(entries, function(entry){
+          ratios.set(entry.target, entry.intersectionRatio || 0);
+        });
 
-      // Запускаем наблюдатель за активным слайдом
-      setupActiveObserver(wrapper);
+        // Выбираем максимально видимый слайд
+        var bestSlide = null; var bestRatio = 0;
+        each(slides, function(slide){
+          var r = ratios.get(slide) || 0;
+          if (r > bestRatio){ bestRatio = r; bestSlide = slide; }
+        });
 
-      // Обновляем при изменении размеров окна
+        if (bestSlide && bestRatio >= ACTIVE_THRESHOLD){
+          // Меняем active только если родительский кейс активен
+          var caseEl = wrapperEl.closest ? wrapperEl.closest('.cases-grid__item, .case') : null;
+          var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
+          if (caseIsActive){
+            each(slides, function(slide){
+              if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
+              else { try { slide.classList.remove('active'); } catch(_){ } }
+            });
+            updateWrapperPlayback(wrapperEl);
+            // После присвоения active — запускаем видео в активном слайде
+            try { playVideos(bestSlide); } catch(_){ }
+          }
+        }
+      }, { root: wrapperEl, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] });
+
+      each(slides, function(slide){ io.observe(slide); });
+
+      // Начальная инициализация
+      setTimeout(function(){ updateWrapperPlayback(wrapperEl); }, 0);
+    }
+
+    // Начальная синхронизация: оставить активным текущий кейс, остальные — пауза+сброс; в активном — выбрать слайды по центру и запустить
+    function initializeActiveCasePlaybackOnce(){
       try {
-        window.addEventListener('resize', function(){ updateWrapperPlayback(wrapper); }, { passive: true });
-        window.addEventListener('orientationchange', function(){ updateWrapperPlayback(wrapper); }, { passive: true });
-      } catch(_){ }
+        var scroller = qs(document, '.main-section');
+        var cases = scroller ? qsa(scroller, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
+        if (!cases || !cases.length) return;
+        var activeCase = qs(document, '.cases-grid__item.active, .case.active');
+        if (!activeCase) return;
 
-      // Отслеживаем пользовательские свайпы/прокрутки внутри wrapper, чтобы не перебивать их автопереходами
+        // Снимаем active с остальных кейсов, ставим паузу+0 для видео; talking-head только пауза
+        (cases.forEach ? cases.forEach : Array.prototype.forEach).call(cases, function(el){
+          if (el === activeCase){
+            try { el.classList.add('active'); } catch(_){ }
+            try { playTalkingHead(el); } catch(_){ }
+            try { ensureTalkingHeadAutoPlay(el); } catch(_){ }
+          } else {
+            try { el.classList.remove('active'); } catch(_){ }
+            try { pauseTalkingHead(el); } catch(_){ }
+            try { pauseAndResetVideosInElement(el); } catch(_){ }
+          }
+        });
+
+        // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс, запустить активный
+        var wrappers = qsa(activeCase, '.story-track-wrapper');
+        each(wrappers, function(w){
+          var slide = null;
+          try { slide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
+          try { updateWrapperPlayback(w); } catch(_){ }
+          if (slide){ try { playVideos(slide); } catch(_){ } }
+        });
+
+        // Дополнительно запустить все уже активные слайды в активном кейсе
+        var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
+        each(activeSlides, function(s){ try { playVideos(s); } catch(_){ } });
+      } catch(_){ }
+    }
+
+    // Инициализация всего snap-слайдера
+    function initSnapSlider(){
+      var wrappers = qsa(document, '.story-track-wrapper');
+      if (!wrappers || !wrappers.length) return;
+      each(wrappers, function(wrapper){
+        var slides = qsa(wrapper, '.story-track-wrapper__slide');
+        if (!slides || !slides.length) return;
+
+        // Строим прогресс, если он ещё не создан
+        if (!qs(wrapper, '.story-progress')){
+          try { buildProgress(wrapper, slides.length); } catch(_){ }
+        }
+
+        // Синхронизируем длительности сегментов с длительностями видео
+        syncProgressDurations(wrapper);
+
+        // Запускаем наблюдатель за активным слайдом
+        setupActiveObserver(wrapper);
+
+        // Обновляем при изменении размеров окна
+        try {
+          window.addEventListener('resize', function(){ updateWrapperPlayback(wrapper); }, { passive: true });
+          window.addEventListener('orientationchange', function(){ updateWrapperPlayback(wrapper); }, { passive: true });
+        } catch(_){ }
+
+        // Отслеживаем пользовательские свайпы/прокрутки внутри wrapper, чтобы не перебивать их автопереходами
+        try {
+          var st = wrapper.__snapState || (wrapper.__snapState = {});
+          var onDown = function(){ st.isUserInteracting = true; if (st._uiTimer) clearTimeout(st._uiTimer); };
+          var onUp = function(){ if (st._uiTimer) clearTimeout(st._uiTimer); st._uiTimer = setTimeout(function(){ st.isUserInteracting = false; }, 300); };
+          var onScrollEvt = function(){
+            st.isUserInteracting = true;
+            if (st._uiTimer) clearTimeout(st._uiTimer);
+            st._uiTimer = setTimeout(function(){ st.isUserInteracting = false; }, 150);
+          };
+          wrapper.addEventListener('pointerdown', onDown, { passive: true });
+          wrapper.addEventListener('pointerup', onUp, { passive: true });
+          wrapper.addEventListener('pointercancel', onUp, { passive: true });
+          wrapper.addEventListener('touchstart', onDown, { passive: true });
+          wrapper.addEventListener('touchend', onUp, { passive: true });
+          wrapper.addEventListener('wheel', onScrollEvt, { passive: true });
+          wrapper.addEventListener('scroll', onScrollEvt, { passive: true });
+        } catch(_){ }
+      });
+
+      // Инициализируем Z-Index для элементов стека на мобильных
+      try { initializeStackZIndex(); } catch(_){ }
+
+      // Глобально включаем переключение active у .cases-grid__item по центру snap-скроллера
+      setupCasesActiveOnScrollSnap();
+
+      // Делегирование кликов по зонам навигации слайдов внутри активного кейса
       try {
-        var st = wrapper.__snapState || (wrapper.__snapState = {});
-        var onDown = function(){ st.isUserInteracting = true; if (st._uiTimer) clearTimeout(st._uiTimer); };
-        var onUp = function(){ if (st._uiTimer) clearTimeout(st._uiTimer); st._uiTimer = setTimeout(function(){ st.isUserInteracting = false; }, 300); };
-        var onScrollEvt = function(){
-          st.isUserInteracting = true;
-          if (st._uiTimer) clearTimeout(st._uiTimer);
-          st._uiTimer = setTimeout(function(){ st.isUserInteracting = false; }, 150);
-        };
-        wrapper.addEventListener('pointerdown', onDown, { passive: true });
-        wrapper.addEventListener('pointerup', onUp, { passive: true });
-        wrapper.addEventListener('pointercancel', onUp, { passive: true });
-        wrapper.addEventListener('touchstart', onDown, { passive: true });
-        wrapper.addEventListener('touchend', onUp, { passive: true });
-        wrapper.addEventListener('wheel', onScrollEvt, { passive: true });
-        wrapper.addEventListener('scroll', onScrollEvt, { passive: true });
-      } catch(_){ }
-    });
-
-    // Инициализируем Z-Index для элементов стека на мобильных
-    try { initializeStackZIndex(); } catch(_){ }
-
-    // Глобально включаем переключение active у .cases-grid__item по центру snap-скроллера
-    setupCasesActiveOnScrollSnap();
-
-    // Делегирование кликов по зонам навигации слайдов внутри активного кейса
-    try {
-      document.addEventListener('click', function(ev){
-        var target = ev.target;
-        if (!target) return;
-        // Тап по айтему списка стека или collection-item — открываем стек; при открытом: current -> переход по ссылке; не current -> закрытие и скролл к кейсу
-        var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
-        var collectionItem = target.closest ? target.closest('.collection-item') : null;
-        if (stackItem || collectionItem){
-          var container = getStackContainer();
-          if (container){
-            var isOpen = container.classList.contains('open-stack');
-            if (!isOpen){
-              const header = document.getElementById('header');
-              header.style.zIndex = '9';
-              container.classList.add('open-stack');
-              // При открытии: добавляем xx-card-style на текущий элемент
+        document.addEventListener('click', function(ev){
+          var target = ev.target;
+          if (!target) return;
+          // Тап по айтему списка стека или collection-item — открываем стек; при открытом: current -> переход по ссылке; не current -> закрытие и скролл к кейсу
+          var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
+          var collectionItem = target.closest ? target.closest('.collection-item') : null;
+          if (stackItem || collectionItem){
+            var container = getStackContainer();
+            if (container){
+              var isOpen = container.classList.contains('open-stack');
+              if (!isOpen){
+                const header = document.getElementById('header');
+                header.style.zIndex = '9';
+                container.classList.add('open-stack');
+                // При открытии: добавляем xx-card-style на текущий элемент
+                try {
+                  var activeCaseEl = qs(document, '.cases-grid__item.active, .case.active');
+                  var brandKeyOpen = extractBrandKeyFromCase(activeCaseEl);
+                  var listOpen = getStackList();
+                  if (brandKeyOpen && listOpen){
+                    var currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current');
+                    if (!currentElOpen){ setStackMiniViewCurrent(brandKeyOpen); currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current'); }
+                    if (currentElOpen){ clearStackCardStyles(); currentElOpen.classList.add(brandKeyOpen + '-card-style'); }
+                  }
+                } catch(_){ }
+                try { updateStackOpacityByCurrent(); } catch(_){ }
+                // Скрываем collection-wrapper при открытии стека
+                try {
+                  var collectionWrappers = qsa(document, '.collection-wrapper');
+                  each(collectionWrappers, function(el){ try { el.style.opacity = '0'; } catch(_){ } });
+                } catch(_){ }
+                return;
+              }
+              // Стек открыт: поведение зависит от того, кликнули по current или нет
+              var isCurrent = stackItem.classList && stackItem.classList.contains('current');
+              if (isCurrent){
+                // Переход по ближайшей ссылке внутри айтема
+                try {
+                  var link = stackItem.querySelector ? stackItem.querySelector('a[href]') : null;
+                  if (link && link.href){ link.click ? link.click() : (window.location.href = link.href); }
+                } catch(_){ }
+                return;
+              }
+              // Клик по не current: закрываем стек, чистим card-style, делаем мгновенный скролл к кейсу и сразу выставляем current/active
               try {
-                var activeCaseEl = qs(document, '.cases-grid__item.active, .case.active');
-                var brandKeyOpen = extractBrandKeyFromCase(activeCaseEl);
-                var listOpen = getStackList();
-                if (brandKeyOpen && listOpen){
-                  var currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current');
-                  if (!currentElOpen){ setStackMiniViewCurrent(brandKeyOpen); currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current'); }
-                  if (currentElOpen){ clearStackCardStyles(); currentElOpen.classList.add(brandKeyOpen + '-card-style'); }
+                const header = document.getElementById('header');
+                header.style.zIndex = '14';
+                container.classList.remove('open-stack');
+                clearStackCardStyles();
+                updateStackOpacityByCurrent();
+                var brandKeyItem = extractBrandKeyFromStackItem(stackItem);
+                // мгновенный скролл внутри .main-section
+                scrollToCaseByBrand(brandKeyItem, { instant: true });
+                // сразу выставляем .active кейсу и .current айтему
+                if (brandKeyItem){
+                  try {
+                    var caseElTarget = document.getElementById(brandKeyItem + '-case') || qs(document, '#' + brandKeyItem + '-case');
+                    if (caseElTarget){
+                      var scroller2 = qs(document, '.main-section');
+                      var cases = scroller2 ? qsa(scroller2, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
+                      each(cases, function(el){ if (el === caseElTarget) { try { el.classList.add('active'); playTalkingHead(el); } catch(__){} } else { try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} } });
+                    }
+                    // current в списке
+                    var listAll = getStackList();
+                    if (listAll){
+                      var targetItem = qs(listAll, '[brand-data="' + brandKeyItem + '-mini-view"]') || (listAll.querySelector ? listAll.querySelector('[brand-data$="-mini-view"][brand-data^="' + brandKeyItem + '"]') : null);
+                      if (targetItem){
+                        var currents = qsa(listAll, '.current');
+                        each(currents, function(el){ try { el.classList.remove('current'); } catch(__){} });
+                        try { targetItem.classList.add('current'); } catch(__){}
+                      }
+                    }
+                    // пересчёт opacity после смены current
+                    updateStackOpacityByCurrent();
+                  } catch(__){}
                 }
               } catch(_){ }
-              try { updateStackOpacityByCurrent(); } catch(_){ }
-              // Скрываем collection-wrapper при открытии стека
-              try {
-                var collectionWrappers = qsa(document, '.collection-wrapper');
-                each(collectionWrappers, function(el){ try { el.style.opacity = '0'; } catch(_){ } });
-              } catch(_){ }
               return;
             }
-            // Стек открыт: поведение зависит от того, кликнули по current или нет
-            var isCurrent = stackItem.classList && stackItem.classList.contains('current');
-            if (isCurrent){
-              // Переход по ближайшей ссылке внутри айтема
-              try {
-                var link = stackItem.querySelector ? stackItem.querySelector('a[href]') : null;
-                if (link && link.href){ link.click ? link.click() : (window.location.href = link.href); }
-              } catch(_){ }
-              return;
-            }
-            // Клик по не current: закрываем стек, чистим card-style, делаем мгновенный скролл к кейсу и сразу выставляем current/active
-            try {
+            return;
+          }
+
+          var closeStack = target.closest ? target.closest('#mob-stack-close') : null;
+          if (closeStack){
+            var container2 = getStackContainer();
+            if (container2 && container2.classList.contains('open-stack')){
               const header = document.getElementById('header');
               header.style.zIndex = '14';
-              container.classList.remove('open-stack');
-              clearStackCardStyles();
+              container2.classList.remove('open-stack');
+            }
+            // При закрытии — восстанавливаем opacity правило «все до current = 0» и снимаем card-style
+            try {
               updateStackOpacityByCurrent();
-              var brandKeyItem = extractBrandKeyFromStackItem(stackItem);
-              // мгновенный скролл внутри .main-section
-              scrollToCaseByBrand(brandKeyItem, { instant: true });
-              // сразу выставляем .active кейсу и .current айтему
-              if (brandKeyItem){
+              clearStackCardStyles();
+            } catch(_){ }
+            // Показываем collection-wrapper при закрытии стека с задержкой 300ms
+            try {
+              setTimeout(function(){
                 try {
-                  var caseElTarget = document.getElementById(brandKeyItem + '-case') || qs(document, '#' + brandKeyItem + '-case');
-                  if (caseElTarget){
-                    var scroller2 = qs(document, '.main-section');
-                    var cases = scroller2 ? qsa(scroller2, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
-                    each(cases, function(el){ if (el === caseElTarget) { try { el.classList.add('active'); playTalkingHead(el); } catch(__){} } else { try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} } });
-                  }
-                  // current в списке
-                  var listAll = getStackList();
-                  if (listAll){
-                    var targetItem = qs(listAll, '[brand-data="' + brandKeyItem + '-mini-view"]') || (listAll.querySelector ? listAll.querySelector('[brand-data$="-mini-view"][brand-data^="' + brandKeyItem + '"]') : null);
-                    if (targetItem){
-                      var currents = qsa(listAll, '.current');
-                      each(currents, function(el){ try { el.classList.remove('current'); } catch(__){} });
-                      try { targetItem.classList.add('current'); } catch(__){}
-                    }
-                  }
-                  // пересчёт opacity после смены current
-                  updateStackOpacityByCurrent();
-                } catch(__){}
-              }
+                  var collectionWrappers = qsa(document, '.collection-wrapper');
+                  each(collectionWrappers, function(el){ try { el.style.opacity = '1'; } catch(_){ } });
+                } catch(_){ }
+              }, 300);
             } catch(_){ }
             return;
           }
-          return;
-        }
-
-        var closeStack = target.closest ? target.closest('#mob-stack-close') : null;
-        if (closeStack){
-          var container2 = getStackContainer();
-          if (container2 && container2.classList.contains('open-stack')){
-            const header = document.getElementById('header');
-            header.style.zIndex = '14';
-            container2.classList.remove('open-stack');
+          var isLeft = target.closest ? target.closest('.story-tap-left') : null;
+          var isRight = target.closest ? target.closest('.story-tap-right') : null;
+          if (!isLeft && !isRight) return;
+          ev.preventDefault();
+          var caseEl = target.closest ? target.closest('.cases-grid__item, .case') : null;
+          if (!caseEl || !caseEl.classList || !caseEl.classList.contains('active')) return; // работаем только в активном кейсе
+          var wrapper = qs(caseEl, '.story-track-wrapper');
+          if (!wrapper) return;
+          var slides = qsa(wrapper, '.story-track-wrapper__slide');
+          if (!slides || !slides.length) return;
+          // Убеждаемся, что есть активный слайд
+          var curIdx = getActiveSlideIndex(wrapper);
+          if (curIdx === -1){
+            var ensured = setActiveSlideInWrapperByCenter(wrapper);
+            curIdx = ensured ? Array.prototype.indexOf.call(slides, ensured) : 0;
+            if (curIdx < 0) curIdx = 0;
           }
-          // При закрытии — восстанавливаем opacity правило «все до current = 0» и снимаем card-style
-          try {
-            updateStackOpacityByCurrent();
-            clearStackCardStyles();
-          } catch(_){ }
-          // Показываем collection-wrapper при закрытии стека с задержкой 300ms
+          var nextIdx = curIdx;
+          if (isRight) { nextIdx = (curIdx + 1) < slides.length ? (curIdx + 1) : 0; }
+          else if (isLeft) { nextIdx = (curIdx - 1) >= 0 ? (curIdx - 1) : (slides.length - 1); }
+
+          // Ставим active на целевой, снимаем с остальных
+          (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s, i){
+            if (i === nextIdx) { try { s.classList.add('active'); } catch(_){ } }
+            else { try { s.classList.remove('active'); } catch(_){ } }
+          });
+
+          // Прокручиваем к целевому и обновляем прогресс/воспроизведение
+          try { scrollToSlide(wrapper, slides, nextIdx, { forceIgnoreUser: true }); } catch(_){ }
+          try { updateWrapperPlayback(wrapper); } catch(_){ }
+          try { playVideos(slides[nextIdx]); } catch(_){ }
+          // Даем snap «досесть» и синхронизируем active и воспроизведение по центру
           try {
             setTimeout(function(){
               try {
-                var collectionWrappers = qsa(document, '.collection-wrapper');
-                each(collectionWrappers, function(el){ try { el.style.opacity = '1'; } catch(_){ } });
-              } catch(_){ }
-            }, 300);
-          } catch(_){ }
-          return;
-        }
-        var isLeft = target.closest ? target.closest('.story-tap-left') : null;
-        var isRight = target.closest ? target.closest('.story-tap-right') : null;
-        if (!isLeft && !isRight) return;
-        ev.preventDefault();
-        var caseEl = target.closest ? target.closest('.cases-grid__item, .case') : null;
-        if (!caseEl || !caseEl.classList || !caseEl.classList.contains('active')) return; // работаем только в активном кейсе
-        var wrapper = qs(caseEl, '.story-track-wrapper');
-        if (!wrapper) return;
-        var slides = qsa(wrapper, '.story-track-wrapper__slide');
-        if (!slides || !slides.length) return;
-        // Убеждаемся, что есть активный слайд
-        var curIdx = getActiveSlideIndex(wrapper);
-        if (curIdx === -1){
-          var ensured = setActiveSlideInWrapperByCenter(wrapper);
-          curIdx = ensured ? Array.prototype.indexOf.call(slides, ensured) : 0;
-          if (curIdx < 0) curIdx = 0;
-        }
-        var nextIdx = curIdx;
-        if (isRight) { nextIdx = (curIdx + 1) < slides.length ? (curIdx + 1) : 0; }
-        else if (isLeft) { nextIdx = (curIdx - 1) >= 0 ? (curIdx - 1) : (slides.length - 1); }
-
-        // Ставим active на целевой, снимаем с остальных
-        (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s, i){
-          if (i === nextIdx) { try { s.classList.add('active'); } catch(_){ } }
-          else { try { s.classList.remove('active'); } catch(_){ } }
+                var actual = setActiveSlideInWrapperByCenter(wrapper);
+                updateWrapperPlayback(wrapper);
+                if (actual) { playVideos(actual); }
+              } catch(__){}
+            }, 160);
+          } catch(__){}
         });
+      } catch(_){ }
+    }
 
-        // Прокручиваем к целевому и обновляем прогресс/воспроизведение
-        try { scrollToSlide(wrapper, slides, nextIdx, { forceIgnoreUser: true }); } catch(_){ }
-        
-        // КРИТИЧНО: используем общий плеер для переключения видео
-        var targetSlide = slides[nextIdx];
-        if (targetSlide) {
-          var targetVideo = qs(targetSlide, '.slide-inner__video-block video') || qs(targetSlide, 'video');
-          if (targetVideo) {
-            var url = targetVideo.src || targetVideo.currentSrc || (targetVideo.getAttribute ? targetVideo.getAttribute('src') : null);
-            if (!url && targetVideo.dataset && targetVideo.dataset.src) {
-              url = targetVideo.dataset.src;
-            }
-            if (url) {
-              // Если плеер еще не разблокирован - запускаем в контексте жеста
-              if (!sharedPlayerState.unlocked) {
-                sharedPlayerState.unlocked = true;
-                startUrlInSharedPlayer(url).then(function(success){
-                  if (success) {
-                    syncSharedPlayerWithOriginalVideo();
-                  }
-                });
-              } else {
-                // Плеер разблокирован - просто переключаем src
-                switchUrlInSharedPlayer(url).then(function(success){
-                  if (success) {
-                    syncSharedPlayerWithOriginalVideo();
-                  }
-                });
-              }
-            }
-          }
-        }
-        
-        try { updateWrapperPlayback(wrapper); } catch(_){ }
-      });
-    } catch(_){ }
-  }
-
-  if (typeof document !== 'undefined'){
-    // Инициализируем отслеживание жестов как можно раньше
-    initUserGestureTracking();
-    
-    if (document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', function(){
+    if (typeof document !== 'undefined'){
+      if (document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', function(){
+          initSnapSlider();
+          // Начальная синхронизация проигрывания для активного кейса
+          initializeActiveCasePlaybackOnce();
+        }, { once: true });
+      } else {
         initSnapSlider();
         // Начальная синхронизация проигрывания для активного кейса
         initializeActiveCasePlaybackOnce();
-      }, { once: true });
-    } else {
-      initSnapSlider();
-      // Начальная синхронизация проигрывания для активного кейса
-      initializeActiveCasePlaybackOnce();
+      }
     }
-  }
-})();
+  })();
