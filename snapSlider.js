@@ -123,6 +123,37 @@
     });
   }
 
+  // Ожидание готовности видео (canplay/loadeddata)
+  function waitCanPlay(video, timeout){
+    if (!video) return Promise.resolve();
+    timeout = timeout || 800;
+    if (video.readyState >= 3) return Promise.resolve(); // HAVE_FUTURE_DATA
+    return new Promise(function(resolve){
+      var done = false;
+      var cleanup = function(){
+        if (done) return;
+        done = true;
+        try {
+          video.removeEventListener('canplay', onReady);
+          video.removeEventListener('loadeddata', onReady);
+        } catch(_){}
+        if (timer) clearTimeout(timer);
+      };
+      var onReady = function(){
+        cleanup();
+        resolve();
+      };
+      try {
+        video.addEventListener('canplay', onReady, { once: true });
+        video.addEventListener('loadeddata', onReady, { once: true });
+      } catch(_){
+        // Если не удалось подписаться, просто resolve сразу
+        resolve();
+      }
+      var timer = setTimeout(onReady, timeout);
+    });
+  }
+
   // Безопасный play для Telegram WebView: всегда начинаем с muted
   async function safePlay(video){
     if (!video || typeof video.play !== 'function') return;
@@ -137,6 +168,46 @@
       if (isTelegramAndroid) {
         console.warn('[TG webview] play blocked:', e?.name || 'unknown', e?.message || '');
       }
+    }
+  }
+
+  // Активация видео с ожиданием готовности и ретраями
+  var currentPlayingVideos = new Set(); // Отслеживание активных видео
+  async function activateVideo(video){
+    if (!video || typeof video.play !== 'function') return;
+    
+    // На мгновение даём верстке устаканиться (TG любит rAF)
+    await new Promise(function(r){
+      requestAnimationFrame(function(){
+        requestAnimationFrame(r);
+      });
+    });
+
+    // Ждём готовности видео
+    await waitCanPlay(video, 800);
+    
+    // Пытаемся запустить
+    await safePlay(video);
+
+    // Если всё ещё не играет, делаем пару мягких ретраев
+    if (video.paused || video.readyState < 3){
+      await new Promise(function(r){ setTimeout(r, 150); });
+      await waitCanPlay(video, 600);
+      await safePlay(video);
+      
+      // Финальный ретрай если всё ещё не играет
+      if (video.paused){
+        await new Promise(function(r){ setTimeout(r, 100); });
+        try {
+          if (video.readyState >= 3 || video.readyState >= 2){
+            await safePlay(video);
+          }
+        } catch(_){}
+      }
+    }
+
+    if (!video.paused) {
+      currentPlayingVideos.add(video);
     }
   }
 
@@ -167,17 +238,14 @@
       if (!video || typeof video.play !== 'function') return;
       
       if (isTelegramAndroid){
-        // Для Telegram используем safePlay
-        safePlay(video).then(function(){
+        // Для Telegram используем activateVideo (с ожиданием готовности и ретраями)
+        activateVideo(video).then(function(){
           // После успешного mute-автоплея пробуем включить звук в окне жеста
           tryUnmuteInGestureWindow(video);
         }).catch(function(){});
       } else {
-        // Для обычных браузеров оставляем как есть
-        try {
-          var p = video.play();
-          if (p && p.catch) p.catch(function(){});
-        } catch(_){ }
+        // Для обычных браузеров используем activateVideo тоже (но без дополнительных проверок для TG)
+        activateVideo(video).catch(function(){});
       }
     });
   }
@@ -332,14 +400,11 @@
     var v = getTalkingHeadVideo(root);
     if (!v) return;
     if (isTelegramAndroid){
-      safePlay(v).then(function(){
+      activateVideo(v).then(function(){
         tryUnmuteInGestureWindow(v);
       }).catch(function(){});
     } else {
-      try {
-        var p = v.play();
-        if (p && p.catch) p.catch(function(){});
-      } catch(_){ }
+      activateVideo(v).catch(function(){});
     }
   }
   function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
@@ -353,8 +418,8 @@
         try {
           if (caseEl.classList && caseEl.classList.contains('active')){
             if (isTelegramAndroid){
-              // Для Telegram используем safePlay напрямую
-              safePlay(v).then(function(){
+              // Для Telegram используем activateVideo
+              activateVideo(v).then(function(){
                 tryUnmuteInGestureWindow(v);
               }).catch(function(){});
             } else {
@@ -816,8 +881,82 @@
         video.muted = true;
         // playsinline как свойство
         video.playsInline = true;
+        // preload="metadata" если не установлен
+        if (!video.hasAttribute('preload')) video.setAttribute('preload', 'metadata');
       } catch(_){}
     });
+  }
+
+  // Подстановка src и load() для предподогрева видео
+  function ensureSrcAndLoad(video){
+    if (!video) return;
+    try {
+      // Если src уже есть (и не blob), не трогаем
+      if (video.src && video.src.length > 0 && !video.src.startsWith('blob:') && !video.src.startsWith('data:')) return;
+      
+      // Если уже есть source элементы, значит загрузка уже идёт через newMobVideoLazy.js - не трогаем
+      var hasSource = video.querySelector && video.querySelector('source');
+      if (hasSource) return;
+      
+      // Проверяем data-src или mob-data-src
+      var dataSrc = video.dataset && video.dataset.src;
+      var mobDataSrc = video.getAttribute && video.getAttribute('mob-data-src');
+      var srcToUse = mobDataSrc || dataSrc;
+      
+      if (srcToUse && srcToUse.length > 0){
+        // Если это data-src или mob-data-src, лучше не трогать - пусть newMobVideoLazy.js сам управляет загрузкой
+        // Но можем вызвать load() если видео уже загружено через source
+        if (video.readyState > 0) {
+          try { video.load(); } catch(_){}
+        }
+      }
+    } catch(_){}
+  }
+
+  // Настройка prewarm IntersectionObserver для раннего подогрева видео (Telegram)
+  function setupVideoPrewarm(){
+    if (!isTelegramAndroid || typeof IntersectionObserver === 'undefined') return;
+    
+    var NEAR_ROOT_MARGIN = '200% 0px'; // подогреваем за 1-2 экрана
+    var prewarmIO = new IntersectionObserver(function(entries){
+      each(entries, function(entry){
+        if (entry.isIntersecting){
+          var video = entry.target;
+          ensureSrcAndLoad(video);
+          // После первого подогрева отписываемся
+          try { prewarmIO.unobserve(video); } catch(_){}
+        }
+      });
+    }, { rootMargin: NEAR_ROOT_MARGIN, threshold: 0 });
+
+    // Наблюдаем все видео для предподогрева
+    var videos = qsa(document, 'video');
+    each(videos, function(video){
+      try { prewarmIO.observe(video); } catch(_){}
+    });
+
+    // Также подписываемся на новые видео
+    if (typeof MutationObserver !== 'undefined' && document.body){
+      var prewarmObserver = new MutationObserver(function(mutations){
+        mutations.forEach(function(mutation){
+          if (mutation.addedNodes){
+            each(mutation.addedNodes, function(node){
+              if (node.nodeType === 1){
+                if (node.tagName === 'VIDEO'){
+                  try { prewarmIO.observe(node); } catch(_){}
+                } else {
+                  var videos = qsa(node, 'video');
+                  each(videos, function(v){
+                    try { prewarmIO.observe(v); } catch(_){}
+                  });
+                }
+              }
+            });
+          }
+        });
+      });
+      prewarmObserver.observe(document.body, { childList: true, subtree: true });
+    }
   }
 
   // Инициализация всего snap-слайдера
@@ -825,6 +964,10 @@
     // Устанавливаем атрибуты для всех видео (особенно важно для Telegram)
     if (isTelegramAndroid){
       ensureVideoAttributes();
+      
+      // Настраиваем prewarm для раннего подогрева видео
+      setupVideoPrewarm();
+      
       // Также устанавливаем при динамическом добавлении видео
       if (typeof MutationObserver !== 'undefined'){
         var videoObserver = new MutationObserver(function(mutations){
@@ -838,6 +981,7 @@
                       node.playsInline = true;
                       if (!node.hasAttribute('muted')) node.setAttribute('muted', '');
                       if (!node.hasAttribute('playsinline')) node.setAttribute('playsinline', '');
+                      if (!node.hasAttribute('preload')) node.setAttribute('preload', 'metadata');
                     } catch(_){}
                   } else {
                     var videos = qsa(node, 'video');
@@ -847,6 +991,7 @@
                         v.playsInline = true;
                         if (!v.hasAttribute('muted')) v.setAttribute('muted', '');
                         if (!v.hasAttribute('playsinline')) v.setAttribute('playsinline', '');
+                        if (!v.hasAttribute('preload')) v.setAttribute('preload', 'metadata');
                       } catch(_){}
                     });
                   }
