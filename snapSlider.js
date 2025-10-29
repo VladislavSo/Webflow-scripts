@@ -261,6 +261,90 @@
   // Инициализация отслеживания жестов
   function initUserGestureTracking(){
     try {
+      // Функция для запуска активных видео при жесте (в контексте жеста)
+      function playActiveVideosInGestureContext(){
+        try {
+          // Находим активный кейс
+          var activeCase = qs(document, '.cases-grid__item.active, .case.active');
+          if (!activeCase) return;
+          
+          // Находим все активные слайды в активном кейсе
+          var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
+          var activeVideos = [];
+          
+          each(activeSlides, function(slide){
+            var videos = qsa(slide, 'video');
+            each(videos, function(v){
+              // Проверяем, нет ли уже этого видео в массиве
+              var found = false;
+              for (var j = 0; j < activeVideos.length; j++) {
+                if (activeVideos[j] === v) {
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
+                activeVideos.push(v);
+              }
+            });
+          });
+          
+          // Talking-head видео тоже
+          var talkingHeadVideo = qs(activeCase, '.cases-grid__item__container__wrap__talking-head__video video');
+          if (talkingHeadVideo) {
+            var foundTalking = false;
+            for (var k = 0; k < activeVideos.length; k++) {
+              if (activeVideos[k] === talkingHeadVideo) {
+                foundTalking = true;
+                break;
+              }
+            }
+            if (!foundTalking) {
+              activeVideos.push(talkingHeadVideo);
+            }
+          }
+          
+          // Запускаем все активные видео СИНХРОННО в контексте жеста
+          each(activeVideos, function(video){
+            try {
+              if (!video || typeof video.play !== 'function') return;
+              
+              // Убеждаемся что muted для автовоспроизведения
+              var wasMuted = video.muted;
+              if (!video.muted) video.muted = true;
+              
+              // ВАЖНО: запускаем СИНХРОННО, в контексте жеста
+              var playPromise = video.play();
+              
+              // Помечаем как разблокированное
+              video.__unlockedByGesture = true;
+              
+              // Обрабатываем промис асинхронно, но запуск уже в контексте жеста
+              if (playPromise && typeof playPromise.then === 'function') {
+                playPromise.then(function(){
+                  // Успешно запущено - восстанавливаем muted если нужно
+                  if (!wasMuted) {
+                    setTimeout(function(){
+                      try { video.muted = wasMuted; } catch(_){}
+                    }, 50);
+                  }
+                }).catch(function(err){
+                  console.warn('[snapSlider] Ошибка при запуске активного видео:', err);
+                });
+              }
+            } catch(videoErr){
+              console.warn('[snapSlider] Ошибка обработки видео:', videoErr);
+            }
+          });
+          
+          if (activeVideos.length > 0) {
+            console.log('[snapSlider] Запущено активных видео в контексте жеста:', activeVideos.length);
+      }
+    } catch(err){
+          console.warn('[snapSlider] Ошибка при запуске активных видео:', err);
+        }
+      }
+      
       // Приоритетный обработчик для touchstart - должен сработать ПЕРВЫМ до всех других обработчиков
       function handleFirstGesture(ev){
         var now = Date.now();
@@ -268,8 +352,7 @@
         
         userGestureState.lastGestureTime = now;
         
-        // При первом жесте - СИНХРОННО запускаем разблокировку прямо здесь
-        // Это критично - окно жеста активно только в текущем event loop
+        // При первом жесте - СИНХРОННО запускаем разблокировку всех видео
         if (isFirstGesture) {
           console.log('[snapSlider] 👆 Первый жест пользователя зафиксирован, СИНХРОННАЯ разблокировка видео:', {
             type: ev.type,
@@ -278,7 +361,6 @@
           });
           
           // КРИТИЧНО: запускаем разблокировку СИНХРОННО, без setTimeout/промисов
-          // Это гарантирует, что play() вызывается в том же event loop, где активен жест
           unlockAllVideosOnFirstGestureSync();
         } else {
           console.log('[snapSlider] Пользовательский жест зафиксирован:', {
@@ -287,6 +369,10 @@
             time: new Date(now).toISOString()
           });
         }
+        
+        // При ЛЮБОМ жесте - запускаем активные видео в контексте жеста
+        // Это критично для работы автовоспроизведения
+        playActiveVideosInGestureContext();
       }
       
       // Обработчики для всех типов жестов, но touchstart/pointerdown - с максимальным приоритетом (capture phase)
@@ -341,7 +427,7 @@
       // Пытаемся подключить сразу
       if (!attachToMainSection()) {
         // Если .main-section еще не готов, пробуем с задержками
-        setTimeout(function(){
+                      setTimeout(function(){
           if (!attachToMainSection()) {
             setTimeout(function(){
               attachToMainSection();
