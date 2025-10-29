@@ -132,9 +132,19 @@
           USER_GESTURE_ACTIVATED: USER_GESTURE_ACTIVATED
         });
         
+        // Логируем результаты проверок условий
+        var condition1 = isFetching || (!isLoaded && hasSource);
+        var condition2 = video.readyState >= 2 || !hasSource;
+        console.log('[snapSlider] playVideos - video [' + idx + '] condition checks:', {
+          'isFetching || (!isLoaded && hasSource)': condition1,
+          'readyState >= 2 || !hasSource': condition2,
+          'actual readyState': readyState,
+          'actual hasSource': hasSource
+        });
+        
         // Если видео загружается через lazy loader, ждем завершения загрузки
-        if (isFetching || (!isLoaded && hasSource)){
-          console.log('[snapSlider] playVideos - video [' + idx + '] is loading, waiting...');
+        if (condition1){
+          console.log('[snapSlider] playVideos - video [' + idx + '] is loading, waiting... (branch 1)');
           var tryPlayWhenReady = function(){
             if (video.dataset && video.dataset.fetching === 'true'){
               setTimeout(tryPlayWhenReady, 100);
@@ -194,8 +204,8 @@
         }
         
         // Если видео готово, пытаемся сразу запустить
-        if (video.readyState >= 2 || !hasSource){
-          console.log('[snapSlider] playVideos - video [' + idx + '] ready, calling play() immediately...');
+        if (condition2){
+          console.log('[snapSlider] playVideos - video [' + idx + '] ready, calling play() immediately... (branch 2)');
           var p = video.play();
           console.log('[snapSlider] playVideos - video [' + idx + '] play() returned:', p ? 'Promise' : 'void');
           if (p && p.then){
@@ -235,7 +245,8 @@
             });
           }
         } else {
-          console.log('[snapSlider] playVideos - video [' + idx + '] not ready (readyState=' + readyState + ', hasSource=' + hasSource + '), skipping');
+          console.log('[snapSlider] playVideos - video [' + idx + '] NOT entering any branch! (readyState=' + readyState + ', hasSource=' + hasSource + ', condition1=' + condition1 + ', condition2=' + condition2 + '), skipping');
+          console.log('[snapSlider] playVideos - video [' + idx + '] DEBUG: readyState >= 2?', readyState >= 2, ', !hasSource?', !hasSource);
         }
       } catch(err){
         console.error('[snapSlider] playVideos - video [' + idx + '] exception:', err);
@@ -1045,7 +1056,7 @@
             }
           });
           try {
-            updateWrapperPlayback(wrapperEl);
+          updateWrapperPlayback(wrapperEl);
           } catch(err){
             console.error('[snapSlider] Error in setupActiveObserver - updateWrapperPlayback:', err);
           }
@@ -1183,14 +1194,14 @@
 
       // Синхронизируем длительности сегментов с длительностями видео
       try {
-        syncProgressDurations(wrapper);
+      syncProgressDurations(wrapper);
       } catch(err){
         console.error('[snapSlider] Error in initSnapSlider - syncProgressDurations:', err);
       }
 
       // Запускаем наблюдатель за активным слайдом
       try {
-        setupActiveObserver(wrapper);
+      setupActiveObserver(wrapper);
       } catch(err){
         console.error('[snapSlider] Error in initSnapSlider - setupActiveObserver:', err);
       }
