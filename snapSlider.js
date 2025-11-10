@@ -45,6 +45,9 @@
       var videos = qsa(slideEl, '.slide-inner__video-block video, video');
       if (!videos || !videos.length) return;
       each(videos, function(video){
+        var isTalking = false;
+        try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+        if (isTalking) return;
         try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
         try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
       });
