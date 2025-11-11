@@ -97,8 +97,7 @@ window.StackUI = window.StackUI || {};
     lastCurrentCard: null,
     removedCurrentCard: null,
     fromListScroll: false,
-    isProgrammaticListScroll: false,
-    fromListScrollResetId: null
+    isProgrammaticListScroll: false
   };
 
   ns.cache = {
