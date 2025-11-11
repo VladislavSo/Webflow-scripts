@@ -1,6 +1,7 @@
 (function(ns) {
   'use strict';
 
+  // Снять с карточек классы current и любые "*-card-style".
   function clearCardDecorations(ns) {
     ns.collections.cards.forEach(card => {
       card.classList.remove('current');
@@ -11,6 +12,8 @@
     ns.state.lastCurrentCard = null;
   }
 
+  // Пометить карточку по префиксу: добавить current и "<prefix>-card-style".
+  // Управление: scrollContainer — прокрутить контейнер списка до карточки.
   function markCardByPrefix(ns, prefix, { scrollContainer = true } = {}) {
     const targetCard =
           ns.maps.cardPrefixMap.get(prefix) ||
@@ -23,7 +26,15 @@
     ns.collections.cards.forEach(c => c.classList.remove('current'));
     targetCard.classList.add('current', `${prefix}-card-style`);
     ns.state.lastCurrentCard = targetCard;
-
+    /*
+    if (scrollContainer) {
+      const index = ns.collections.cards.indexOf(targetCard);
+      if (index !== -1) {
+        const scrollTop = index * ns.metrics.containerItemHeightPx + index * ns.state.rowGapPx;
+        ns.dom.container.scrollTo({ top: scrollTop, behavior: ns.utils.smoothBehavior(ns) });
+      }
+    }
+    */
     if (scrollContainer) {
       const index = ns.collections.cards.indexOf(targetCard);
       if (index !== -1) {
@@ -37,6 +48,7 @@
     }
   }
 
+  // Установить активный кейс и синхронизировать карточку.
   function setActiveCase(ns, targetCase, { scrollContainer = true } = {}) {
     if (!targetCase) return;
     ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
@@ -49,6 +61,7 @@
     ns.state.lastActiveCase = targetCase;
   }
 
+  // Установить активным только кейс (без вмешательства в карточки/скролл списка).
   function setActiveCaseOnly(ns, targetCase) {
     if (!targetCase) return;
     ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
@@ -56,6 +69,8 @@
     ns.state.lastActiveCase = targetCase;
   }
 
+  // Обновить активный кейс по текущему положению "линии" активации.
+  // Не вызывается во время программной прокрутки окна.
   function updateCasesActiveByWindowScroll(ns, meas) {
     let active = null;
     const rects = meas ? meas.caseRects : ns.collections.caseItems.map(i => i.getBoundingClientRect());
@@ -71,6 +86,7 @@
     }
   }
 
+  // Создать/пересоздать IntersectionObserver для выбора активного кейса по "линии" активации.
   function createCasesObserver(ns) {
     if (!('IntersectionObserver' in window)) return;
     if (ns.observer && ns.observer.cases) {
@@ -98,7 +114,6 @@
 
   ns.sync = {
     clearCardDecorations,
-    ensureCardCurrentAfterDelay,
     markCardByPrefix,
     setActiveCase,
     setActiveCaseOnly,
