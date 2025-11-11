@@ -9,7 +9,6 @@
       });
     });
     ns.state.lastCurrentCard = null;
-    ns.state.removedCurrentCard = null;
   }
 
   function markCardByPrefix(ns, prefix, { scrollContainer = true } = {}) {
@@ -24,7 +23,6 @@
     ns.collections.cards.forEach(c => c.classList.remove('current'));
     targetCard.classList.add('current', `${prefix}-card-style`);
     ns.state.lastCurrentCard = targetCard;
-    ns.state.removedCurrentCard = null;
 
     if (scrollContainer) {
       const index = ns.collections.cards.indexOf(targetCard);
@@ -100,6 +98,7 @@
 
   ns.sync = {
     clearCardDecorations,
+    ensureCardCurrentAfterDelay,
     markCardByPrefix,
     setActiveCase,
     setActiveCaseOnly,
