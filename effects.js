@@ -2,7 +2,6 @@
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
 
-  // Обновить z-index карточек и класс rear по расстоянию до верха контейнера.
   function updateZIndexes(ns, meas) {
     const cards = ns.collections.cards;
     const total = ns.state.total;
@@ -19,15 +18,13 @@
     });
   }
 
-  // Обновить визуальные эффекты карточек (позиция/масштаб/прозрачность/фон).
-  // Управление: учитывает ns.state.prefersReducedMotion — в этом режиме эффекты упрощаются.
   function updateListItemEffects(ns, meas) {
     const { color21, color18, color14 } = ns.colors;
     const m = ns.metrics;
     const cards = ns.collections.cards;
 
-    // найти текущую карточку (если есть)
-    const currentCard = ns.state.lastCurrentCard || cards.find(c => c.classList.contains('current'));
+    const currentCardFromClass = cards.find(c => c.classList.contains('current'));
+    const currentCard = ns.state.lastCurrentCard || currentCardFromClass || ns.state.removedCurrentCard;
     const currentIdx = currentCard ? cards.indexOf(currentCard) : -1;
     let currentAffected = false;
 
@@ -39,11 +36,9 @@
         card.style.backgroundColor = `rgb(${color21.r}, ${color21.g}, ${color21.b})`;
         ns.cache.cardChildren[idx].forEach(el => { el.style.opacity = '1'; });
       });
-      // в режиме reduced motion не трогаем current
       return;
     }
 
-    // сброс
     cards.forEach((card, idx) => {
       card.style.transform = 'scale(1)';
       card.style.top = '0px';
@@ -63,7 +58,6 @@
     const inc2Prog = new Array(cards.length).fill(-1);
     const inc3Prog = new Array(cards.length).fill(-1);
 
-    // верхнее влияние
     for (let j = 1; j < cards.length; j++) {
       const distTop = cardRects[j].top - containerRect.top;
       if (distTop > m.effectStartPx) continue;
@@ -75,7 +69,6 @@
       if (t2 >= 0) idx2Prog[t2] = Math.max(idx2Prog[t2], p);
     }
 
-    // нижнее влияние
     for (let j = 0; j < cards.length; j++) {
       const distFromBottom = containerRect.bottom - cardRects[j].bottom;
       if (distFromBottom < m.bottomBandStartPx || distFromBottom > m.bottomBandEndPx) continue;
@@ -104,7 +97,6 @@
       if (inc3Prog[i] >= 0) { botKind = 'inc3'; botP = inc3Prog[i]; }
       else if (inc2Prog[i] >= 0) { botKind = 'inc2'; botP = inc2Prog[i]; }
 
-      // позиция
       if (topKind === 'idx2') {
         const t = -m.topIndex2StartPx - (m.topIndex2EndPx - m.topIndex2StartPx) * topP;
         card.style.top = `${t}px`;
@@ -127,7 +119,6 @@
         card.style.bottom = '0px';
       }
 
-      // доминирующий канал → визуальные свойства
       const weight = (kind, p) => {
         if (!kind) return -1;
         const base = kind.endsWith('3') ? 3 : (kind.endsWith('2') ? 2 : 1);
@@ -139,7 +130,6 @@
       const useP = botW > topW ? botP : topP;
 
       if (useKind === 'idx2') {
-        // сверху (index-2): scale 0.92→0.79, opacity всегда 0, bg 18→14
         const s = 0.92 - 0.13 * useP;
         const o = 0;
         const r = Math.round(color18.r + (color14.r - color18.r) * useP);
@@ -149,7 +139,6 @@
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'idx1') {
-        // сверху (index-1): scale 1→0.92, opacity 1→0, bg 21→18
         const s = 1 - 0.08 * useP;
         const o = 1 - useP;
         const r = Math.round(color21.r + (color18.r - color21.r) * useP);
@@ -159,7 +148,6 @@
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc3') {
-        // снизу (index+3): scale 0.79→0.92, opacity 0→1, bg 14→18
         const s = 0.79 + 0.13 * useP;
         const o = 0;
         const r = Math.round(color14.r + (color18.r - color14.r) * useP);
@@ -169,7 +157,6 @@
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
         ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc2') {
-        // снизу (index+2): scale 0.92→1, opacity 0→1, bg 18→21
         const s = 0.92 + 0.08 * useP;
         const o = useP;
         const r = Math.round(color18.r + (color21.r - color18.r) * useP);
@@ -191,24 +178,8 @@
           ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '1'; });
         }
       }
-
-      /* Removed: отключено отмечание current-карточки как затронутой эффектом на кадре скролла списка
-      // если именно current-карточка получила эффект в кадре скролла списка — отметим
-      if (ns.state.fromListScroll && i === currentIdx) {
-        if (useKind) currentAffected = true;
-      }
-      */
     }
 
-    /* Removed: отключено снятие класса current после применения эффектов
-    // после применения ко всем — снять current, если нужно
-    if (ns.state.fromListScroll && currentAffected && currentCard) {
-      currentCard.classList.remove('current');
-      ns.state.lastCurrentCard = null;
-    }
-    */
-
-    // Логика снятия/восстановления current на основе выхода за рамки
     if (ns.state.fromListScroll && currentCard && currentIdx !== -1) {
       const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
       const distTop = r.top - containerRect.top - 1;                   // расстояние до верха контейнера (минус 1px)
@@ -234,9 +205,6 @@
     }
   }
 
-  
-
-  // Единый rAF-цикл: один кадр — один набор замеров и применений.
   function scheduleFrameUpdate(ns) {
     if (ns.state.tickingFrame) return;
     ns.state.tickingFrame = true;
@@ -262,4 +230,3 @@
     scheduleFrameUpdate
   };
 })(window.StackUI);
-
