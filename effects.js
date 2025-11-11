@@ -188,9 +188,7 @@
       const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx; // строго больше начала нижней полосы
       const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
 
-      const skipRemoval = ns.state.isProgrammaticListScroll || ns.state.isProgrammaticWindowScroll;
-
-      if (!skipRemoval && (isAboveEnd || isBelowStart)) {
+      if (isAboveEnd || isBelowStart) {
         if (currentCard.classList.contains('current')) {
           currentCard.classList.remove('current');
           ns.state.removedCurrentCard = currentCard;
@@ -204,45 +202,6 @@
         }
       }
     }
-  }
-
-  function findCardByPrefix(ns, prefix) {
-    if (!prefix) return null;
-    if (ns.maps && ns.maps.cardPrefixMap && ns.maps.cardPrefixMap.has(prefix)) {
-      return ns.maps.cardPrefixMap.get(prefix);
-    }
-    return ns.collections.cards.find(c => {
-      const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
-      return brand === `${prefix}-mini-view`;
-    }) || null;
-  }
-
-  function ensureCurrentMatchesActive(ns) {
-    if (!ns.sync || typeof ns.sync.markCardByPrefix !== 'function') return;
-    const activeCase = ns.state.lastActiveCase || ns.collections.caseItems.find(ci => ci.classList.contains('active'));
-    if (!activeCase) return;
-    const prefix = (activeCase.id || '').split('-')[0] || '';
-    if (!prefix) return;
-    const expectedCard = findCardByPrefix(ns, prefix);
-    if (!expectedCard || expectedCard.classList.contains('current')) return;
-    ns.sync.markCardByPrefix(ns, prefix, { scrollContainer: false });
-  }
-
-  function scheduleFromListScrollReset(ns) {
-    if (!ns.state.fromListScroll) {
-      if (ns.state.fromListScrollResetId) {
-        clearTimeout(ns.state.fromListScrollResetId);
-        ns.state.fromListScrollResetId = null;
-      }
-      return;
-    }
-    if (ns.state.fromListScrollResetId) {
-      clearTimeout(ns.state.fromListScrollResetId);
-    }
-    ns.state.fromListScrollResetId = setTimeout(() => {
-      ns.state.fromListScroll = false;
-      ns.state.fromListScrollResetId = null;
-    }, 120);
   }
 
   function scheduleFrameUpdate(ns) {
@@ -259,8 +218,7 @@
 
       if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
 
-      ensureCurrentMatchesActive(ns);
-      scheduleFromListScrollReset(ns);
+      ns.state.fromListScroll = false; // сброс источника кадра
       ns.state.tickingFrame = false;
     });
   }
