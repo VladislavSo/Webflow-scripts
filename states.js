@@ -1,12 +1,9 @@
-// Глобальное пространство имён для модулей списка/кейсов.
-// Все остальные скрипты расширяют этот объект.
 window.StackUI = window.StackUI || {};
 
 (function(ns) {
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
 
-  // Селекторы ключевых узлов DOM
   ns.selectors = {
     container: '.main-container__stack-wrap__wrapper__list',
     casesGrid: '.cases-grid',
@@ -16,7 +13,6 @@ window.StackUI = window.StackUI || {};
     casesContainer: '.main-container__cases-container'
   };
 
-  // Узлы DOM (будут заполнены при инициализации)
   ns.dom = {
     container: null,
     casesGrid: null,
@@ -24,40 +20,34 @@ window.StackUI = window.StackUI || {};
     casesContainer: null
   };
 
-  // Коллекции элементов
   ns.collections = {
     cards: [],
     caseItems: []
   };
 
-  // Карты соответствий по префиксу (brand/ID)
   ns.maps = {
     cardPrefixMap: new Map(),
     casePrefixMap: new Map()
   };
 
-  // Цвета (RGB)
   ns.colors = {
     color21: { r: 21, g: 21, b: 21 },
     color18: { r: 18, g: 18, b: 18 },
     color14: { r: 14, g: 14, b: 14 }
   };
 
-  // Константы (в rem)
   ns.constants = {
-    thresholdRem: 15.75,            // Порог смены z-index
-    triggerOffsetRem: 33.75,        // Вертикаль активации элемента кейса
-    containerItemHeightRem: 7.375,  // Вертикальный шаг карточек списка
-    pageScrollOffsetRem: 6.5,       // Отступ при прокрутке окна к кейсу
+    thresholdRem: 15.75,
+    triggerOffsetRem: 33.75,
+    containerItemHeightRem: 7.375,
+    pageScrollOffsetRem: 6.5,
 
-    // Верхняя полоса влияния (управляет i-1 и i-2)
     effectStartRem: 10.125,
     effectEndRem: 2.75,
     topIndex1EndRem: -1.5,
     topIndex2StartRem: -1.5,
     topIndex2EndRem: -2.75,
 
-    // Нижняя полоса влияния (управляет i+2 и i+3)
     bottomBandStartRem: 10.125,
     bottomBandEndRem: 18,
     bottomIndex2StartRem: -1.5,
@@ -65,15 +55,11 @@ window.StackUI = window.StackUI || {};
     bottomIndex3StartRem: -2.75,
     bottomIndex3EndRem: -1.5,
 
-    // Анимация wrapper и высоты списка от скролла окна
-    //wrapperMarginStartRem: 29.875,
-    //wrapperMarginEndRem: 10.375,
     wrapperScrollEndRem: 19.5,
     listHeightStartRem: 36.5,
     listHeightEndRem: 44.375
   };
 
-  // Метрики в пикселях (заполняются при пересчёте)
   ns.metrics = {
     root: 16,
     thresholdPx: 0,
@@ -101,7 +87,6 @@ window.StackUI = window.StackUI || {};
     listHeightEndPx: 0
   };
 
-  // Состояние выполнения/интеракций
   ns.state = {
     total: 0,
     rowGapPx: 0,
@@ -112,20 +97,11 @@ window.StackUI = window.StackUI || {};
     lastCurrentCard: null,
     removedCurrentCard: null,
     fromListScroll: false,
-    isProgrammaticListScroll: false
+    isProgrammaticListScroll: false,
+    fromListScrollResetId: null
   };
 
-  // Вспомогательные кэши
   ns.cache = {
-    cardChildren: []  // Дочерние элементы карточек для управления opacity
+    cardChildren: []
   };
 })(window.StackUI);
-
-
-
-
-
-
-
-
-
