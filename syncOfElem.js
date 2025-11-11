@@ -9,22 +9,7 @@
       });
     });
     ns.state.lastCurrentCard = null;
-  }
-
-  function ensureCardCurrentAfterDelay(ns, card, delay = 100) {
-    if (!card) return;
-    setTimeout(() => {
-      if (!card.isConnected) return;
-      const hasStyle = Array.from(card.classList).some(cls => cls.endsWith('-card-style'));
-      if (!hasStyle) return;
-      if (!card.classList.contains('current')) {
-        ns.collections.cards.forEach(c => c.classList.remove('current'));
-        card.classList.add('current');
-        ns.state.lastCurrentCard = card;
-        if (ns.state.removedCurrentCard === card) ns.state.removedCurrentCard = null;
-        ns.effects.scheduleFrameUpdate(ns);
-      }
-    }, delay);
+    ns.state.removedCurrentCard = null;
   }
 
   function markCardByPrefix(ns, prefix, { scrollContainer = true } = {}) {
@@ -39,6 +24,7 @@
     ns.collections.cards.forEach(c => c.classList.remove('current'));
     targetCard.classList.add('current', `${prefix}-card-style`);
     ns.state.lastCurrentCard = targetCard;
+    ns.state.removedCurrentCard = null;
 
     if (scrollContainer) {
       const index = ns.collections.cards.indexOf(targetCard);
@@ -48,7 +34,6 @@
         ns.dom.container.scrollTo({ top: scrollTop, behavior: ns.utils.smoothBehavior(ns) });
         ns.utils.waitForElementScrollEnd(ns.dom.container).then(() => {
           ns.state.isProgrammaticListScroll = false;
-          ensureCardCurrentAfterDelay(ns, targetCard);
         });
       }
     }
@@ -115,7 +100,6 @@
 
   ns.sync = {
     clearCardDecorations,
-    ensureCardCurrentAfterDelay,
     markCardByPrefix,
     setActiveCase,
     setActiveCaseOnly,
