@@ -8,7 +8,6 @@ window.StackUI = window.StackUI || {};
     container: '.main-container__stack-wrap__wrapper__list',
     casesGrid: '.cases-grid',
     wrapper: '.main-container__stack-wrap__wrapper',
-    stackWrap: '.main-container__stack-wrap',
     cardItems: '.main-container__stack-wrap__wrapper__list__item',
     caseItems: '.cases-grid__item',
     casesContainer: '.main-container__cases-container'
@@ -18,7 +17,6 @@ window.StackUI = window.StackUI || {};
     container: null,
     casesGrid: null,
     wrapper: null,
-    stackWrap: null,
     casesContainer: null
   };
 
@@ -99,12 +97,12 @@ window.StackUI = window.StackUI || {};
     lastCurrentCard: null,
     removedCurrentCard: null,
     fromListScroll: false,
-    isProgrammaticListScroll: false,
-    cardStyleCache: []
+    isProgrammaticListScroll: false
   };
 
   ns.cache = {
     cardChildren: []
   };
 })(window.StackUI);
+
 
