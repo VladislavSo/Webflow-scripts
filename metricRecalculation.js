@@ -2,8 +2,6 @@
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
 
-  // Получить реальный row-gap контейнера в пикселях.
-  // Использование: ns.utils.getRowGapPx(ns.dom.container)
   function getRowGapPx(el) {
     const cs = getComputedStyle(el);
     const raw = cs.rowGap || cs.gap || '0';
@@ -11,8 +9,36 @@
     return Number.isFinite(val) ? val : 0;
   }
 
-  // Дождаться окончания прокрутки конкретного элемента (контейнера списка).
-  // Управление: idleMs — период "тишины", maxMs — принудительная отсечка.
+  function describeCardForLog(ns, card) {
+    if (!card) return '<нет карточки>';
+    const parts = [];
+    if (card.tagName) parts.push(card.tagName.toLowerCase());
+    if (card.id) parts.push(`#${card.id}`);
+    if (card.getAttribute) {
+      const brand = card.getAttribute('brand-data') || card.getAttribute('data-brand');
+      if (brand) parts.push(`[brand=${brand}]`);
+    }
+    if (ns && ns.collections && Array.isArray(ns.collections.cards)) {
+      const idx = ns.collections.cards.indexOf(card);
+      if (idx !== -1) parts.push(`index=${idx}`);
+    }
+    return parts.join(' ') || '<карточка>';
+  }
+
+  function logCurrentChange(ns, card, { action, reason, meta } = {}) {
+    if (typeof console !== 'object' || typeof console.log !== 'function') return;
+    const verb = action === 'add' ? 'Добавляем' : (action === 'remove' ? 'Удаляем' : 'Изменяем');
+    const label = describeCardForLog(ns, card);
+    const messageReason = reason || 'причина не указана';
+    const payload = {
+      card,
+      action: action || 'unknown',
+      reason: messageReason
+    };
+    if (meta && typeof meta === 'object') payload.meta = meta;
+    console.log(`[StackUI][current] ${verb} current для ${label}. Причина: ${messageReason}.`, payload);
+  }
+
   function waitForElementScrollEnd(el, idleMs = 80, maxMs = 1000) {
     return new Promise(resolve => {
       let idleTimer = null;
@@ -32,8 +58,6 @@
     });
   }
 
-  // Дождаться окончания прокрутки окна.
-  // Управление: idleMs — период "тишины", maxMs — принудительная отсечка.
   function waitForWindowScrollEnd(idleMs = 120, maxMs = 2000) {
     return new Promise(resolve => {
       let idleTimer = null;
@@ -53,8 +77,6 @@
     });
   }
 
-  // Учёт системной настройки «уменьшение анимации» и отслеживание её изменений.
-  // Возвращает функцию smoothBehavior() для scrollTo.
   function setupReducedMotion(ns) {
     try {
       const mq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -68,12 +90,10 @@
     } catch (_) {}
   }
 
-  // Поведение прокрутки с учётом prefers-reduced-motion.
   function smoothBehavior(ns) {
     return ns.state.prefersReducedMotion ? 'auto' : 'smooth';
   }
 
-  // Пересчёт всех rem→px метрик и row-gap.
   function recalcMetrics(ns) {
     const c = ns.constants;
     const m = ns.metrics;
@@ -114,6 +134,7 @@
     waitForWindowScrollEnd,
     setupReducedMotion,
     smoothBehavior,
-    recalcMetrics
+    recalcMetrics,
+    logCurrentChange
   };
 })(window.StackUI);
