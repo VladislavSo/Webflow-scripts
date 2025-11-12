@@ -9,36 +9,6 @@
     return Number.isFinite(val) ? val : 0;
   }
 
-  function describeCardForLog(ns, card) {
-    if (!card) return '<нет карточки>';
-    const parts = [];
-    if (card.tagName) parts.push(card.tagName.toLowerCase());
-    if (card.id) parts.push(`#${card.id}`);
-    if (card.getAttribute) {
-      const brand = card.getAttribute('brand-data') || card.getAttribute('data-brand');
-      if (brand) parts.push(`[brand=${brand}]`);
-    }
-    if (ns && ns.collections && Array.isArray(ns.collections.cards)) {
-      const idx = ns.collections.cards.indexOf(card);
-      if (idx !== -1) parts.push(`index=${idx}`);
-    }
-    return parts.join(' ') || '<карточка>';
-  }
-
-  function logCurrentChange(ns, card, { action, reason, meta } = {}) {
-    if (typeof console !== 'object' || typeof console.log !== 'function') return;
-    const verb = action === 'add' ? 'Добавляем' : (action === 'remove' ? 'Удаляем' : 'Изменяем');
-    const label = describeCardForLog(ns, card);
-    const messageReason = reason || 'причина не указана';
-    const payload = {
-      card,
-      action: action || 'unknown',
-      reason: messageReason
-    };
-    if (meta && typeof meta === 'object') payload.meta = meta;
-    console.log(`[StackUI][current] ${verb} current для ${label}. Причина: ${messageReason}.`, payload);
-  }
-
   function waitForElementScrollEnd(el, idleMs = 80, maxMs = 1000) {
     return new Promise(resolve => {
       let idleTimer = null;
@@ -134,7 +104,6 @@
     waitForWindowScrollEnd,
     setupReducedMotion,
     smoothBehavior,
-    recalcMetrics,
-    logCurrentChange
+    recalcMetrics
   };
 })(window.StackUI);
