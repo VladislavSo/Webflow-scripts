@@ -7,7 +7,6 @@
       ns.dom.container = document.querySelector(s.container);
       ns.dom.casesGrid = document.querySelector(s.casesGrid);
       ns.dom.wrapper = document.querySelector(s.wrapper);
-      ns.dom.stackWrap = document.querySelector(s.stackWrap);
       ns.dom.casesContainer = document.querySelector(ns.selectors.casesContainer);
 
       if (!ns.dom.container || !ns.dom.casesGrid) return false;
@@ -71,4 +70,5 @@
     };
 
   })(window.StackUI);
+
 
