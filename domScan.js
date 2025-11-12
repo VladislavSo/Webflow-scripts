@@ -68,7 +68,4 @@
       cacheCardChildren,
       initCards
     };
-
   })(window.StackUI);
-
-
