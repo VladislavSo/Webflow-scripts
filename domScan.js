@@ -2,8 +2,6 @@
     'use strict';
     if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
 
-    // Прочитать ссылку на DOM-узлы и коллекции элементов.
-    // Возвращает true при успехе, иначе false (если чего-то нет).
     function queryDom(ns) {
       const s = ns.selectors;
       ns.dom.container = document.querySelector(s.container);
@@ -20,13 +18,11 @@
       return ns.state.total > 0 && ns.collections.caseItems.length > 0;
     }
 
-    // Извлечь префикс карточки (brand-data или data-brand).
     function getCardPrefix(card) {
       const brand = card.getAttribute('brand-data') || card.getAttribute('data-brand') || '';
       return (brand.split('-')[0] || '').trim();
     }
 
-    // Построить карты соответствий префиксов → элементы (карточки и кейсы).
     function buildPrefixMaps(ns) {
       ns.maps.cardPrefixMap.clear();
       ns.maps.casePrefixMap.clear();
@@ -42,12 +38,10 @@
       });
     }
 
-    // Закэшировать дочерние элементы карточек для массового управления прозрачностью.
     function cacheCardChildren(ns) {
       ns.cache.cardChildren = ns.collections.cards.map(card => Array.from(card.querySelectorAll('*')));
     }
 
-    // Начальная подготовка карточек: позиционирование, z-index, базовые стили.
     function initCards(ns) {
       const total = ns.state.total;
       const { color21 } = ns.colors;
@@ -74,4 +68,5 @@
       cacheCardChildren,
       initCards
     };
+
   })(window.StackUI);
