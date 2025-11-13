@@ -144,6 +144,24 @@ document.addEventListener("DOMContentLoaded", () => {
   function loadVideos(item, prefetchOnly = false) {
     const videos = getPlatformVideos(item, true);
     videos.forEach(video => {
+      // Проверяем, есть ли уже source элементы
+      const hasSource = video.querySelectorAll("source").length > 0;
+      if (hasSource) {
+        // Если source уже есть, просто обновляем preload для дозагрузки
+        video.preload = prefetchOnly ? 'metadata' : 'auto';
+        // Не вызываем video.load() если видео уже загружается или готово
+        // Это предотвратит отмену текущих запросов
+        if (!prefetchOnly && video.readyState < 2) {
+          // Вызываем load() только если видео еще не начало загружаться
+          try { video.load(); } catch(e) {}
+        }
+        return;
+      }
+      // Если source нет и видео уже загружено ранее, пропускаем
+      if (video.dataset.loaded && !hasSource) {
+        // Если был загружен, но source удалены - загружаем заново
+        delete video.dataset.loaded;
+      }
       if (video.dataset.loaded) return;
       if (prefetchOnly) {
         return;
@@ -154,6 +172,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function attachSourceAfterFetch(video) {
     if (!video || !video.dataset || !video.dataset.src) return;
+    // Проверяем, есть ли уже source элементы
+    const hasSource = video.querySelectorAll("source").length > 0;
+    if (hasSource) {
+      // Если source уже есть, просто помечаем как загруженное
+      video.dataset.loaded = 'true';
+      video.preload = 'auto';
+      // Не вызываем video.load() если видео уже загружается - это отменит запрос
+      if (video.readyState < 2) {
+        try { video.load(); } catch(e) {}
+      }
+      return;
+    }
     if (video.dataset.fetching === 'true' || video.dataset.loaded) return;
     video.dataset.fetching = 'true';
     const url = video.dataset.src;
@@ -312,16 +342,12 @@ document.addEventListener("DOMContentLoaded", () => {
       try { video.currentTime = 0; } catch(e) {}
       if (video.autoplay) video.autoplay = false;
       if (video.hasAttribute("autoplay")) video.removeAttribute("autoplay");
-      video.setAttribute("preload", "none");
-      const sources = Array.from(video.querySelectorAll("source"));
-      sources.forEach(s => s.remove());
-      if (video.dataset && video.dataset.blobUrl) {
-        try { URL.revokeObjectURL(video.dataset.blobUrl); } catch(_) {}
-        try { delete video.dataset.blobUrl; } catch(_) {}
+      // Не устанавливаем preload="none" сразу, чтобы не отменить текущие запросы
+      // Установим только если видео уже загружено
+      if (video.readyState >= 4) {
+        video.setAttribute("preload", "none");
       }
-      try { video.removeAttribute("src"); } catch(e) {}
-      try { delete video.dataset.loaded; } catch(e) {}
-      try { video.load(); } catch(e) {}
+      // Source элементы не удаляются, остаются для быстрого восстановления
     });
   }
 
