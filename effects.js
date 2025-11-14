@@ -181,7 +181,24 @@
   const checkCurrentCard = !!currentCard;
   const checkCurrentIdx = currentIdx !== -1;
   const checkProgrammatic = ns.state.isProgrammaticListScroll;
-  const conditionMet = checkFromListScroll && checkCurrentCard && checkCurrentIdx && checkProgrammatic;
+  const conditionMet = checkFromListScroll && checkCurrentCard && checkCurrentIdx && !checkProgrammatic;
+  
+  // Логирование conditionMet при скролле
+  if (ns.state.fromListScroll) {
+    console.log('[ListScroll] conditionMet:', conditionMet, {
+      checkFromListScroll,
+      checkCurrentCard,
+      checkCurrentIdx,
+      checkProgrammatic: !checkProgrammatic
+    });
+  } else {
+    console.log('[WindowScroll] conditionMet:', conditionMet, {
+      checkFromListScroll,
+      checkCurrentCard,
+      checkCurrentIdx,
+      checkProgrammatic: !checkProgrammatic
+    });
+  }
   
   if (conditionMet) {
     const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
