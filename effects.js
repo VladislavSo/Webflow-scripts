@@ -226,5 +226,4 @@
     updateListItemEffects,
     scheduleFrameUpdate
   };
-};
 })(window.StackUI);
