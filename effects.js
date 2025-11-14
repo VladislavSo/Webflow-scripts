@@ -24,7 +24,6 @@
     const cards = ns.collections.cards;
     const currentCard = ns.state.lastCurrentCard || cards.find(c => c.classList.contains('current'));
     const currentIdx = currentCard ? cards.indexOf(currentCard) : -1;
-    let currentAffected = false;
 
     if (ns.state.prefersReducedMotion) {
       cards.forEach((card, idx) => {
@@ -174,32 +173,33 @@
           card.style.transform = 'scale(1)';
           card.style.backgroundColor = `rgb(${ns.colors.color21.r}, ${ns.colors.color21.g}, ${ns.colors.color21.b})`;
           ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '1'; });
-        }
-      }
-
-    if (ns.state.fromListScroll && currentCard && currentIdx !== -1) {
-      const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
-      const distTop = r.top - containerRect.top - 1;
-      const distFromBottom = containerRect.bottom - r.bottom - 1;
-
-      const isAboveEnd = distTop < ns.metrics.effectEndPx;
-      const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
-      const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
-
-      if (isAboveEnd || isBelowStart) {
-        if (currentCard.classList.contains('current')) {
-          currentCard.classList.remove('current');
-          ns.state.removedCurrentCard = currentCard;
-          ns.state.lastCurrentCard = null;
-        }
-      } else if (isWithin) {
-        if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
-          currentCard.classList.add('current');
-          ns.state.lastCurrentCard = currentCard;
-          ns.state.removedCurrentCard = null;
-        }
       }
     }
+  }
+
+  if (ns.state.fromListScroll && currentCard && currentIdx !== -1) {
+    const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
+    const distTop = r.top - containerRect.top - 1;
+    const distFromBottom = containerRect.bottom - r.bottom - 1;
+
+    const isAboveEnd = distTop < ns.metrics.effectEndPx;
+    const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
+    const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
+
+    if (isAboveEnd || isBelowStart) {
+      if (currentCard.classList.contains('current')) {
+        currentCard.classList.remove('current');
+        ns.state.removedCurrentCard = currentCard;
+        ns.state.lastCurrentCard = null;
+      }
+    } else if (isWithin) {
+      if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
+        currentCard.classList.add('current');
+        ns.state.lastCurrentCard = currentCard;
+        ns.state.removedCurrentCard = null;
+      }
+    }
+  }
   }
 
   function scheduleFrameUpdate(ns) {
@@ -211,8 +211,8 @@
       const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
       const meas = { containerRect, cardRects, caseRects };
 
-      ns.effects.updateZIndexes(ns, meas);
-      ns.effects.updateListItemEffects(ns, meas);
+      updateZIndexes(ns, meas);
+      updateListItemEffects(ns, meas);
 
       if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
 
