@@ -218,7 +218,7 @@
       const conditionMet = !checkProgrammatic ? true : (checkFromListScroll && checkCurrentCard && checkCurrentIdx);
 
       // Логирование conditionMet при скролле
-      /*if (ns.state.fromListScroll) {
+      if (ns.state.fromListScroll) {
         console.log('[ListScroll] conditionMet:', conditionMet, {
           checkFromListScroll,
           checkCurrentCard,
@@ -232,7 +232,7 @@
           checkCurrentIdx,
           checkProgrammatic: !checkProgrammatic
         });
-      }*/
+      }
 
       if (conditionMet) {
         const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
