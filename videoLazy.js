@@ -1,9 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
-  
   const items = document.querySelectorAll(".cases-grid__item");
   const itemsArray = Array.from(items);
   const indexByItem = new Map(itemsArray.map((el, i) => [el, i]));
+  let prioritySequenceId = 0;
   let playbandEl = null;
   let playbandActiveItem = null;
   let playbandVideos = [];
@@ -14,47 +14,56 @@ document.addEventListener("DOMContentLoaded", () => {
     const el = document.createElement('div');
     el.id = 'cases-playband-observer';
     el.setAttribute('aria-hidden', 'true');
-    Object.assign(el.style, {
-      position: 'fixed', left: '0', right: '0', height: '0.5625rem',
-      top: '27vh', pointerEvents: 'none', zIndex: '2147483647', background: 'transparent'
-    });
+    el.style.position = 'fixed';
+    el.style.left = '0';
+    el.style.right = '0';
+    el.style.height = '0.5625rem';
+    el.style.top = '27vh';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '2147483647';
+    el.style.background = 'transparent';
     document.body.appendChild(el);
-    return playbandEl = el;
+    playbandEl = el;
+    return el;
+  }
+
+  function getContainerForPlayband(item) {
+    return item ? item.querySelector('.cases-grid__item__container') : null;
   }
 
   function collectPlaybandVideos(item) {
-    const container = item?.querySelector('.cases-grid__item__container');
+    const container = getContainerForPlayband(item);
     if (!container) return [];
-    return Array.from(container.querySelectorAll('video'))
-      .filter(v => !v.closest('.cases-grid__item__container__wrap__talking-head'));
+    const all = Array.from(container.querySelectorAll('video'));
+    return all.filter(v => !v.closest('.cases-grid__item__container__wrap__talking-head'));
   }
 
   function isOverlappingPlayband(element) {
     if (!playbandEl) return false;
     const bandRect = playbandEl.getBoundingClientRect();
     const rect = element.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 && 
-           (rect.bottom > bandRect.top) && (rect.top < bandRect.bottom);
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    return (rect.bottom > bandRect.top) && (rect.top < bandRect.bottom);
   }
 
   function updatePlaybandPlayback() {
     if (!playbandActiveItem) return;
     const isActive = playbandActiveItem.classList.contains('active');
     let anyPlayed = false;
-    
     for (const video of playbandVideos) {
       const shouldPlay = isActive && isOverlappingPlayband(video);
       if (shouldPlay) {
-        if (video.paused) video.play().catch(() => {});
+        try { if (video.paused) video.play().catch(() => {}); } catch (_) {}
         anyPlayed = true;
       } else {
-        video.pause();
+        try { video.pause(); } catch (_) {}
       }
     }
-    
     if (!anyPlayed && isActive) {
       const fallback = playbandVideos[0] || playbandActiveItem.querySelector('video');
-      if (fallback?.paused) fallback.play().catch(() => {});
+      if (fallback) {
+        try { if (fallback.paused) fallback.play().catch(() => {}); } catch (_) {}
+      }
     }
   }
 
@@ -70,7 +79,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function attachPlaybandToItem(item) {
     if (!item) return;
     ensurePlayband();
-    if (playbandActiveItem && playbandActiveItem !== item) detachPlayband();
+    if (playbandActiveItem && playbandActiveItem !== item) {
+      detachPlayband();
+    }
     playbandActiveItem = item;
     playbandVideos = collectPlaybandVideos(item);
     window.addEventListener('scroll', onScrollOrResize, { passive: true });
@@ -79,167 +90,333 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function detachPlayband(itemLosingActive = null) {
-    if (!playbandActiveItem || (itemLosingActive && itemLosingActive !== playbandActiveItem)) return;
+    if (!playbandActiveItem) return;
+    if (itemLosingActive && itemLosingActive !== playbandActiveItem) return;
     window.removeEventListener('scroll', onScrollOrResize);
     window.removeEventListener('resize', onScrollOrResize);
-    playbandVideos.forEach(v => v.pause());
+    for (const v of playbandVideos) {
+      try { v.pause(); } catch (_) {}
+    }
     playbandActiveItem = null;
     playbandVideos = [];
   }
 
-  function getContainerVideos(item) {
-    const container = item.querySelector(".cases-grid__item__container");
-    if (!container) return [];
-    return Array.from(container.querySelectorAll("video[data-src]"));
+  function attachPlaybandToCurrentActive() {
+    const active = itemsArray.find(i => i.classList.contains('active'));
+    if (active) attachPlaybandToItem(active);
   }
 
-  function loadVideo(video) {
-    if (video.readyState >= 4) return;
-    
-    if (video.querySelector("source")) {
-      video.preload = 'auto';
-      return;
-    }
+  const isDesktop = true;
 
-    if (video.dataset.fetching === 'true') return;
+  function selectPlatformContainer(item) {
+    return item.querySelector(".cases-grid__item__container");
+  }
 
-    video.dataset.fetching = 'true';
-    const url = video.dataset.src;
-    
-    const createSource = (sourceUrl) => {
-      const source = document.createElement('source');
-      source.src = sourceUrl;
-      source.type = 'video/mp4';
-      video.appendChild(source);
+  function getPlatformVideos(item, onlyWithDataSrc = false) {
+    const selector = onlyWithDataSrc ? "video[data-src]" : "video";
+    const platformContainer = selectPlatformContainer(item);
+    const platformVideos = platformContainer ? Array.from(platformContainer.querySelectorAll(selector)) : [];
+    const talkingHeadContainer = item.querySelector('.cases-grid__item__container__wrap__talking-head');
+    const talkingHeadVideos = talkingHeadContainer ? Array.from(talkingHeadContainer.querySelectorAll(selector)) : [];
+    const combined = [...platformVideos, ...talkingHeadVideos];
+    return Array.from(new Set(combined));
+  }
+
+  function loadTalkingHeadAssetsImmediately() {
+    itemsArray.forEach(item => {
+      const head = item.querySelector('.cases-grid__item__container__wrap__talking-head');
+      if (!head) return;
+      const videos = Array.from(head.querySelectorAll('video'));
+      videos.forEach(video => {
+        if (video.dataset && video.dataset.src && !video.dataset.loaded) {
+          const source = document.createElement('source');
+          source.src = video.dataset.src;
+          source.type = 'video/mp4';
+          video.appendChild(source);
+          video.preload = 'auto';
+          try { video.load(); } catch(e) {}
+          video.dataset.loaded = 'true';
+        }
+      });
+    });
+  }
+
+  function loadVideos(item, prefetchOnly = false) {
+    const videos = getPlatformVideos(item, true);
+    videos.forEach(video => {
+      // Проверяем, есть ли уже source элементы
+      const hasSource = video.querySelectorAll("source").length > 0;
+      if (hasSource) {
+        // Если source уже есть, просто обновляем preload для дозагрузки
+        video.preload = prefetchOnly ? 'metadata' : 'auto';
+        // Не вызываем video.load() если видео уже загружается или готово
+        // Это предотвратит отмену текущих запросов
+        if (!prefetchOnly && video.readyState < 2) {
+          // Вызываем load() только если видео еще не начало загружаться
+          try { video.load(); } catch(e) {}
+        }
+        return;
+      }
+      // Если source нет и видео уже загружено ранее, пропускаем
+      if (video.dataset.loaded && !hasSource) {
+        // Если был загружен, но source удалены - загружаем заново
+        delete video.dataset.loaded;
+      }
+      if (video.dataset.loaded) return;
+      if (prefetchOnly) {
+        return;
+      }
+      attachSourceAfterFetch(video);
+    });
+  }
+
+  async function attachSourceAfterFetch(video) {
+    if (!video || !video.dataset || !video.dataset.src) return;
+    // Проверяем, есть ли уже source элементы
+    const hasSource = video.querySelectorAll("source").length > 0;
+    if (hasSource) {
+      // Если source уже есть, просто помечаем как загруженное
+      video.dataset.loaded = 'true';
       video.preload = 'auto';
-      if (video.readyState === 0) {
+      // Не вызываем video.load() если видео уже загружается - это отменит запрос
+      if (video.readyState < 2) {
         try { video.load(); } catch(e) {}
       }
-    };
-    
+      return;
+    }
+    if (video.dataset.fetching === 'true' || video.dataset.loaded) return;
+    video.dataset.fetching = 'true';
+    const url = video.dataset.src;
     try {
       const urlObj = new URL(url, window.location.href);
       const sameOrigin = urlObj.origin === window.location.origin;
-      
       if (!sameOrigin) {
-        createSource(url);
+        const source = document.createElement('source');
+        source.src = url;
+        source.type = 'video/mp4';
+        video.appendChild(source);
+        video.preload = 'auto';
+        try { video.load(); } catch(e) {}
+        video.dataset.loaded = 'true';
         delete video.dataset.fetching;
         return;
       }
     } catch (_) {
-      createSource(url);
+      const source = document.createElement('source');
+      source.src = url;
+      source.type = 'video/mp4';
+      video.appendChild(source);
+      video.preload = 'auto';
+      try { video.load(); } catch(e) {}
+      video.dataset.loaded = 'true';
       delete video.dataset.fetching;
       return;
     }
-
-    fetch(url, { credentials: 'omit', cache: 'default' })
-      .then(response => {
-        if (!response.ok) throw new Error('Failed to fetch');
-        return response.blob();
-      })
-      .then(blob => {
-        const blobUrl = URL.createObjectURL(blob);
-        createSource(blobUrl);
-        video.dataset.blobUrl = blobUrl;
-        delete video.dataset.fetching;
-      })
-      .catch(() => {
-        createSource(url);
-        delete video.dataset.fetching;
-      });
+    try {
+      const response = await fetch(url, { credentials: 'omit', cache: 'default' });
+      if (!response.ok) throw new Error('Failed to fetch video');
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const source = document.createElement('source');
+      source.src = blobUrl;
+      source.type = 'video/mp4';
+      video.appendChild(source);
+      video.preload = 'auto';
+      try { video.load(); } catch(e) {}
+      video.dataset.loaded = 'true';
+      video.dataset.blobUrl = blobUrl;
+    } catch (e) {
+      try {
+        const source = document.createElement('source');
+        source.src = url;
+        source.type = 'video/mp4';
+        video.appendChild(source);
+        video.preload = 'auto';
+        try { video.load(); } catch(err) {}
+        video.dataset.loaded = 'true';
+      } catch (_) {}
+    } finally {
+      try { delete video.dataset.fetching; } catch(_) {}
+    }
   }
 
-  function loadVideosForItem(item) {
-    getContainerVideos(item).forEach(video => {
-      loadVideo(video);
-    });
-  }
-
-  function applyAudioState(item) {
-    const soundOn = !!(window.CasesAudio?.soundOn);
-    getPlatformVideos(item).forEach(video => {
-      video.muted = !soundOn;
+  function applyAudioStateOnActivation(item) {
+    const videos = getPlatformVideos(item, false);
+    videos.forEach(video => {
+      const soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
       if (soundOn) {
-        video.currentTime = 0;
-        video.volume = 1;
+        try { video.muted = false; } catch(e) {}
+        try { video.currentTime = 0; } catch(e) {}
+        try { video.volume = 1; } catch(e) {}
+      } else {
+        try { video.muted = true; } catch(e) {}
       }
     });
   }
 
   function enableAutoplayAndPlay(item) {
-    const isActive = item.classList.contains("active");
-    getPlatformVideos(item).forEach(video => {
+    const videos = getPlatformVideos(item, false);
+    videos.forEach(video => {
       const isTalkingHead = !!video.closest('.cases-grid__item__container__wrap__talking-head');
-      
       if (isTalkingHead) {
-        if (isActive) {
-          video.autoplay = true;
-          if (!video.hasAttribute('autoplay')) video.setAttribute('autoplay', '');
+        if (item.classList.contains('active')) {
+          try { video.autoplay = true; } catch(_) {}
+          try { if (!video.hasAttribute('autoplay')) video.setAttribute('autoplay', ''); } catch(_) {}
         }
         video.preload = 'auto';
       } else {
-        video.autoplay = false;
-        video.removeAttribute("autoplay");
+        if (video.autoplay) {
+          video.autoplay = false;
+        }
+        if (video.hasAttribute("autoplay")) {
+          video.removeAttribute("autoplay");
+        }
         video.preload = "auto";
       }
 
       const tryPlay = () => {
-        if (!isActive) return;
+        if (!item.classList.contains("active")) return;
         if (isTalkingHead) {
-          if (video.paused) video.play().catch(() => {});
+          try { if (video.paused) video.play().catch(()=>{}); } catch(e) {}
           return;
         }
-        const useBand = (playbandActiveItem === item) && playbandEl;
+        const useBand = (playbandActiveItem === item) && !!playbandEl;
         if (useBand) {
-          isOverlappingPlayband(video) 
-            ? (video.paused && video.play().catch(() => {}))
-            : video.pause();
+          const shouldPlay = isOverlappingPlayband(video);
+          if (shouldPlay) {
+            try { if (video.paused) video.play().catch(()=>{}); } catch(e) {}
+          } else {
+            try { video.pause(); } catch(e) {}
+          }
           return;
         }
-        if (video.paused) video.play().catch(() => {});
+        try { if (video.paused) video.play().catch(()=>{}); } catch(e) {}
       };
 
-      video.readyState >= 4 ? tryPlay() : 
-        video.addEventListener("canplaythrough", tryPlay, { once: true });
-    });
-  }
-
-  function disableAutoplayAndReset(item) {
-    getPlatformVideos(item).forEach(video => {
-      video.autoplay = false;
-      video.removeAttribute("autoplay");
-      video.muted = true;
-      video.pause();
-      if (video.readyState > 0) {
-        video.currentTime = 0;
+      if (video.readyState >= 4) {
+        tryPlay();
       } else {
-        video.addEventListener("loadedmetadata", () => { video.currentTime = 0; }, { once: true });
+        const onReady = () => { tryPlay(); };
+        video.addEventListener("canplaythrough", onReady, { once: true });
       }
     });
   }
 
-  function getPlatformVideos(item) {
-    const container = item.querySelector(".cases-grid__item__container");
-    const talkingHead = item.querySelector('.cases-grid__item__container__wrap__talking-head');
-    const platformVideos = container ? Array.from(container.querySelectorAll('video')) : [];
-    const talkingHeadVideos = talkingHead ? Array.from(talkingHead.querySelectorAll('video')) : [];
-    return Array.from(new Set([...platformVideos, ...talkingHeadVideos]));
+  function disableAutoplayAndReset(item) {
+    const videos = getPlatformVideos(item, false);
+    videos.forEach(video => {
+      if (video.autoplay) {
+        video.autoplay = false;
+      }
+      if (video.hasAttribute("autoplay")) {
+        video.removeAttribute("autoplay");
+      }
+      try { video.muted = true; } catch(e) {}
+      try { video.pause(); } catch(e) {}
+      if (video.readyState > 0) {
+        try { video.currentTime = 0; } catch(e) {}
+      } else {
+        const resetToStart = () => {
+          try { video.currentTime = 0; } catch(e) {}
+        };
+        video.addEventListener("loadedmetadata", resetToStart, { once: true });
+      }
+    });
   }
 
-  function handleActiveItem(activeIndex) {
+  function updateActiveVideos() {
+    const activeIndex = itemsArray.findIndex(item => item.classList.contains("active"));
+    if (activeIndex === -1) return;
+    startPrioritySequence(activeIndex);
+  }
+
+  function isInScope(index, activeIndex) {
+    return index === activeIndex || index === activeIndex - 1 || index === activeIndex + 1;
+  }
+
+  function stopAndUnloadVideos(item) {
+    const videos = getPlatformVideos(item, false);
+    videos.forEach(video => {
+      try { video.pause(); } catch(e) {}
+      try { video.muted = true; } catch(e) {}
+      try { video.currentTime = 0; } catch(e) {}
+      if (video.autoplay) video.autoplay = false;
+      if (video.hasAttribute("autoplay")) video.removeAttribute("autoplay");
+      // Не устанавливаем preload="none" сразу, чтобы не отменить текущие запросы
+      // Установим только если видео уже загружено
+      if (video.readyState >= 4) {
+        video.setAttribute("preload", "none");
+      }
+      // Source элементы не удаляются, остаются для быстрого восстановления
+    });
+  }
+
+  function updateLoadingScope(activeIndex) {
+    itemsArray.forEach((item, index) => {
+      if (!isInScope(index, activeIndex)) {
+        stopAndUnloadVideos(item);
+      }
+    });
+  }
+
+  function cleanupIrrelevantContainers() {
+    itemsArray.forEach(item => {
+      const irrelevantSelectors = [".story-track", ".story-slider"];
+      irrelevantSelectors.forEach(sel => {
+        const irrelevantContainer = item.querySelector(sel);
+        if (!irrelevantContainer) return;
+        const irrelevantVideos = irrelevantContainer.querySelectorAll("video");
+        irrelevantVideos.forEach(video => {
+          if (video.closest('.cases-grid__item__container__wrap__talking-head')) return;
+          const sources = Array.from(video.querySelectorAll("source"));
+          sources.forEach(s => s.remove());
+          if (!video.hasAttribute("data-src")) {
+            video.setAttribute("preload", "none");
+            try { video.removeAttribute("src"); } catch(e) {}
+            try { video.load(); } catch(e) {}
+          }
+        });
+      });
+    });
+  }
+
+  function waitAllCanPlayThrough(videos) {
+    const waiters = videos.map(video => new Promise(resolve => {
+      if (video.readyState >= 4) {
+        resolve();
+      } else {
+        const onReady = () => resolve();
+        video.addEventListener("canplaythrough", onReady, { once: true });
+      }
+    }));
+    return Promise.all(waiters);
+  }
+
+  async function startPrioritySequence(activeIndex) {
+    const seqId = ++prioritySequenceId;
     const activeItem = itemsArray[activeIndex];
-    if (!activeItem) return;
-
-    loadVideosForItem(activeItem);
-
     const nextItem = activeIndex < itemsArray.length - 1 ? itemsArray[activeIndex + 1] : null;
+    const prevItem = activeIndex > 0 ? itemsArray[activeIndex - 1] : null;
+
+    updateLoadingScope(activeIndex);
+    loadVideos(activeItem, false);
+    applyAudioStateOnActivation(activeItem);
+    enableAutoplayAndPlay(activeItem);
+    await waitAllCanPlayThrough(getPlatformVideos(activeItem, false));
+    if (seqId !== prioritySequenceId) return;
+
     if (nextItem) {
-      loadVideosForItem(nextItem);
+      loadVideos(nextItem, true);
+      await waitAllCanPlayThrough(getPlatformVideos(nextItem, false));
+      if (seqId !== prioritySequenceId) return;
     }
 
-    applyAudioState(activeItem);
-    enableAutoplayAndPlay(activeItem);
+    if (prevItem) {
+      loadVideos(prevItem, true);
+    }
   }
+
+  cleanupIrrelevantContainers();
 
   const observer = new MutationObserver((mutations) => {
     mutations.forEach(mutation => {
@@ -253,38 +430,26 @@ document.addEventListener("DOMContentLoaded", () => {
           index = itemsArray.indexOf(item);
           if (index !== -1) indexByItem.set(item, index);
         }
-        if (index > -1) {
-          handleActiveItem(index);
-          attachPlaybandToItem(item);
-        }
+        if (index > -1) startPrioritySequence(index);
+        attachPlaybandToItem(item);
       } else if (wasActive && !isActive) {
         disableAutoplayAndReset(item);
         detachPlayband(item);
       }
     });
   });
+  items.forEach(item => observer.observe(item, { attributes: true, attributeFilter: ['class'], attributeOldValue: true }));
 
-  items.forEach(item => observer.observe(item, { 
-    attributes: true, 
-    attributeFilter: ['class'], 
-    attributeOldValue: true 
-  }));
-
-  function init() {
-    const active = itemsArray.find(i => i.classList.contains('active'));
-    if (active) attachPlaybandToItem(active);
-    
-    const activeIndex = itemsArray.findIndex(item => item.classList.contains("active"));
-    if (activeIndex > -1) handleActiveItem(activeIndex);
-    
-    onScrollOrResize();
-  }
+  attachPlaybandToCurrentActive();
+  updateActiveVideos();
+  onScrollOrResize();
 
   function enableAssetsAfterLoad() {
-    init();
+    loadTalkingHeadAssetsImmediately();
+    updateActiveVideos();
+    attachPlaybandToCurrentActive();
+    onScrollOrResize();
   }
-
-  init();
   if (document.readyState === 'complete') {
     enableAssetsAfterLoad();
   } else {
