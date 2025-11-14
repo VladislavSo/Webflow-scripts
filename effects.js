@@ -235,24 +235,33 @@
       }
 
       if (conditionMet) {
-        const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
-        const distTop = r.top - containerRect.top - 1;
-        const distFromBottom = containerRect.bottom - r.bottom - 1;
+        const currentCardInTimeout = ns.state.lastCurrentCard || ns.collections.cards.find(c => c.classList.contains('current'));
+        const currentIdxInTimeout = currentCardInTimeout ? ns.collections.cards.indexOf(currentCardInTimeout) : -1;
+
+        if (!currentCardInTimeout || currentIdxInTimeout === -1) return;
+
+        const containerRectInTimeout = meas ? meas.containerRect : ns.dom.container.getBoundingClientRect();
+        const r = meas ? meas.cardRects[currentIdxInTimeout] : currentCardInTimeout.getBoundingClientRect();
+
+        if (!r || !containerRectInTimeout) return;
+
+        const distTop = r.top - containerRectInTimeout.top - 1;
+        const distFromBottom = containerRectInTimeout.bottom - r.bottom - 1;
 
         const isAboveEnd = distTop < ns.metrics.effectEndPx;
         const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
         const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
 
         if (isAboveEnd || isBelowStart) {
-          if (currentCard.classList.contains('current')) {
-            currentCard.classList.remove('current');
-            ns.state.removedCurrentCard = currentCard;
+          if (currentCardInTimeout.classList.contains('current')) {
+            currentCardInTimeout.classList.remove('current');
+            ns.state.removedCurrentCard = currentCardInTimeout;
             ns.state.lastCurrentCard = null;
           }
         } else if (isWithin) {
-          if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
-            currentCard.classList.add('current');
-            ns.state.lastCurrentCard = currentCard;
+          if (!currentCardInTimeout.classList.contains('current') && ns.state.removedCurrentCard === currentCardInTimeout) {
+            currentCardInTimeout.classList.add('current');
+            ns.state.lastCurrentCard = currentCardInTimeout;
             ns.state.removedCurrentCard = null;
           }
         }
