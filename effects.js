@@ -1,7 +1,7 @@
 (function(ns) {
   'use strict';
   if (!window.matchMedia || !window.matchMedia('(min-width: 480px)').matches) return;
-
+  
   function updateZIndexes(ns, meas) {
     const cards = ns.collections.cards;
     const total = ns.state.total;
@@ -14,17 +14,12 @@
       const isHigh = distanceToTop >= m.thresholdPx;
       const card = cards[index];
       card.style.zIndex = String(isHigh ? (total + 1 - index) : (index + 1));
-      if (isHigh) card.classList.add('rear');
-      else card.classList.remove('rear');
+      if (isHigh) card.classList.add('rear'); else card.classList.remove('rear');
     });
   }
 
   function updateListItemEffects(ns, meas) {
-    const {
-      color21,
-      color18,
-      color14
-    } = ns.colors;
+    const { color21, color18, color14 } = ns.colors;
     const m = ns.metrics;
     const cards = ns.collections.cards;
     const currentCard = ns.state.lastCurrentCard || cards.find(c => c.classList.contains('current'));
@@ -37,9 +32,7 @@
         card.style.top = '0px';
         card.style.bottom = '0px';
         card.style.backgroundColor = `rgb(${color21.r}, ${color21.g}, ${color21.b})`;
-        ns.cache.cardChildren[idx].forEach(el => {
-          el.style.opacity = '1';
-        });
+        ns.cache.cardChildren[idx].forEach(el => { el.style.opacity = '1'; });
       });
       return;
     }
@@ -49,9 +42,7 @@
       card.style.top = '0px';
       card.style.bottom = '0px';
       card.style.backgroundColor = `rgb(${color21.r}, ${color21.g}, ${color21.b})`;
-      ns.cache.cardChildren[idx].forEach(el => {
-        el.style.opacity = '1';
-      });
+      ns.cache.cardChildren[idx].forEach(el => { el.style.opacity = '1'; });
     });
 
     const containerRect = meas ? meas.containerRect : ns.dom.container.getBoundingClientRect();
@@ -96,25 +87,13 @@
     for (let i = 0; i < cards.length; i++) {
       const card = cards[i];
 
-      let topKind = null,
-        topP = -1;
-      if (idx2Prog[i] >= 0) {
-        topKind = 'idx2';
-        topP = idx2Prog[i];
-      } else if (idx1Prog[i] >= 0) {
-        topKind = 'idx1';
-        topP = idx1Prog[i];
-      }
+      let topKind = null, topP = -1;
+      if (idx2Prog[i] >= 0) { topKind = 'idx2'; topP = idx2Prog[i]; }
+      else if (idx1Prog[i] >= 0) { topKind = 'idx1'; topP = idx1Prog[i]; }
 
-      let botKind = null,
-        botP = -1;
-      if (inc3Prog[i] >= 0) {
-        botKind = 'inc3';
-        botP = inc3Prog[i];
-      } else if (inc2Prog[i] >= 0) {
-        botKind = 'inc2';
-        botP = inc2Prog[i];
-      }
+      let botKind = null, botP = -1;
+      if (inc3Prog[i] >= 0) { botKind = 'inc3'; botP = inc3Prog[i]; }
+      else if (inc2Prog[i] >= 0) { botKind = 'inc2'; botP = inc2Prog[i]; }
 
       if (topKind === 'idx2') {
         const t = -m.topIndex2StartPx - (m.topIndex2EndPx - m.topIndex2StartPx) * topP;
@@ -156,9 +135,7 @@
         const b = Math.round(color18.b + (color14.b - color18.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        ns.cache.cardChildren[i].forEach(el => {
-          el.style.opacity = String(o);
-        });
+        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'idx1') {
         const s = 1 - 0.08 * useP;
         const o = 1 - useP;
@@ -167,9 +144,7 @@
         const b = Math.round(color21.b + (color18.b - color21.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        ns.cache.cardChildren[i].forEach(el => {
-          el.style.opacity = String(o);
-        });
+        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc3') {
         const s = 0.79 + 0.13 * useP;
         const o = 0;
@@ -178,9 +153,7 @@
         const b = Math.round(color14.b + (color18.b - color14.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        ns.cache.cardChildren[i].forEach(el => {
-          el.style.opacity = String(o);
-        });
+        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else if (useKind === 'inc2') {
         const s = 0.92 + 0.08 * useP;
         const o = useP;
@@ -189,79 +162,69 @@
         const b = Math.round(color18.b + (color21.b - color18.b) * useP);
         card.style.transform = `scale(${s})`;
         card.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-        ns.cache.cardChildren[i].forEach(el => {
-          el.style.opacity = String(o);
-        });
+        ns.cache.cardChildren[i].forEach(el => { el.style.opacity = String(o); });
       } else {
         if (hasBottomTargets && i > furthestBottomIdx) {
           card.style.transform = 'scale(0.79)';
           card.style.backgroundColor = `rgb(${ns.colors.color14.r}, ${ns.colors.color14.g}, ${ns.colors.color14.b})`;
           card.style.top = '0px';
           card.style.bottom = `${-m.bottomIndex3StartPx}px`;
-          ns.cache.cardChildren[i].forEach(el => {
-            el.style.opacity = '0';
-          });
+          ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '0'; });
         } else {
           card.style.transform = 'scale(1)';
           card.style.backgroundColor = `rgb(${ns.colors.color21.r}, ${ns.colors.color21.g}, ${ns.colors.color21.b})`;
-          ns.cache.cardChildren[i].forEach(el => {
-            el.style.opacity = '1';
-          });
+          ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '1'; });
         }
       }
 
-      if (ns.state.fromListScroll && currentCard && currentIdx !== -1) {
-        const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
-        const distTop = r.top - containerRect.top - 1;
-        const distFromBottom = containerRect.bottom - r.bottom - 1;
+    if (ns.state.fromListScroll && currentCard && currentIdx !== -1) {
+      const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
+      const distTop = r.top - containerRect.top - 1;
+      const distFromBottom = containerRect.bottom - r.bottom - 1;
 
-        const isAboveEnd = distTop < ns.metrics.effectEndPx;
-        const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
-        const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
+      const isAboveEnd = distTop < ns.metrics.effectEndPx;
+      const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
+      const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
 
-        if (isAboveEnd || isBelowStart) {
-          if (currentCard.classList.contains('current')) {
-            currentCard.classList.remove('current');
-            ns.state.removedCurrentCard = currentCard;
-            ns.state.lastCurrentCard = null;
-          }
-        } else if (isWithin) {
-          if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
-            currentCard.classList.add('current');
-            ns.state.lastCurrentCard = currentCard;
-            ns.state.removedCurrentCard = null;
-          }
+      if (isAboveEnd || isBelowStart) {
+        if (currentCard.classList.contains('current')) {
+          currentCard.classList.remove('current');
+          ns.state.removedCurrentCard = currentCard;
+          ns.state.lastCurrentCard = null;
+        }
+      } else if (isWithin) {
+        if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
+          currentCard.classList.add('current');
+          ns.state.lastCurrentCard = currentCard;
+          ns.state.removedCurrentCard = null;
         }
       }
     }
+  }
 
-    function scheduleFrameUpdate(ns) {
-      if (ns.state.tickingFrame) return;
-      ns.state.tickingFrame = true;
-      requestAnimationFrame(() => {
-        const containerRect = ns.dom.container.getBoundingClientRect();
-        const cardRects = ns.collections.cards.map(c => c.getBoundingClientRect());
-        const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
-        const meas = {
-          containerRect,
-          cardRects,
-          caseRects
-        };
+  function scheduleFrameUpdate(ns) {
+    if (ns.state.tickingFrame) return;
+    ns.state.tickingFrame = true;
+    requestAnimationFrame(() => {
+      const containerRect = ns.dom.container.getBoundingClientRect();
+      const cardRects = ns.collections.cards.map(c => c.getBoundingClientRect());
+      const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
+      const meas = { containerRect, cardRects, caseRects };
 
-        ns.effects.updateZIndexes(ns, meas);
-        ns.effects.updateListItemEffects(ns, meas);
+      ns.effects.updateZIndexes(ns, meas);
+      ns.effects.updateListItemEffects(ns, meas);
 
-        if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
+      if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
 
-        ns.state.fromListScroll = false;
-        ns.state.tickingFrame = false;
-      });
-    }
+      ns.state.fromListScroll = false;
+      ns.state.tickingFrame = false;
+    });
+  }
 
-    ns.effects = {
-      updateZIndexes,
-      updateListItemEffects,
-      scheduleFrameUpdate
-    };
+  ns.effects = {
+    updateZIndexes,
+    updateListItemEffects,
+    scheduleFrameUpdate
   };
+};
 })(window.StackUI);
