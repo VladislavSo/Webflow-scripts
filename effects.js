@@ -215,7 +215,7 @@
       const checkCurrentCard = !!currentCard;
       const checkCurrentIdx = currentIdx !== -1;
       const checkProgrammatic = ns.state.isProgrammaticListScroll;
-      const conditionMet = !checkProgrammatic ? true : (checkFromListScroll && checkCurrentCard && checkCurrentIdx);
+      const conditionMet = checkFromListScroll && checkCurrentCard && checkCurrentIdx && checkProgrammatic;
 
       // Логирование conditionMet при скролле
       if (ns.state.fromListScroll) {
