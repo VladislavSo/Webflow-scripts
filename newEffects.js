@@ -177,6 +177,7 @@
       }
     }
 
+    // Меняем current только при скролле списка (fromListScroll && !isProgrammaticListScroll)
     if (ns.state.fromListScroll && !ns.state.isProgrammaticListScroll && currentCard && currentIdx !== -1) {
       const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
       const distTop = r.top - containerRect.top - 1;
@@ -202,8 +203,7 @@
     }
   }
 
-  function scheduleFrameUpdate(ns, force) {
-    if (!force && !ns.state.fromListScroll) return;
+  function scheduleFrameUpdate(ns) {
     if (ns.state.tickingFrame) return;
     ns.state.tickingFrame = true;
     requestAnimationFrame(() => {
@@ -222,36 +222,9 @@
     });
   }
 
-  function initCaseItemsObserver(ns) {
-    if (!ns.dom.casesGrid || !ns.collections.caseItems.length) return;
-
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          const target = mutation.target;
-          if (target.classList.contains('active')) {
-            ns.effects.scheduleFrameUpdate(ns, true);
-            break;
-          }
-        }
-      }
-    });
-
-    ns.collections.caseItems.forEach(item => {
-      observer.observe(item, {
-        attributes: true,
-        attributeFilter: ['class']
-      });
-    });
-
-    ns.observers = ns.observers || {};
-    ns.observers.caseItemsObserver = observer;
-  }
-
   ns.effects = {
     updateZIndexes,
     updateListItemEffects,
-    scheduleFrameUpdate,
-    initCaseItemsObserver
+    scheduleFrameUpdate
   };
 })(window.StackUI);
