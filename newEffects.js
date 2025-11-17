@@ -213,13 +213,10 @@
     requestAnimationFrame(() => {
       const containerRect = ns.dom.container.getBoundingClientRect();
       const cardRects = ns.collections.cards.map(c => c.getBoundingClientRect());
-      const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
-      const meas = { containerRect, cardRects, caseRects };
+      const meas = { containerRect, cardRects };
 
       updateZIndexes(ns, meas);
       updateListItemEffects(ns, meas);
-
-      if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
 
       ns.state.fromListScroll = false;
       ns.state.tickingFrame = false;
