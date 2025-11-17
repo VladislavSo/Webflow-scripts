@@ -207,7 +207,7 @@
   function scheduleFrameUpdate(ns) {
     if (ns.state.tickingFrame) return;
     ns.state.tickingFrame = true;
-    requestAnimationFrame(() => {
+    setTimeout(() => {
       const containerRect = ns.dom.container.getBoundingClientRect();
       const cardRects = ns.collections.cards.map(c => c.getBoundingClientRect());
       const caseRects = ns.collections.caseItems.map(i => i.getBoundingClientRect());
@@ -220,7 +220,7 @@
 
       ns.state.fromListScroll = false;
       ns.state.tickingFrame = false;
-    });
+    }, 50);
   }
 
   ns.effects = {
