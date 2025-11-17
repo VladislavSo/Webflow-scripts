@@ -224,15 +224,18 @@
 
       updateZIndexes(ns, meas);
       
-      // ВАЖНО: Сначала обновляем активный кейс (setActiveCase), потом обновляем эффекты карточек
-      // Это предотвращает ситуацию, когда updateListItemEffects добавляет current,
-      // а потом clearCardDecorations его удаляет
-      if (!ns.state.isProgrammaticWindowScroll) {
+      // ВАЖНО: Порядок вызовов критичен для предотвращения race condition
+      // 1. При скролле окна: обновляем активный кейс (setActiveCase устанавливает current)
+      // 2. При скролле списка: обновляем эффекты карточек (updateListItemEffects может менять current)
+      // 3. Всегда обновляем визуальные эффекты (transform, opacity и т.д.)
+      
+      // Обновляем активный кейс при скролле окна (НЕ при скролле списка)
+      if (!ns.state.isProgrammaticWindowScroll && !ns.state.fromListScroll) {
         ns.sync.updateCasesActiveByWindowScroll(ns, meas);
       }
       
-      // Обновляем эффекты карточек ПОСЛЕ установки активного кейса
-      // Это гарантирует, что current, установленный через setActiveCase, не будет удален
+      // Обновляем эффекты карточек (всегда вызывается для обновления визуальных эффектов)
+      // Но current меняется ТОЛЬКО при скролле списка (fromListScroll && !isProgrammaticListScroll)
       updateListItemEffects(ns, meas);
 
       ns.state.fromListScroll = false;
