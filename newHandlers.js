@@ -15,7 +15,12 @@
   function onCardsScroll() {
    ns.effects.scheduleFrameUpdate(ns);
    if (ns.state.isProgrammaticListScroll) return;
+   if (!ns.state.isUserInteracting) return;
    ns.state.fromListScroll = true;
+   ns.effects.scheduleFrameUpdate(ns);
+  }
+  
+  function onWindowScroll() {
    ns.effects.scheduleFrameUpdate(ns);
   }
   
@@ -89,8 +94,25 @@
    });
   }
   
+  let userInteractionTimeout = null;
+  function markUserInteraction(ns) {
+    ns.state.isUserInteracting = true;
+    if (userInteractionTimeout) clearTimeout(userInteractionTimeout);
+    userInteractionTimeout = setTimeout(() => {
+      ns.state.isUserInteracting = false;
+    }, 150);
+  }
+
+  function bindUserInteractionHandlers(ns) {
+    const container = ns.dom.container;
+    container.addEventListener('wheel', () => markUserInteraction(ns), { passive: true });
+    container.addEventListener('touchstart', () => markUserInteraction(ns), { passive: true });
+    container.addEventListener('mousedown', () => markUserInteraction(ns), { passive: true });
+  }
+
   function bindAllScrolls(ns) {
    ns.dom.container.addEventListener('scroll', onCardsScroll, { passive: true });
+   window.addEventListener('scroll', onWindowScroll, { passive: true });
    window.addEventListener('resize', () => {
      ns.utils.recalcMetrics(ns);
      ns.sync.createCasesObserver(ns);
@@ -121,6 +143,7 @@
   
    bindCardClicks(ns);
    bindHoverHandlers(ns);
+   bindUserInteractionHandlers(ns);
    bindAllScrolls(ns);
   
    ns.effects.scheduleFrameUpdate(ns);
