@@ -102,6 +102,7 @@ window.StackUI = window.StackUI || {};
   };
 
   ns.cache = {
-    cardChildren: []
+    cardChildren: [],
+    cardStyles: []
   };
 })(window.StackUI);
