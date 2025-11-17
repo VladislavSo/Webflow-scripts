@@ -13,40 +13,14 @@
   }
   
   function onCardsScroll() {
-    ns.effects.scheduleFrameUpdate(ns);
-    if (ns.state.isProgrammaticListScroll) return;
-    ns.state.fromListScroll = true;
-    ns.effects.scheduleFrameUpdate(ns);
+   ns.effects.scheduleFrameUpdate(ns);
+   if (ns.state.isProgrammaticListScroll) return;
+   ns.state.fromListScroll = true;
+   ns.effects.scheduleFrameUpdate(ns);
   }
   
-  function observeActiveCaseChanges(ns) {
-    if (!('MutationObserver' in window)) return;
-    
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          const target = mutation.target;
-          const hadActive = mutation.oldValue && mutation.oldValue.includes('active');
-          const hasActive = target.classList.contains('active');
-          
-          if (hadActive !== hasActive) {
-            ns.effects.scheduleFrameUpdate(ns);
-            break;
-          }
-        }
-      }
-    });
-    
-    ns.collections.caseItems.forEach(caseItem => {
-      observer.observe(caseItem, {
-        attributes: true,
-        attributeFilter: ['class'],
-        attributeOldValue: true
-      });
-    });
-    
-    ns.observer = ns.observer || {};
-    ns.observer.activeCaseChanges = observer;
+  function onWindowScroll() {
+   ns.effects.scheduleFrameUpdate(ns);
   }
   
   function bindCardClicks(ns) {
@@ -58,31 +32,27 @@
   
        const targetCase = ns.maps.casePrefixMap.get(prefix) || ns.collections.caseItems.find(ci => (ci.id || '').startsWith(prefix));
   
-      ns.collections.cards.forEach(c => {
-        c.classList.remove('current');
-        Array.from(c.classList).forEach(cls => {
-          if (cls.endsWith('-card-style')) c.classList.remove(cls);
-        });
-      });
+       ns.collections.cards.forEach(c => {
+         c.classList.remove('current');
+         Array.from(c.classList).forEach(cls => {
+           if (cls.endsWith('-card-style')) c.classList.remove(cls);
+         });
+       });
   
-      console.log('[bindCardClicks] ⚠️ ПРОБЛЕМА: Добавляем', `${prefix}-card-style`, 'БЕЗ current на карточку:', card);
-      card.classList.add(`${prefix}-card-style`);
+       card.classList.add(`${prefix}-card-style`);
   
        const index = ns.collections.cards.indexOf(card);
        if (index !== -1) {
          const scrollTop = index * ns.metrics.containerItemHeightPx + index * ns.state.rowGapPx;
          ns.state.isProgrammaticListScroll = true;
          ns.dom.container.scrollTo({ top: scrollTop, behavior: ns.utils.smoothBehavior(ns) });
-        ns.utils.waitForElementScrollEnd(ns.dom.container).then(() => {
-          ns.state.isProgrammaticListScroll = false;
-          ns.collections.cards.forEach(c => c.classList.remove('current'));
-          console.log('[bindCardClicks] Добавляем current на карточку ПОСЛЕ скролла контейнера:', card, 'Уже есть', `${prefix}-card-style`);
-          card.classList.add('current');
-          ns.state.lastCurrentCard = card;
-          ns.effects.scheduleFrameUpdate(ns);
-        });
-       } else {
-         console.log('[bindCardClicks] ⚠️ КРИТИЧЕСКАЯ ПРОБЛЕМА: index === -1, current НЕ будет добавлен, но', `${prefix}-card-style`, 'уже добавлен на карточку:', card);
+         ns.utils.waitForElementScrollEnd(ns.dom.container).then(() => {
+           ns.state.isProgrammaticListScroll = false;
+           ns.collections.cards.forEach(c => c.classList.remove('current'));
+           card.classList.add('current');
+           ns.state.lastCurrentCard = card;
+           ns.effects.scheduleFrameUpdate(ns);
+         });
        }
   
        if (targetCase) {
@@ -125,6 +95,7 @@
   
   function bindAllScrolls(ns) {
    ns.dom.container.addEventListener('scroll', onCardsScroll, { passive: true });
+   window.addEventListener('scroll', onWindowScroll, { passive: true });
    window.addEventListener('resize', () => {
      ns.utils.recalcMetrics(ns);
      ns.sync.createCasesObserver(ns);
@@ -152,7 +123,6 @@
    else ns.sync.updateCasesActiveByWindowScroll(ns);
   
    ns.sync.createCasesObserver(ns);
-   observeActiveCaseChanges(ns);
   
    bindCardClicks(ns);
    bindHoverHandlers(ns);
