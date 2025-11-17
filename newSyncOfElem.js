@@ -44,6 +44,7 @@
 
   // Установить активный кейс и синхронизировать карточку.
   function setActiveCase(ns, targetCase, { scrollContainer = true } = {}) {
+    debugger;
     if (!targetCase) return;
     
     // Оптимизация: пропускаем обновление, если это тот же кейс и класс active уже установлен
