@@ -25,6 +25,32 @@
     const currentCard = ns.state.lastCurrentCard || cards.find(c => c.classList.contains('current'));
     const currentIdx = currentCard ? cards.indexOf(currentCard) : -1;
 
+    if (ns.state.fromListScroll && !ns.state.isProgrammaticListScroll && currentCard && currentIdx !== -1) {
+      const containerRect = meas ? meas.containerRect : ns.dom.container.getBoundingClientRect();
+      const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
+      const distTop = r.top - containerRect.top - 1;
+      const distFromBottom = containerRect.bottom - r.bottom - 1;
+      const isAboveEnd = distTop < ns.metrics.effectEndPx;
+      const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
+      const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
+
+      if (isAboveEnd || isBelowStart) {
+        if (currentCard.classList.contains('current')) {
+          console.log('[updateListItemEffects] Удаление current при скролле списка:', currentCard);
+          currentCard.classList.remove('current');
+          ns.state.removedCurrentCard = currentCard;
+          ns.state.lastCurrentCard = null;
+        }
+      } else if (isWithin) {
+        if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
+          console.log('[updateListItemEffects] Добавление current при скролле списка:', currentCard);
+          currentCard.classList.add('current');
+          ns.state.lastCurrentCard = currentCard;
+          ns.state.removedCurrentCard = null;
+        }
+      }
+    }
+
     if (ns.state.prefersReducedMotion) {
       cards.forEach((card, idx) => {
         card.style.transform = 'scale(1)';
@@ -176,36 +202,6 @@
         }
       }
     }
-
-    // Меняем current только при скролле списка (fromListScroll && !isProgrammaticListScroll)
-    // При скролле списка мы имеем полный контроль над current, независимо от того, как он был установлен
-    if (ns.state.fromListScroll && !ns.state.isProgrammaticListScroll && currentCard && currentIdx !== -1) {
-      const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
-      const distTop = r.top - containerRect.top - 1;
-      const distFromBottom = containerRect.bottom - r.bottom - 1;
-
-      const isAboveEnd = distTop < ns.metrics.effectEndPx;
-      const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
-      const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
-
-      // При скролле списка мы можем свободно менять current в зависимости от позиции карточки
-      // Не нужно проверять, был ли он установлен через setActiveCase - это скролл списка, мы контролируем current
-      if (isAboveEnd || isBelowStart) {
-        if (currentCard.classList.contains('current')) {
-          console.log('[updateListItemEffects] Удаление current при скролле списка:', currentCard);
-          currentCard.classList.remove('current');
-          ns.state.removedCurrentCard = currentCard;
-          ns.state.lastCurrentCard = null;
-        }
-      } else if (isWithin) {
-        if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
-          console.log('[updateListItemEffects] Добавление current при скролле списка:', currentCard);
-          currentCard.classList.add('current');
-          ns.state.lastCurrentCard = currentCard;
-          ns.state.removedCurrentCard = null;
-        }
-      }
-    }
   }
 
   function scheduleFrameUpdate(ns) {
@@ -218,20 +214,9 @@
       const meas = { containerRect, cardRects, caseRects };
 
       updateZIndexes(ns, meas);
-      
-      // ВАЖНО: Порядок вызовов критичен для предотвращения race condition
-      // 1. При скролле окна: обновляем активный кейс (setActiveCase устанавливает current)
-      // 2. При скролле списка: обновляем эффекты карточек (updateListItemEffects может менять current)
-      // 3. Всегда обновляем визуальные эффекты (transform, opacity и т.д.)
-      
-      // Обновляем активный кейс при скролле окна (НЕ при скролле списка)
-      if (!ns.state.isProgrammaticWindowScroll && !ns.state.fromListScroll) {
-        ns.sync.updateCasesActiveByWindowScroll(ns, meas);
-      }
-      
-      // Обновляем эффекты карточек (всегда вызывается для обновления визуальных эффектов)
-      // Но current меняется ТОЛЬКО при скролле списка (fromListScroll && !isProgrammaticListScroll)
       updateListItemEffects(ns, meas);
+
+      if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
 
       ns.state.fromListScroll = false;
       ns.state.tickingFrame = false;
