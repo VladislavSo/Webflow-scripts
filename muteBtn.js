@@ -50,33 +50,31 @@
     if (window.CasesAudio.soundOn){
       var listToReset = window.CasesAudio.resetOnlyTheseOnce;
       videos.forEach(function(v){
-        // Сначала убеждаемся, что видео запущено с muted = true
-        // Это необходимо для автовоспроизведения на мобильных устройствах
-        var wasPaused = false;
-        try { wasPaused = v.paused; } catch(_){ }
-        
-        if (wasPaused){
-          // Если видео на паузе, запускаем с muted = true
-          try { v.muted = true; } catch(_){ }
-          try { 
-            var playPromise = v.play();
-            if (playPromise && playPromise.then){
-              playPromise.then(function(){
-                // После успешного запуска снимаем muted, если звук включен
+        // snapSlider.js уже запускает видео с muted = true и снимает muted после успешного запуска
+        // Здесь мы только синхронизируем состояние и сбрасываем время при необходимости
+        try { 
+          // Если видео уже играет, просто снимаем muted (на случай если snapSlider.js еще не успел)
+          if (!v.paused){
+            try { v.muted = false; } catch(_){ }
+          } else {
+            // Если видео на паузе, запускаем с muted = true, затем снимаем после запуска
+            try { v.muted = true; } catch(_){ }
+            try { 
+              var playPromise = v.play();
+              if (playPromise && playPromise.then){
+                playPromise.then(function(){
+                  setTimeout(function(){
+                    try { v.muted = false; } catch(_){ }
+                  }, 50);
+                }).catch(function(){
+                  try { v.muted = true; } catch(_){ }
+                });
+              } else {
                 try { v.muted = false; } catch(_){ }
-              }).catch(function(){
-                // Если запуск не удался, оставляем muted = true
-                try { v.muted = true; } catch(_){ }
-              });
-            } else {
-              // Если play() не вернул промис, сразу снимаем muted
-              try { v.muted = false; } catch(_){ }
-            }
-          } catch(_){ }
-        } else {
-          // Если видео уже играет, просто снимаем muted
-          try { v.muted = false; } catch(_){ }
-        }
+              }
+            } catch(_){ }
+          }
+        } catch(_){ }
         
         if (listToReset){
           if (listToReset.indexOf(v) !== -1){
@@ -142,14 +140,12 @@
         var wasActive = (m.oldValue || '').split(/\s+/).indexOf('active') !== -1;
         var isActive = item.classList.contains('active');
         if (!wasActive && isActive){
-          // Слайд стал активным: даем время видео запуститься с muted = true (из snapSlider.js),
-          // затем применяем состояние звука
-          // Используем requestAnimationFrame для синхронизации с рендерингом
-          requestAnimationFrame(function(){
-            setTimeout(function(){
-              applySoundStateToCase(item);
-            }, 100); // Небольшая задержка, чтобы видео успело запуститься
-          });
+          // Слайд стал активным: snapSlider.js запускает видео с muted = true
+          // и сам снимает muted если звук включен. Здесь мы только синхронизируем состояние
+          // Используем небольшую задержку для синхронизации
+          setTimeout(function(){
+            applySoundStateToCase(item);
+          }, 150); // Задержка для синхронизации с snapSlider.js
         } else if (wasActive && !isActive){
           // Слайд потерял active: вернуть muted для всех видео в кейсе
           var videos = findCaseVideos(item);
