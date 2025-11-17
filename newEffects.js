@@ -189,6 +189,7 @@
 
       if (isAboveEnd || isBelowStart) {
         if (currentCard.classList.contains('current')) {
+          console.log('[updateListItemEffects] Удаление current при скролле списка (не window):', currentCard);
           currentCard.classList.remove('current');
           ns.state.removedCurrentCard = currentCard;
           ns.state.lastCurrentCard = null;
@@ -213,9 +214,17 @@
       const meas = { containerRect, cardRects, caseRects };
 
       updateZIndexes(ns, meas);
+      
+      // ВАЖНО: Сначала обновляем активный кейс (setActiveCase), потом обновляем эффекты карточек
+      // Это предотвращает ситуацию, когда updateListItemEffects добавляет current,
+      // а потом clearCardDecorations его удаляет
+      if (!ns.state.isProgrammaticWindowScroll) {
+        ns.sync.updateCasesActiveByWindowScroll(ns, meas);
+      }
+      
+      // Обновляем эффекты карточек ПОСЛЕ установки активного кейса
+      // Это гарантирует, что current, установленный через setActiveCase, не будет удален
       updateListItemEffects(ns, meas);
-
-      if (!ns.state.isProgrammaticWindowScroll) ns.sync.updateCasesActiveByWindowScroll(ns, meas);
 
       ns.state.fromListScroll = false;
       ns.state.tickingFrame = false;
