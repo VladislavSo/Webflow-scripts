@@ -2,9 +2,15 @@
   'use strict';
 
   // Снять с карточек классы current и любые "*-card-style".
-  function clearCardDecorations(ns) {
-    console.log('[clearCardDecorations] Удаление класса current при скролле window');
+  // exceptCard - карточка, которую нужно пропустить (чтобы избежать race condition)
+  function clearCardDecorations(ns, exceptCard = null) {
+    console.log('[clearCardDecorations] Удаление класса current при скролле window', exceptCard ? '(исключая целевую карточку)' : '');
     ns.collections.cards.forEach(card => {
+      // Пропускаем целевую карточку, если она указана (чтобы избежать удаления сразу после добавления)
+      if (exceptCard && card === exceptCard) {
+        console.log('[clearCardDecorations] Пропускаем целевую карточку:', card);
+        return;
+      }
       if (card.classList.contains('current')) {
         console.log('[clearCardDecorations] Удален current с карточки:', card);
       }
@@ -28,16 +34,38 @@
           });
     if (!targetCard) return;
 
+    // Удаляем current со всех карточек, КРОМЕ целевой (чтобы избежать race condition)
     ns.collections.cards.forEach(c => {
-      if (c.classList.contains('current')) {
+      if (c !== targetCard && c.classList.contains('current')) {
         console.log('[markCardByPrefix] Удален current с карточки:', c);
+        c.classList.remove('current');
       }
-      c.classList.remove('current');
     });
+    
+    // Добавляем классы синхронно (без setTimeout) для избежания race condition
     console.log('[markCardByPrefix] Добавляем current и', `${prefix}-card-style`, 'на карточку:', targetCard);
-    setTimeout(() => {
-      targetCard.classList.add('current', `${prefix}-card-style`);
-    }, 0);
+    targetCard.classList.add('current', `${prefix}-card-style`);
+    
+    // Проверка после добавления (защита от race condition)
+    requestAnimationFrame(() => {
+      const hasCurrent = targetCard.classList.contains('current');
+      const hasCardStyle = targetCard.classList.contains(`${prefix}-card-style`);
+      if (!hasCurrent || !hasCardStyle) {
+        console.error('[markCardByPrefix] ⚠️ КРИТИЧЕСКАЯ ПРОБЛЕМА: классы не добавлены! hasCurrent:', hasCurrent, 'hasCardStyle:', hasCardStyle);
+        // Попытка исправить
+        if (!hasCurrent) {
+          console.log('[markCardByPrefix] Исправление: добавляем current');
+          targetCard.classList.add('current');
+        }
+        if (!hasCardStyle) {
+          console.log('[markCardByPrefix] Исправление: добавляем', `${prefix}-card-style`);
+          targetCard.classList.add(`${prefix}-card-style`);
+        }
+      } else {
+        console.log('[markCardByPrefix] ✅ Классы успешно добавлены: current и', `${prefix}-card-style`);
+      }
+    });
+    
     ns.state.lastCurrentCard = targetCard;
 
     if (scrollContainer) {
@@ -62,7 +90,20 @@
 
 
     const prefix = (targetCase.id || '').split('-')[0] || '';
-    clearCardDecorations(ns);
+    
+    // Находим целевую карточку ДО clearCardDecorations, чтобы передать её как исключение
+    let targetCard = null;
+    if (prefix) {
+      targetCard = ns.maps.cardPrefixMap.get(prefix) ||
+        ns.collections.cards.find(c => {
+          const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
+          return brand === `${prefix}-mini-view`;
+        });
+    }
+    
+    // Очищаем декорации, но пропускаем целевую карточку (чтобы избежать race condition)
+    clearCardDecorations(ns, targetCard);
+    
     if (prefix) markCardByPrefix(ns, prefix, { scrollContainer });
     ns.state.lastActiveCase = targetCase;
   }
