@@ -85,6 +85,16 @@
   function setActiveCase(ns, targetCase, { scrollContainer = true } = {}) {
     console.log('[setActiveCase] Вызвана, будет удален current через clearCardDecorations');
     if (!targetCase) return;
+    
+    // Защита от множественных вызовов: если уже обрабатываем тот же кейс, пропускаем
+    if (ns.state.settingActiveCase === targetCase) {
+      console.log('[setActiveCase] Пропускаем: уже обрабатывается тот же кейс:', targetCase);
+      return;
+    }
+    
+    // Флаг для защиты от множественных вызовов
+    ns.state.settingActiveCase = targetCase;
+    
     ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
     targetCase.classList.add('active');
 
@@ -106,6 +116,14 @@
     
     if (prefix) markCardByPrefix(ns, prefix, { scrollContainer });
     ns.state.lastActiveCase = targetCase;
+    
+    // Сбрасываем флаг после завершения
+    // Используем requestAnimationFrame для гарантии, что все операции завершены
+    requestAnimationFrame(() => {
+      if (ns.state.settingActiveCase === targetCase) {
+        ns.state.settingActiveCase = null;
+      }
+    });
   }
 
   // Установить активным только кейс (без вмешательства в карточки/скролл списка).
