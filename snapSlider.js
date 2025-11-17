@@ -99,6 +99,20 @@
     } catch(_){ }
   }
 
+  // Установка muted для всех видео (до загрузки метаданных для разрешения автовоспроизведения)
+  function ensureVideosMuted(rootEl){
+    if (!rootEl) return;
+    var videos = qsa(rootEl, 'video');
+    if (!videos || !videos.length) return;
+    each(videos, function(video){
+      try { 
+        video.muted = true; 
+        // Также устанавливаем атрибут muted в HTML для надежности
+        try { video.setAttribute('muted', 'muted'); } catch(_){ }
+      } catch(_){ }
+    });
+  }
+
   function syncProgressDurations(wrapperEl){
     if (!wrapperEl) return;
     var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
@@ -106,6 +120,8 @@
     each(slides, function(slide, idx){
       var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
       if (!video) return;
+      // Устанавливаем muted до загрузки метаданных
+      try { video.muted = true; video.setAttribute('muted', 'muted'); } catch(_){ }
       var apply = function(){ updateSegmentDurationByIndexInWrapper(wrapperEl, idx, video.duration); };
       if (isFinite(video.duration) && video.duration > 0){
         apply();
@@ -204,8 +220,12 @@
     try {
       var v = getTalkingHeadVideo(caseEl);
       if (!v) return;
+      // Устанавливаем muted до загрузки метаданных
+      try { v.muted = true; v.setAttribute('muted', 'muted'); } catch(_){ }
       var onMeta = function(){
         try {
+          // Убеждаемся, что muted установлен перед воспроизведением
+          try { v.muted = true; v.setAttribute('muted', 'muted'); } catch(_){ }
           if (caseEl.classList && caseEl.classList.contains('active')){
             playTalkingHead(caseEl);
           }
@@ -417,6 +437,8 @@
             startRafIfNeeded();
           };
           video.__metaHandler = function(){
+            // Убеждаемся, что muted установлен перед воспроизведением
+            try { video.muted = true; video.setAttribute('muted', 'muted'); } catch(_){ }
             if (video.__progressHandler) video.__progressHandler();
             // После появления метаданных у активного слайда в активном кейсе — запустим воспроизведение
             try {
@@ -625,6 +647,9 @@
         }
       });
 
+      // Устанавливаем muted для всех видео в активном кейсе перед воспроизведением
+      try { ensureVideosMuted(activeCase); } catch(_){ }
+
       // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс, запустить активный
       var wrappers = qsa(activeCase, '.story-track-wrapper');
       each(wrappers, function(w){
@@ -652,6 +677,9 @@
       if (!qs(wrapper, '.story-progress')){
         try { buildProgress(wrapper, slides.length); } catch(_){ }
       }
+
+      // Устанавливаем muted для всех видео в wrapper до загрузки метаданных
+      ensureVideosMuted(wrapper);
 
       // Синхронизируем длительности сегментов с длительностями видео
       syncProgressDurations(wrapper);
@@ -687,6 +715,30 @@
 
     // Инициализируем Z-Index для элементов стека на мобильных
     try { initializeStackZIndex(); } catch(_){ }
+
+    // Глобально устанавливаем muted для всех видео в документе (включая talking-head)
+    try { ensureVideosMuted(document); } catch(_){ }
+
+    // Отслеживаем новые видео, добавляемые динамически
+    try {
+      if (typeof MutationObserver !== 'undefined'){
+        var videoObserver = new MutationObserver(function(mutations){
+          mutations.forEach(function(mutation){
+            mutation.addedNodes.forEach(function(node){
+              if (node.nodeType === 1){ // Element node
+                if (node.tagName && node.tagName.toLowerCase() === 'video'){
+                  try { node.muted = true; node.setAttribute('muted', 'muted'); } catch(_){ }
+                } else {
+                  var videos = qsa(node, 'video');
+                  if (videos && videos.length) { ensureVideosMuted(node); }
+                }
+              }
+            });
+          });
+        });
+        videoObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
+      }
+    } catch(_){ }
 
     // Глобально включаем переключение active у .cases-grid__item по центру snap-скроллера
     setupCasesActiveOnScrollSnap();
