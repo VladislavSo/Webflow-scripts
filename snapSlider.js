@@ -35,13 +35,34 @@
     if (!slideEl) return;
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
+    var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
     each(videos, function(video){
       try { 
         if (video && typeof video.play === 'function') { 
-          // Явно устанавливаем muted перед play для автовоспроизведения
+          // Всегда запускаем с muted = true для автовоспроизведения
+          // Затем, если звук включен, снимаем muted после успешного запуска
           try { video.muted = true; } catch(_){ }
+          
+          // Если звук включен, используем событие playing для снятия muted
+          var onPlayingOnce = null;
+          if (soundOn){
+            onPlayingOnce = function(){
+              try { video.muted = false; } catch(_){ }
+              try { video.removeEventListener('playing', onPlayingOnce); } catch(_){ }
+            };
+            try { video.addEventListener('playing', onPlayingOnce, { once: true }); } catch(_){ }
+          }
+          
           var p = video.play(); 
-          if (p && p.catch) p.catch(function(){}); 
+          if (p && p.catch) {
+            p.catch(function(){
+              // Если запуск не удался, убираем обработчик и оставляем muted = true
+              try { video.muted = true; } catch(_){ }
+              if (soundOn && onPlayingOnce){
+                try { video.removeEventListener('playing', onPlayingOnce); } catch(_){ }
+              }
+            });
+          }
         } 
       } catch(_){ }
     });
@@ -196,7 +217,35 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { try { v.muted = true; } catch(_){ } var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
+  function playTalkingHead(root){ 
+    var v = getTalkingHeadVideo(root); 
+    if (v){ 
+      try { 
+        var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
+        try { v.muted = true; } catch(_){ } 
+        
+        // Если звук включен, используем событие playing для снятия muted
+        var onPlayingOnce = null;
+        if (soundOn){
+          onPlayingOnce = function(){
+            try { v.muted = false; } catch(_){ }
+            try { v.removeEventListener('playing', onPlayingOnce); } catch(_){ }
+          };
+          try { v.addEventListener('playing', onPlayingOnce, { once: true }); } catch(_){ }
+        }
+        
+        var p = v.play(); 
+        if (p && p.catch) {
+          p.catch(function(){
+            try { v.muted = true; } catch(_){ }
+            if (soundOn && onPlayingOnce){
+              try { v.removeEventListener('playing', onPlayingOnce); } catch(_){ }
+            }
+          });
+        }
+      } catch(_){ } 
+    } 
+  }
   function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
 
   // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
@@ -207,6 +256,7 @@
       var onMeta = function(){
         try {
           if (caseEl.classList && caseEl.classList.contains('active')){
+            // playTalkingHead уже учитывает состояние звука
             playTalkingHead(caseEl);
           }
         } catch(_){ }
