@@ -31,37 +31,21 @@
   }
 
   // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
+  // ВСЕГДА запускаем с muted = true, чтобы браузер разрешил автовоспроизведение.
+  // Снятие muted выполняется в muteBtn.js после успешного запуска.
   function playVideos(slideEl){
     if (!slideEl) return;
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
-    var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
     each(videos, function(video){
       try { 
         if (video && typeof video.play === 'function') { 
           // Всегда запускаем с muted = true для автовоспроизведения
-          // Затем, если звук включен, снимаем muted после успешного запуска
+          // Браузеры блокируют автовоспроизведение со звуком без пользовательского взаимодействия
           try { video.muted = true; } catch(_){ }
-          
-          // Если звук включен, используем событие playing для снятия muted
-          var onPlayingOnce = null;
-          if (soundOn){
-            onPlayingOnce = function(){
-              try { video.muted = false; } catch(_){ }
-              try { video.removeEventListener('playing', onPlayingOnce); } catch(_){ }
-            };
-            try { video.addEventListener('playing', onPlayingOnce, { once: true }); } catch(_){ }
-          }
-          
           var p = video.play(); 
           if (p && p.catch) {
-            p.catch(function(){
-              // Если запуск не удался, убираем обработчик и оставляем muted = true
-              try { video.muted = true; } catch(_){ }
-              if (soundOn && onPlayingOnce){
-                try { video.removeEventListener('playing', onPlayingOnce); } catch(_){ }
-              }
-            });
+            p.catch(function(){});
           }
         } 
       } catch(_){ }
@@ -221,27 +205,12 @@
     var v = getTalkingHeadVideo(root); 
     if (v){ 
       try { 
-        var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
+        // Всегда запускаем с muted = true для автовоспроизведения
+        // Снятие muted выполняется в muteBtn.js после успешного запуска
         try { v.muted = true; } catch(_){ } 
-        
-        // Если звук включен, используем событие playing для снятия muted
-        var onPlayingOnce = null;
-        if (soundOn){
-          onPlayingOnce = function(){
-            try { v.muted = false; } catch(_){ }
-            try { v.removeEventListener('playing', onPlayingOnce); } catch(_){ }
-          };
-          try { v.addEventListener('playing', onPlayingOnce, { once: true }); } catch(_){ }
-        }
-        
         var p = v.play(); 
         if (p && p.catch) {
-          p.catch(function(){
-            try { v.muted = true; } catch(_){ }
-            if (soundOn && onPlayingOnce){
-              try { v.removeEventListener('playing', onPlayingOnce); } catch(_){ }
-            }
-          });
+          p.catch(function(){});
         }
       } catch(_){ } 
     } 
