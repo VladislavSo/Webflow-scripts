@@ -180,7 +180,7 @@
     // Меняем current только при скролле списка (fromListScroll && !isProgrammaticListScroll)
     // ВАЖНО: Не меняем current, если он был установлен через setActiveCase (при скролле окна)
     // Это предотвращает конфликт: setActiveCase устанавливает current, а updateListItemEffects его удаляет
-    if (ns.state.fromListScroll && !ns.state.isProgrammaticListScroll && currentCard && currentIdx !== -1) {
+    if (currentCard && currentIdx !== -1) {
       const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
       const distTop = r.top - containerRect.top - 1;
       const distFromBottom = containerRect.bottom - r.bottom - 1;
