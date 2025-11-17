@@ -19,14 +19,17 @@
   // Пометить карточку по префиксу: добавить current и "<prefix>-card-style".
   // Управление: scrollContainer — прокрутить контейнер списка до карточки.
   function markCardByPrefix(ns, prefix, { scrollContainer = true } = {}) {
-    console.log('[markCardByPrefix] Вызвана, удаляем current со всех карточек перед добавлением новой');
+    console.log('[markCardByPrefix] Вызвана, prefix:', prefix, 'удаляем current со всех карточек перед добавлением новой');
     const targetCard =
           ns.maps.cardPrefixMap.get(prefix) ||
           ns.collections.cards.find(c => {
             const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
             return brand === `${prefix}-mini-view`;
           });
-    if (!targetCard) return;
+    if (!targetCard) {
+      console.error('[markCardByPrefix] ⚠️ КРИТИЧЕСКАЯ ПРОБЛЕМА: targetCard не найден для prefix:', prefix);
+      return;
+    }
 
     ns.collections.cards.forEach(c => {
       if (c.classList.contains('current')) {
@@ -34,10 +37,21 @@
       }
       c.classList.remove('current');
     });
-    setTimeout(() => {
-      console.log('[markCardByPrefix] Добавляем current и', `${prefix}-card-style`, 'на карточку:', targetCard);
-      targetCard.classList.add('current', `${prefix}-card-style`);
-    }, 0);
+    console.log('[markCardByPrefix] Добавляем current и', `${prefix}-card-style`, 'на карточку:', targetCard);
+    targetCard.classList.add('current', `${prefix}-card-style`);
+    
+    // Проверка после добавления классов
+    const hasCurrent = targetCard.classList.contains('current');
+    const hasCardStyle = targetCard.classList.contains(`${prefix}-card-style`);
+    if (!hasCurrent || !hasCardStyle) {
+      console.error('[markCardByPrefix] ⚠️ КРИТИЧЕСКАЯ ПРОБЛЕМА: классы не добавлены! hasCurrent:', hasCurrent, 'hasCardStyle:', hasCardStyle, 'targetCard:', targetCard);
+      // Попытка добавить еще раз
+      if (!hasCurrent) targetCard.classList.add('current');
+      if (!hasCardStyle) targetCard.classList.add(`${prefix}-card-style`);
+    } else {
+      console.log('[markCardByPrefix] ✅ Классы успешно добавлены: current и', `${prefix}-card-style`);
+    }
+    
     ns.state.lastCurrentCard = targetCard;
 
     if (scrollContainer) {
@@ -55,15 +69,40 @@
 
   // Установить активный кейс и синхронизировать карточку.
   function setActiveCase(ns, targetCase, { scrollContainer = true } = {}) {
-    console.log('[setActiveCase] Вызвана, будет удален current через clearCardDecorations');
-    if (!targetCase) return;
+    console.log('[setActiveCase] Вызвана, targetCase:', targetCase, 'будет удален current через clearCardDecorations');
+    if (!targetCase) {
+      console.error('[setActiveCase] ⚠️ targetCase отсутствует!');
+      return;
+    }
     ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
     targetCase.classList.add('active');
 
 
     const prefix = (targetCase.id || '').split('-')[0] || '';
+    console.log('[setActiveCase] Извлечен prefix:', prefix);
     clearCardDecorations(ns);
-    if (prefix) markCardByPrefix(ns, prefix, { scrollContainer });
+    if (prefix) {
+      markCardByPrefix(ns, prefix, { scrollContainer });
+      // Проверка после markCardByPrefix
+      const targetCard = ns.maps.cardPrefixMap.get(prefix) ||
+        ns.collections.cards.find(c => {
+          const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
+          return brand === `${prefix}-mini-view`;
+        });
+      if (targetCard) {
+        const hasCurrent = targetCard.classList.contains('current');
+        const hasCardStyle = targetCard.classList.contains(`${prefix}-card-style`);
+        if (!hasCurrent || !hasCardStyle) {
+          console.error('[setActiveCase] ⚠️ ПРОБЛЕМА ПОСЛЕ markCardByPrefix: hasCurrent:', hasCurrent, 'hasCardStyle:', hasCardStyle, 'targetCard:', targetCard);
+        } else {
+          console.log('[setActiveCase] ✅ Проверка пройдена: current и', `${prefix}-card-style`, 'на карточке');
+        }
+      } else {
+        console.error('[setActiveCase] ⚠️ targetCard не найден после markCardByPrefix для prefix:', prefix);
+      }
+    } else {
+      console.warn('[setActiveCase] ⚠️ prefix пустой, markCardByPrefix не вызвана');
+    }
     ns.state.lastActiveCase = targetCase;
   }
 
