@@ -18,8 +18,8 @@
     const targetCard =
           ns.maps.cardPrefixMap.get(prefix) ||
           ns.collections.cards.find(c => {
-            const brand = c.getAttribute('brand-data')  c.getAttribute('data-brand')  '';
-            return brand === ${prefix}-mini-view;
+            const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
+            return brand === `${prefix}-mini-view`;
           });
     if (!targetCard) return;
 
@@ -55,7 +55,7 @@
     targetCase.classList.add('active');
 
 
-    const prefix = (targetCase.id  '').split('-')[0]  '';
+    const prefix = (targetCase.id || '').split('-')[0] || '';
     clearCardDecorations(ns);
     if (prefix) markCardByPrefix(ns, prefix, { scrollContainer });
     ns.state.lastActiveCase = targetCase;
@@ -86,8 +86,7 @@
     }
   }
 
-Vladislav Sobolkov, [17.11.2025 10:45]
-// Создать/пересоздать IntersectionObserver для выбора активного кейса по "линии" активации.
+  // Создать/пересоздать IntersectionObserver для выбора активного кейса по "линии" активации.
   function createCasesObserver(ns) {
     if (!('IntersectionObserver' in window)) return;
     if (ns.observer && ns.observer.cases) {
@@ -107,7 +106,7 @@ Vladislav Sobolkov, [17.11.2025 10:45]
       }
     }, {
       root: null,
-      rootMargin: ${topMargin}px 0px ${bottomMargin}px 0px,
+      rootMargin: `${topMargin}px 0px ${bottomMargin}px 0px`,
       threshold: 0
     });
     ns.collections.caseItems.forEach(ci => ns.observer.cases.observe(ci));
