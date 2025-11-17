@@ -134,20 +134,23 @@
       }
     }
     
-    // Детальное логирование для диагностики
-    console.log('[updateCasesActiveByWindowScroll] active:', active ? (active.id || active.textContent?.substring(0, 20) || active) : 'null');
-    console.log('[updateCasesActiveByWindowScroll] lastActiveCase:', ns.state.lastActiveCase ? (ns.state.lastActiveCase.id || ns.state.lastActiveCase.textContent?.substring(0, 20) || ns.state.lastActiveCase) : 'null');
-    console.log('[updateCasesActiveByWindowScroll] active !== lastActiveCase:', active !== ns.state.lastActiveCase);
+    // Детальное логирование только если есть изменения или проблемы
+    const willLog = !active || active !== ns.state.lastActiveCase || !active.classList.contains('active');
     
-    // Дополнительная диагностика: проверяем позиции кейсов
-    if (active) {
-      const activeRect = active.getBoundingClientRect();
-      console.log('[updateCasesActiveByWindowScroll] active позиция:', {
-        top: activeRect.top,
-        bottom: activeRect.bottom,
-        triggerOffset: ns.metrics.triggerOffsetPx,
-        intersects: activeRect.top <= ns.metrics.triggerOffsetPx && activeRect.bottom >= ns.metrics.triggerOffsetPx
-      });
+    if (willLog) {
+      console.log('[updateCasesActiveByWindowScroll] active:', active ? (active.id || active.textContent?.substring(0, 20) || active) : 'null');
+      console.log('[updateCasesActiveByWindowScroll] lastActiveCase:', ns.state.lastActiveCase ? (ns.state.lastActiveCase.id || ns.state.lastActiveCase.textContent?.substring(0, 20) || ns.state.lastActiveCase) : 'null');
+      console.log('[updateCasesActiveByWindowScroll] active !== lastActiveCase:', active !== ns.state.lastActiveCase);
+      
+      if (active) {
+        const activeRect = active.getBoundingClientRect();
+        console.log('[updateCasesActiveByWindowScroll] active позиция:', {
+          top: activeRect.top,
+          bottom: activeRect.bottom,
+          triggerOffset: ns.metrics.triggerOffsetPx,
+          intersects: activeRect.top <= ns.metrics.triggerOffsetPx && activeRect.bottom >= ns.metrics.triggerOffsetPx
+        });
+      }
     }
     
     if (active) {
@@ -170,14 +173,22 @@
         }
         setActiveCase(ns, active, { scrollContainer: true });
       } else {
-        console.log('[updateCasesActiveByWindowScroll] ⚠️ active === lastActiveCase И класс active установлен, пропускаем');
-        
-        // Дополнительная проверка: может быть IntersectionObserver уже установил правильный кейс?
-        // Проверяем, действительно ли этот кейс должен быть активным по текущей позиции
+        // active === lastActiveCase И класс active установлен
+        // Это нормально, если IntersectionObserver уже установил правильный кейс
+        // Но проверяем, действительно ли это правильный кейс для текущей позиции
         const activeRect = active.getBoundingClientRect();
         const shouldBeActive = activeRect.top <= ns.metrics.triggerOffsetPx && activeRect.bottom >= ns.metrics.triggerOffsetPx;
-        if (!shouldBeActive) {
+        
+        if (shouldBeActive) {
+          // Все правильно: IntersectionObserver уже установил правильный кейс
+          // updateCasesActiveByWindowScroll не нужен в этом случае
+          // Убираем лишние логи, чтобы не засорять консоль
+        } else {
+          // ПРОБЛЕМА: кейс установлен, но больше не пересекает линию активации
           console.warn('[updateCasesActiveByWindowScroll] ⚠️ ПРОБЛЕМА: active === lastActiveCase, но кейс больше не пересекает линию активации!');
+          console.warn('[updateCasesActiveByWindowScroll] Исправление: устанавливаем правильный кейс');
+          // Находим правильный кейс и устанавливаем его
+          setActiveCase(ns, active, { scrollContainer: true });
         }
       }
     } else {
