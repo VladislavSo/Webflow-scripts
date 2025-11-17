@@ -38,10 +38,42 @@
     each(videos, function(video){
       try { 
         if (video && typeof video.play === 'function') { 
-          // Устанавливаем muted перед play для разрешения автовоспроизведения
-          try { video.muted = true; } catch(_){ }
+          // Принудительно устанавливаем muted и атрибуты для автовоспроизведения
+          try { 
+            video.muted = true; 
+            video.setAttribute('muted', 'muted');
+            video.setAttribute('playsinline', 'playsinline');
+            // Если видео уже загружено, перезагружаем с новыми параметрами
+            if (video.readyState > 0 && video.readyState < 3) {
+              video.load();
+              // Ждем загрузки метаданных перед play
+              video.addEventListener('loadedmetadata', function(){
+                try {
+                  video.muted = true;
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(){});
+                } catch(_){}
+              }, { once: true });
+              return;
+            }
+          } catch(_){ }
           var p = video.play(); 
-          if (p && p.catch) p.catch(function(){}); 
+          if (p && p.catch) {
+            p.catch(function(err){
+              // Если play() отклонен, пробуем перезагрузить и повторить
+              try {
+                video.load();
+                video.addEventListener('loadedmetadata', function(){
+                  try {
+                    video.muted = true;
+                    video.setAttribute('muted', 'muted');
+                    var p2 = video.play();
+                    if (p2 && p2.catch) p2.catch(function(){});
+                  } catch(_){}
+                }, { once: true });
+              } catch(_){}
+            });
+          }
         } 
       } catch(_){ }
     });
@@ -106,9 +138,43 @@
     if (!videos || !videos.length) return;
     each(videos, function(video){
       try { 
+        // Сначала устанавливаем атрибуты в HTML (браузер читает их раньше)
+        try { 
+          video.setAttribute('muted', 'muted');
+          video.setAttribute('playsinline', 'playsinline');
+        } catch(_){ }
+        // Затем устанавливаем свойство muted
         video.muted = true; 
-        // Также устанавливаем атрибут muted в HTML для надежности
-        try { video.setAttribute('muted', 'muted'); } catch(_){ }
+        // Если видео уже начало загружаться, перезагружаем с новыми параметрами
+        try {
+          if (video.readyState > 0 && video.readyState < 4) {
+            // Сохраняем текущий src
+            var src = video.src || (video.getAttribute ? video.getAttribute('src') : null);
+            if (src) {
+              video.load();
+            }
+          }
+        } catch(_){ }
+        // Устанавливаем muted при самом раннем событии загрузки
+        try {
+          var setMutedEarly = function(){
+            try { 
+              video.muted = true; 
+              video.setAttribute('muted', 'muted');
+              video.setAttribute('playsinline', 'playsinline');
+            } catch(_){ }
+          };
+          // Удаляем старые обработчики если есть
+          if (video.__mutedHandler) {
+            try {
+              video.removeEventListener('loadstart', video.__mutedHandler);
+              video.removeEventListener('loadedmetadata', video.__mutedHandler);
+            } catch(_){}
+          }
+          video.__mutedHandler = setMutedEarly;
+          video.addEventListener('loadstart', setMutedEarly, { once: true });
+          video.addEventListener('loadedmetadata', setMutedEarly, { once: true });
+        } catch(_){ }
       } catch(_){ }
     });
   }
@@ -120,8 +186,12 @@
     each(slides, function(slide, idx){
       var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
       if (!video) return;
-      // Устанавливаем muted до загрузки метаданных
-      try { video.muted = true; video.setAttribute('muted', 'muted'); } catch(_){ }
+      // Устанавливаем muted и атрибуты до загрузки метаданных
+      try { 
+        video.muted = true; 
+        video.setAttribute('muted', 'muted');
+        video.setAttribute('playsinline', 'playsinline');
+      } catch(_){ }
       var apply = function(){ updateSegmentDurationByIndexInWrapper(wrapperEl, idx, video.duration); };
       if (isFinite(video.duration) && video.duration > 0){
         apply();
@@ -212,7 +282,36 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { try { v.muted = true; } catch(_){ } var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
+  function playTalkingHead(root){ 
+    var v = getTalkingHeadVideo(root); 
+    if (v){ 
+      try { 
+        // Принудительно устанавливаем muted и атрибуты
+        try { 
+          v.muted = true; 
+          v.setAttribute('muted', 'muted');
+          v.setAttribute('playsinline', 'playsinline');
+        } catch(_){ } 
+        var p = v.play(); 
+        if (p && p.catch) {
+          p.catch(function(err){
+            // Если play() отклонен, пробуем перезагрузить и повторить
+            try {
+              v.load();
+              v.addEventListener('loadedmetadata', function(){
+                try {
+                  v.muted = true;
+                  v.setAttribute('muted', 'muted');
+                  var p2 = v.play();
+                  if (p2 && p2.catch) p2.catch(function(){});
+                } catch(_){}
+              }, { once: true });
+            } catch(_){}
+          });
+        }
+      } catch(_){ } 
+    } 
+  }
   function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
 
   // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
@@ -727,10 +826,27 @@
             mutation.addedNodes.forEach(function(node){
               if (node.nodeType === 1){ // Element node
                 if (node.tagName && node.tagName.toLowerCase() === 'video'){
-                  try { node.muted = true; node.setAttribute('muted', 'muted'); } catch(_){ }
+                  // Устанавливаем muted сразу при обнаружении видео элемента
+                  try { 
+                    node.setAttribute('muted', 'muted');
+                    node.setAttribute('playsinline', 'playsinline');
+                    node.muted = true;
+                  } catch(_){ }
+                  // Также используем полную функцию для надежности
+                  setTimeout(function(){ ensureVideosMuted(node); }, 0);
                 } else {
                   var videos = qsa(node, 'video');
-                  if (videos && videos.length) { ensureVideosMuted(node); }
+                  if (videos && videos.length) { 
+                    // Устанавливаем muted для всех найденных видео
+                    each(videos, function(v){
+                      try { 
+                        v.setAttribute('muted', 'muted');
+                        v.setAttribute('playsinline', 'playsinline');
+                        v.muted = true;
+                      } catch(_){ }
+                    });
+                    ensureVideosMuted(node); 
+                  }
                 }
               }
             });
