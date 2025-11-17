@@ -13,6 +13,7 @@
   }
   
   function onCardsScroll() {
+    ns.effects.scheduleFrameUpdate(ns);
     if (ns.state.isProgrammaticListScroll) return;
     ns.state.fromListScroll = true;
     ns.effects.scheduleFrameUpdate(ns);
