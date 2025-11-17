@@ -31,6 +31,8 @@
        const prefix = (brand.split('-')[0] || '').trim();
        if (!prefix) return;
   
+       ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
+  
        const targetCase = ns.maps.casePrefixMap.get(prefix) || ns.collections.caseItems.find(ci => (ci.id || '').startsWith(prefix));
   
        ns.collections.cards.forEach(c => {
