@@ -74,6 +74,24 @@
       console.error('[setActiveCase] ⚠️ targetCase отсутствует!');
       return;
     }
+    
+    // Защита от множественных быстрых вызовов: если уже обрабатываем какой-то кейс, пропускаем
+    if (ns.state.settingActiveCase) {
+      console.log('[setActiveCase] ⚠️ Пропускаем: уже обрабатывается кейс, текущий:', ns.state.lastActiveCase, 'новый:', targetCase);
+      return;
+    }
+    
+    // Флаг для защиты от множественных вызовов
+    ns.state.settingActiveCase = true;
+    
+    // Защитный таймаут на случай, если что-то пойдет не так и флаг не сбросится
+    const timeoutId = setTimeout(() => {
+      if (ns.state.settingActiveCase) {
+        console.warn('[setActiveCase] ⚠️ Таймаут: принудительно сбрасываем флаг settingActiveCase');
+        ns.state.settingActiveCase = false;
+      }
+    }, 1000);
+    
     ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
     targetCase.classList.add('active');
 
@@ -83,25 +101,40 @@
     clearCardDecorations(ns);
     if (prefix) {
       markCardByPrefix(ns, prefix, { scrollContainer });
-      // Проверка после markCardByPrefix
-      const targetCard = ns.maps.cardPrefixMap.get(prefix) ||
-        ns.collections.cards.find(c => {
-          const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
-          return brand === `${prefix}-mini-view`;
-        });
-      if (targetCard) {
-        const hasCurrent = targetCard.classList.contains('current');
-        const hasCardStyle = targetCard.classList.contains(`${prefix}-card-style`);
-        if (!hasCurrent || !hasCardStyle) {
-          console.error('[setActiveCase] ⚠️ ПРОБЛЕМА ПОСЛЕ markCardByPrefix: hasCurrent:', hasCurrent, 'hasCardStyle:', hasCardStyle, 'targetCard:', targetCard);
+      // Проверка после markCardByPrefix - используем requestAnimationFrame для гарантии, что DOM обновлен
+      requestAnimationFrame(() => {
+        const targetCard = ns.maps.cardPrefixMap.get(prefix) ||
+          ns.collections.cards.find(c => {
+            const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
+            return brand === `${prefix}-mini-view`;
+          });
+        if (targetCard) {
+          const hasCurrent = targetCard.classList.contains('current');
+          const hasCardStyle = targetCard.classList.contains(`${prefix}-card-style`);
+          if (!hasCurrent || !hasCardStyle) {
+            console.error('[setActiveCase] ⚠️ ПРОБЛЕМА ПОСЛЕ markCardByPrefix: hasCurrent:', hasCurrent, 'hasCardStyle:', hasCardStyle, 'targetCard:', targetCard);
+            // Попытка исправить
+            if (!hasCurrent) {
+              console.log('[setActiveCase] Исправление: добавляем current');
+              targetCard.classList.add('current');
+            }
+            if (!hasCardStyle) {
+              console.log('[setActiveCase] Исправление: добавляем', `${prefix}-card-style`);
+              targetCard.classList.add(`${prefix}-card-style`);
+            }
+          } else {
+            console.log('[setActiveCase] ✅ Проверка пройдена: current и', `${prefix}-card-style`, 'на карточке');
+          }
         } else {
-          console.log('[setActiveCase] ✅ Проверка пройдена: current и', `${prefix}-card-style`, 'на карточке');
+          console.error('[setActiveCase] ⚠️ targetCard не найден после markCardByPrefix для prefix:', prefix);
         }
-      } else {
-        console.error('[setActiveCase] ⚠️ targetCard не найден после markCardByPrefix для prefix:', prefix);
-      }
+        clearTimeout(timeoutId);
+        ns.state.settingActiveCase = false;
+      });
     } else {
       console.warn('[setActiveCase] ⚠️ prefix пустой, markCardByPrefix не вызвана');
+      clearTimeout(timeoutId);
+      ns.state.settingActiveCase = false;
     }
     ns.state.lastActiveCase = targetCase;
   }
