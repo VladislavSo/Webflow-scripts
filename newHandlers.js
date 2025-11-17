@@ -19,8 +19,6 @@
    ns.effects.scheduleFrameUpdate(ns);
   }
   
-
-  
   function bindCardClicks(ns) {
    ns.collections.cards.forEach((card) => {
      card.addEventListener('click', () => {
@@ -93,7 +91,14 @@
   
   function bindAllScrolls(ns) {
    ns.dom.container.addEventListener('scroll', onCardsScroll, { passive: true });
-
+   window.addEventListener('resize', () => {
+     ns.utils.recalcMetrics(ns);
+     ns.sync.createCasesObserver(ns);
+     ns.effects.scheduleFrameUpdate(ns);
+     ns.layout.updateCasesContainerPaddingTop(ns);
+     refreshEffectsWithDelay();
+   });
+   window.addEventListener('orientationchange', () => { refreshEffectsWithDelay(); });
   }
   
   function bootstrap() {
