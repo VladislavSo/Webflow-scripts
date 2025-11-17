@@ -97,12 +97,11 @@ window.StackUI = window.StackUI || {};
     lastCurrentCard: null,
     removedCurrentCard: null,
     fromListScroll: false,
-    isProgrammaticListScroll: false
+    isProgrammaticListScroll: false,
+    settingActiveCase: null
   };
 
   ns.cache = {
     cardChildren: []
   };
 })(window.StackUI);
-
-
