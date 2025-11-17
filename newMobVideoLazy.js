@@ -110,7 +110,6 @@ document.addEventListener("DOMContentLoaded", () => {
         source.type = 'video/mp4';
         video.appendChild(source);
         video.preload = isIOS ? 'metadata' : 'auto';
-        try { video.muted = true; } catch(_) {}
         try { video.load(); } catch(e) {}
         await new Promise(resolve => {
           if (video.readyState >= 4) {
@@ -130,7 +129,6 @@ document.addEventListener("DOMContentLoaded", () => {
       source.type = 'video/mp4';
       video.appendChild(source);
       video.preload = isIOS ? 'metadata' : 'auto';
-      try { video.muted = true; } catch(_) {}
       try { video.load(); } catch(e) {}
       await new Promise(resolve => {
         if (video.readyState >= 4) {
@@ -153,7 +151,6 @@ document.addEventListener("DOMContentLoaded", () => {
       source.type = 'video/mp4';
       video.appendChild(source);
       video.preload = isIOS ? 'metadata' : 'auto';
-      try { video.muted = true; } catch(_) {}
       try { video.load(); } catch(e) {}
       await new Promise(resolve => {
         if (video.readyState >= 4) {
@@ -174,7 +171,6 @@ document.addEventListener("DOMContentLoaded", () => {
         source.type = 'video/mp4';
         video.appendChild(source);
         video.preload = isIOS ? 'metadata' : 'auto';
-        try { video.muted = true; } catch(_) {}
         try { video.load(); } catch(err) {}
         await new Promise(resolve => {
           if (video.readyState >= 4) {
@@ -299,7 +295,6 @@ document.addEventListener("DOMContentLoaded", () => {
       const allVideos = item.querySelectorAll('video');
       allVideos.forEach(video => {
         video.preload = 'none';
-        try { video.muted = true; } catch(_) {}
       });
     });
 
@@ -350,11 +345,24 @@ document.addEventListener("DOMContentLoaded", () => {
           const activeSlideVideos = getActiveSlideVideos(activeItem);
           const talkingHeadVideos = Array.from(activeItem.querySelectorAll('.cases-grid__item__container__wrap__talking-head video'));
           const videosToPlay = [...activeSlideVideos, ...talkingHeadVideos];
+          // Безопасный запуск: сначала muted, затем play, через 150мс включаем звук (если нужно)
+          const soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
           videosToPlay.forEach(video => {
             try {
-              if (video.paused) {
-                try { video.muted = true; } catch(_) {}
-                video.play().catch(()=>{});
+              if (video && typeof video.play === 'function') {
+                video.muted = true;
+                const p = video.play();
+                if (p && p.catch) p.catch(()=>{});
+                if (soundOn) {
+                  setTimeout(() => {
+                    try {
+                      if (video && !video.paused) {
+                        video.muted = false;
+                        video.volume = 1;
+                      }
+                    } catch(_) {}
+                  }, 150);
+                }
               }
             } catch(_) {}
           });
