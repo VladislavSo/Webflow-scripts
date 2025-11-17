@@ -91,17 +91,31 @@
     console.log('[updateCasesActiveByWindowScroll] active:', active ? active.id || active : 'null');
     console.log('[updateCasesActiveByWindowScroll] lastActiveCase:', ns.state.lastActiveCase ? ns.state.lastActiveCase.id || ns.state.lastActiveCase : 'null');
     console.log('[updateCasesActiveByWindowScroll] active !== lastActiveCase:', active !== ns.state.lastActiveCase);
-    console.log('[updateCasesActiveByWindowScroll] Условие (active && active !== lastActiveCase):', active && active !== ns.state.lastActiveCase);
     
-    if (active && active !== ns.state.lastActiveCase) {
-      console.log('[updateCasesActiveByWindowScroll] ✅ УСЛОВИЕ TRUE: Найден новый активный кейс, вызываем setActiveCase');
-      setActiveCase(ns, active, { scrollContainer: true });
-    } else {
-      if (!active) {
-        console.log('[updateCasesActiveByWindowScroll] ⚠️ active === null, активный кейс не найден');
-      } else if (active === ns.state.lastActiveCase) {
-        console.log('[updateCasesActiveByWindowScroll] ⚠️ active === lastActiveCase, тот же кейс уже активен');
+    if (active) {
+      // Проверка: даже если active === lastActiveCase, нужно убедиться, что класс active действительно установлен
+      // Это защита от race condition при быстром скролле
+      const isLastActiveCase = active === ns.state.lastActiveCase;
+      const hasActiveClass = active.classList.contains('active');
+      
+      console.log('[updateCasesActiveByWindowScroll] isLastActiveCase:', isLastActiveCase);
+      console.log('[updateCasesActiveByWindowScroll] hasActiveClass:', hasActiveClass);
+      
+      // Устанавливаем активный кейс если:
+      // 1. Это новый кейс (active !== lastActiveCase), ИЛИ
+      // 2. Это тот же кейс, но класс active не установлен (защита от race condition)
+      if (!isLastActiveCase || !hasActiveClass) {
+        if (!isLastActiveCase) {
+          console.log('[updateCasesActiveByWindowScroll] ✅ УСЛОВИЕ TRUE: Найден новый активный кейс, вызываем setActiveCase');
+        } else {
+          console.log('[updateCasesActiveByWindowScroll] ⚠️ УСЛОВИЕ TRUE (защита): active === lastActiveCase, но класс active отсутствует, вызываем setActiveCase');
+        }
+        setActiveCase(ns, active, { scrollContainer: true });
+      } else {
+        console.log('[updateCasesActiveByWindowScroll] ⚠️ active === lastActiveCase И класс active установлен, пропускаем');
       }
+    } else {
+      console.log('[updateCasesActiveByWindowScroll] ⚠️ active === null, активный кейс не найден');
     }
   }
 
