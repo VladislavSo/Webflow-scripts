@@ -177,13 +177,7 @@
     }
   }
 
-  const checkFromListScroll = ns.state.fromListScroll;
-  const checkCurrentCard = !!currentCard;
-  const checkCurrentIdx = currentIdx !== -1;
-  const checkProgrammatic = ns.state.isProgrammaticListScroll;
-  const conditionMet = checkFromListScroll && checkCurrentCard && checkCurrentIdx && checkProgrammatic;
-  
-  if (conditionMet) {
+  if (ns.state.fromListScroll && !ns.state.isProgrammaticListScroll && currentCard && currentIdx !== -1) {
     const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
     const distTop = r.top - containerRect.top - 1;
     const distFromBottom = containerRect.bottom - r.bottom - 1;
