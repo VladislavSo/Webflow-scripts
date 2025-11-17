@@ -19,9 +19,7 @@
    ns.effects.scheduleFrameUpdate(ns);
   }
   
-  function onWindowScroll() {
-   ns.effects.scheduleFrameUpdate(ns);
-  }
+
   
   function bindCardClicks(ns) {
    ns.collections.cards.forEach((card) => {
