@@ -34,8 +34,10 @@
       }
       c.classList.remove('current');
     });
-    console.log('[markCardByPrefix] Добавляем current и', `${prefix}-card-style`, 'на карточку:', targetCard);
-    targetCard.classList.add('current', `${prefix}-card-style`);
+    setTimeout(() => {
+      console.log('[markCardByPrefix] Добавляем current и', `${prefix}-card-style`, 'на карточку:', targetCard);
+      targetCard.classList.add('current', `${prefix}-card-style`);
+    }, 0);
     ns.state.lastCurrentCard = targetCard;
 
     if (scrollContainer) {
