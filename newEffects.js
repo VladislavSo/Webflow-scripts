@@ -178,6 +178,8 @@
     }
 
     // Меняем current только при скролле списка (fromListScroll && !isProgrammaticListScroll)
+    // ВАЖНО: Не меняем current, если он был установлен через setActiveCase (при скролле окна)
+    // Это предотвращает конфликт: setActiveCase устанавливает current, а updateListItemEffects его удаляет
     if (ns.state.fromListScroll && !ns.state.isProgrammaticListScroll && currentCard && currentIdx !== -1) {
       const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
       const distTop = r.top - containerRect.top - 1;
@@ -187,12 +189,19 @@
       const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
       const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
 
+      // Проверяем, не был ли current установлен через setActiveCase (при скролле окна)
+      // Если lastCurrentCard === currentCard, значит current был установлен через setActiveCase
+      // и мы не должны его удалять при скролле списка
+      const wasSetBySetActiveCase = ns.state.lastCurrentCard === currentCard;
+
       if (isAboveEnd || isBelowStart) {
-        if (currentCard.classList.contains('current')) {
+        if (currentCard.classList.contains('current') && !wasSetBySetActiveCase) {
           console.log('[updateListItemEffects] Удаление current при скролле списка (не window):', currentCard);
           currentCard.classList.remove('current');
           ns.state.removedCurrentCard = currentCard;
           ns.state.lastCurrentCard = null;
+        } else if (wasSetBySetActiveCase) {
+          console.log('[updateListItemEffects] Пропускаем удаление current: карточка установлена через setActiveCase');
         }
       } else if (isWithin) {
         if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
