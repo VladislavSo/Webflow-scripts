@@ -173,34 +173,39 @@
           card.style.transform = 'scale(1)';
           card.style.backgroundColor = `rgb(${ns.colors.color21.r}, ${ns.colors.color21.g}, ${ns.colors.color21.b})`;
           ns.cache.cardChildren[i].forEach(el => { el.style.opacity = '1'; });
-        }
       }
     }
+  }
 
-    // Меняем current только при скролле списка (fromListScroll && !isProgrammaticListScroll)
-    if (ns.state.fromListScroll && !ns.state.isProgrammaticListScroll && currentCard && currentIdx !== -1) {
-      const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
-      const distTop = r.top - containerRect.top - 1;
-      const distFromBottom = containerRect.bottom - r.bottom - 1;
+  const checkFromListScroll = ns.state.fromListScroll;
+  const checkCurrentCard = !!currentCard;
+  const checkCurrentIdx = currentIdx !== -1;
+  const checkProgrammatic = ns.state.isProgrammaticListScroll;
+  const conditionMet = checkFromListScroll && checkCurrentCard && checkCurrentIdx && checkProgrammatic;
+  
+  if (conditionMet) {
+    const r = meas ? meas.cardRects[currentIdx] : currentCard.getBoundingClientRect();
+    const distTop = r.top - containerRect.top - 1;
+    const distFromBottom = containerRect.bottom - r.bottom - 1;
 
-      const isAboveEnd = distTop < ns.metrics.effectEndPx;
-      const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
-      const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
+    const isAboveEnd = distTop < ns.metrics.effectEndPx;
+    const isBelowStart = distFromBottom > ns.metrics.bottomBandStartPx;
+    const isWithin = distTop >= ns.metrics.effectEndPx && distFromBottom <= ns.metrics.bottomBandStartPx;
 
-      if (isAboveEnd || isBelowStart) {
-        if (currentCard.classList.contains('current')) {
-          currentCard.classList.remove('current');
-          ns.state.removedCurrentCard = currentCard;
-          ns.state.lastCurrentCard = null;
-        }
-      } else if (isWithin) {
-        if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
-          currentCard.classList.add('current');
-          ns.state.lastCurrentCard = currentCard;
-          ns.state.removedCurrentCard = null;
-        }
+    if (isAboveEnd || isBelowStart) {
+      if (currentCard.classList.contains('current')) {
+        currentCard.classList.remove('current');
+        ns.state.removedCurrentCard = currentCard;
+        ns.state.lastCurrentCard = null;
+      }
+    } else if (isWithin) {
+      if (!currentCard.classList.contains('current') && ns.state.removedCurrentCard === currentCard) {
+        currentCard.classList.add('current');
+        ns.state.lastCurrentCard = currentCard;
+        ns.state.removedCurrentCard = null;
       }
     }
+  }
   }
 
   function scheduleFrameUpdate(ns) {
