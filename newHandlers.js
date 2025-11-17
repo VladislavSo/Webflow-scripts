@@ -58,27 +58,31 @@
   
        const targetCase = ns.maps.casePrefixMap.get(prefix) || ns.collections.caseItems.find(ci => (ci.id || '').startsWith(prefix));
   
-       ns.collections.cards.forEach(c => {
-         c.classList.remove('current');
-         Array.from(c.classList).forEach(cls => {
-           if (cls.endsWith('-card-style')) c.classList.remove(cls);
-         });
-       });
+      ns.collections.cards.forEach(c => {
+        c.classList.remove('current');
+        Array.from(c.classList).forEach(cls => {
+          if (cls.endsWith('-card-style')) c.classList.remove(cls);
+        });
+      });
   
-       card.classList.add(`${prefix}-card-style`);
+      console.log('[bindCardClicks] ⚠️ ПРОБЛЕМА: Добавляем', `${prefix}-card-style`, 'БЕЗ current на карточку:', card);
+      card.classList.add(`${prefix}-card-style`);
   
        const index = ns.collections.cards.indexOf(card);
        if (index !== -1) {
          const scrollTop = index * ns.metrics.containerItemHeightPx + index * ns.state.rowGapPx;
          ns.state.isProgrammaticListScroll = true;
          ns.dom.container.scrollTo({ top: scrollTop, behavior: ns.utils.smoothBehavior(ns) });
-         ns.utils.waitForElementScrollEnd(ns.dom.container).then(() => {
-           ns.state.isProgrammaticListScroll = false;
-           ns.collections.cards.forEach(c => c.classList.remove('current'));
-           card.classList.add('current');
-           ns.state.lastCurrentCard = card;
-           ns.effects.scheduleFrameUpdate(ns);
-         });
+        ns.utils.waitForElementScrollEnd(ns.dom.container).then(() => {
+          ns.state.isProgrammaticListScroll = false;
+          ns.collections.cards.forEach(c => c.classList.remove('current'));
+          console.log('[bindCardClicks] Добавляем current на карточку ПОСЛЕ скролла контейнера:', card, 'Уже есть', `${prefix}-card-style`);
+          card.classList.add('current');
+          ns.state.lastCurrentCard = card;
+          ns.effects.scheduleFrameUpdate(ns);
+        });
+       } else {
+         console.log('[bindCardClicks] ⚠️ КРИТИЧЕСКАЯ ПРОБЛЕМА: index === -1, current НЕ будет добавлен, но', `${prefix}-card-style`, 'уже добавлен на карточку:', card);
        }
   
        if (targetCase) {
