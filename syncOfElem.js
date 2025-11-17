@@ -1,4 +1,3 @@
-Vladislav Sobolkov, [17.11.2025 10:45]
 (function(ns) {
   'use strict';
 
