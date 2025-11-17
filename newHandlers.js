@@ -8,18 +8,45 @@
    setTimeout(() => {
      ns.effects.updateZIndexes(ns);
      ns.effects.updateListItemEffects(ns);
-     ns.effects.scheduleFrameUpdate(ns, true);
+     ns.effects.scheduleFrameUpdate(ns);
    }, 300);
   }
   
   function onCardsScroll() {
+   ns.effects.scheduleFrameUpdate(ns);
    if (ns.state.isProgrammaticListScroll) return;
    ns.state.fromListScroll = true;
    ns.effects.scheduleFrameUpdate(ns);
   }
   
-  function onWindowScroll() {
-   // scheduleFrameUpdate больше не вызывается при скролле window
+  function observeActiveCaseChanges(ns) {
+    if (!('MutationObserver' in window)) return;
+    
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+          const target = mutation.target;
+          const hadActive = mutation.oldValue && mutation.oldValue.includes('active');
+          const hasActive = target.classList.contains('active');
+          
+          if (hadActive !== hasActive) {
+            ns.effects.scheduleFrameUpdate(ns);
+            break;
+          }
+        }
+      }
+    });
+    
+    ns.collections.caseItems.forEach(caseItem => {
+      observer.observe(caseItem, {
+        attributes: true,
+        attributeFilter: ['class'],
+        attributeOldValue: true
+      });
+    });
+    
+    ns.observer = ns.observer || {};
+    ns.observer.activeCaseChanges = observer;
   }
   
   function bindCardClicks(ns) {
@@ -50,7 +77,7 @@
            ns.collections.cards.forEach(c => c.classList.remove('current'));
            card.classList.add('current');
            ns.state.lastCurrentCard = card;
-           ns.effects.scheduleFrameUpdate(ns, true);
+           ns.effects.scheduleFrameUpdate(ns);
          });
        }
   
@@ -61,7 +88,7 @@
          ns.utils.waitForWindowScrollEnd().then(() => {
            ns.sync.setActiveCaseOnly(ns, targetCase);
            ns.state.isProgrammaticWindowScroll = false;
-           ns.effects.scheduleFrameUpdate(ns, true);
+           ns.effects.scheduleFrameUpdate(ns);
          });
        }
      });
@@ -86,7 +113,7 @@
          ns.collections.cards.forEach(c => c.classList.remove('current'));
          targetCard.classList.add('current');
          ns.state.lastCurrentCard = targetCard;
-         ns.effects.scheduleFrameUpdate(ns, true);
+         ns.effects.scheduleFrameUpdate(ns);
        }, 0);
      });
    });
@@ -94,11 +121,10 @@
   
   function bindAllScrolls(ns) {
    ns.dom.container.addEventListener('scroll', onCardsScroll, { passive: true });
-   window.addEventListener('scroll', onWindowScroll, { passive: true });
    window.addEventListener('resize', () => {
      ns.utils.recalcMetrics(ns);
      ns.sync.createCasesObserver(ns);
-     ns.effects.scheduleFrameUpdate(ns, true);
+     ns.effects.scheduleFrameUpdate(ns);
      ns.layout.updateCasesContainerPaddingTop(ns);
      refreshEffectsWithDelay();
    });
@@ -122,13 +148,13 @@
    else ns.sync.updateCasesActiveByWindowScroll(ns);
   
    ns.sync.createCasesObserver(ns);
-   ns.effects.initCaseItemsObserver(ns);
+   observeActiveCaseChanges(ns);
   
    bindCardClicks(ns);
    bindHoverHandlers(ns);
    bindAllScrolls(ns);
   
-   ns.effects.scheduleFrameUpdate(ns, true);
+   ns.effects.scheduleFrameUpdate(ns);
   
    document.addEventListener('fullscreenchange', () => { refreshEffectsWithDelay(); });
    document.addEventListener('webkitfullscreenchange', () => { refreshEffectsWithDelay(); });
