@@ -38,42 +38,10 @@
     each(videos, function(video){
       try { 
         if (video && typeof video.play === 'function') { 
-          // Принудительно устанавливаем muted и атрибуты для автовоспроизведения
-          try { 
-            video.muted = true; 
-            video.setAttribute('muted', 'muted');
-            video.setAttribute('playsinline', 'playsinline');
-            // Если видео уже загружено, перезагружаем с новыми параметрами
-            if (video.readyState > 0 && video.readyState < 3) {
-              video.load();
-              // Ждем загрузки метаданных перед play
-              video.addEventListener('loadedmetadata', function(){
-                try {
-                  video.muted = true;
-                  var p = video.play();
-                  if (p && p.catch) p.catch(function(){});
-                } catch(_){}
-              }, { once: true });
-              return;
-            }
-          } catch(_){ }
+          // Явно устанавливаем muted перед play для автовоспроизведения
+          try { video.muted = true; } catch(_){ }
           var p = video.play(); 
-          if (p && p.catch) {
-            p.catch(function(err){
-              // Если play() отклонен, пробуем перезагрузить и повторить
-              try {
-                video.load();
-                video.addEventListener('loadedmetadata', function(){
-                  try {
-                    video.muted = true;
-                    video.setAttribute('muted', 'muted');
-                    var p2 = video.play();
-                    if (p2 && p2.catch) p2.catch(function(){});
-                  } catch(_){}
-                }, { once: true });
-              } catch(_){}
-            });
-          }
+          if (p && p.catch) p.catch(function(){}); 
         } 
       } catch(_){ }
     });
@@ -131,54 +99,6 @@
     } catch(_){ }
   }
 
-  // Установка muted для всех видео (до загрузки метаданных для разрешения автовоспроизведения)
-  function ensureVideosMuted(rootEl){
-    if (!rootEl) return;
-    var videos = qsa(rootEl, 'video');
-    if (!videos || !videos.length) return;
-    each(videos, function(video){
-      try { 
-        // Сначала устанавливаем атрибуты в HTML (браузер читает их раньше)
-        try { 
-          video.setAttribute('muted', 'muted');
-          video.setAttribute('playsinline', 'playsinline');
-        } catch(_){ }
-        // Затем устанавливаем свойство muted
-        video.muted = true; 
-        // Если видео уже начало загружаться, перезагружаем с новыми параметрами
-        try {
-          if (video.readyState > 0 && video.readyState < 4) {
-            // Сохраняем текущий src
-            var src = video.src || (video.getAttribute ? video.getAttribute('src') : null);
-            if (src) {
-              video.load();
-            }
-          }
-        } catch(_){ }
-        // Устанавливаем muted при самом раннем событии загрузки
-        try {
-          var setMutedEarly = function(){
-            try { 
-              video.muted = true; 
-              video.setAttribute('muted', 'muted');
-              video.setAttribute('playsinline', 'playsinline');
-            } catch(_){ }
-          };
-          // Удаляем старые обработчики если есть
-          if (video.__mutedHandler) {
-            try {
-              video.removeEventListener('loadstart', video.__mutedHandler);
-              video.removeEventListener('loadedmetadata', video.__mutedHandler);
-            } catch(_){}
-          }
-          video.__mutedHandler = setMutedEarly;
-          video.addEventListener('loadstart', setMutedEarly, { once: true });
-          video.addEventListener('loadedmetadata', setMutedEarly, { once: true });
-        } catch(_){ }
-      } catch(_){ }
-    });
-  }
-
   function syncProgressDurations(wrapperEl){
     if (!wrapperEl) return;
     var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
@@ -186,12 +106,6 @@
     each(slides, function(slide, idx){
       var video = qs(slide, '.slide-inner__video-block video') || qs(slide, 'video');
       if (!video) return;
-      // Устанавливаем muted и атрибуты до загрузки метаданных
-      try { 
-        video.muted = true; 
-        video.setAttribute('muted', 'muted');
-        video.setAttribute('playsinline', 'playsinline');
-      } catch(_){ }
       var apply = function(){ updateSegmentDurationByIndexInWrapper(wrapperEl, idx, video.duration); };
       if (isFinite(video.duration) && video.duration > 0){
         apply();
@@ -282,36 +196,7 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ 
-    var v = getTalkingHeadVideo(root); 
-    if (v){ 
-      try { 
-        // Принудительно устанавливаем muted и атрибуты
-        try { 
-          v.muted = true; 
-          v.setAttribute('muted', 'muted');
-          v.setAttribute('playsinline', 'playsinline');
-        } catch(_){ } 
-        var p = v.play(); 
-        if (p && p.catch) {
-          p.catch(function(err){
-            // Если play() отклонен, пробуем перезагрузить и повторить
-            try {
-              v.load();
-              v.addEventListener('loadedmetadata', function(){
-                try {
-                  v.muted = true;
-                  v.setAttribute('muted', 'muted');
-                  var p2 = v.play();
-                  if (p2 && p2.catch) p2.catch(function(){});
-                } catch(_){}
-              }, { once: true });
-            } catch(_){}
-          });
-        }
-      } catch(_){ } 
-    } 
-  }
+  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { try { v.muted = true; } catch(_){ } var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
   function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
 
   // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
@@ -319,12 +204,8 @@
     try {
       var v = getTalkingHeadVideo(caseEl);
       if (!v) return;
-      // Устанавливаем muted до загрузки метаданных
-      try { v.muted = true; v.setAttribute('muted', 'muted'); } catch(_){ }
       var onMeta = function(){
         try {
-          // Убеждаемся, что muted установлен перед воспроизведением
-          try { v.muted = true; v.setAttribute('muted', 'muted'); } catch(_){ }
           if (caseEl.classList && caseEl.classList.contains('active')){
             playTalkingHead(caseEl);
           }
@@ -536,8 +417,6 @@
             startRafIfNeeded();
           };
           video.__metaHandler = function(){
-            // Убеждаемся, что muted установлен перед воспроизведением
-            try { video.muted = true; video.setAttribute('muted', 'muted'); } catch(_){ }
             if (video.__progressHandler) video.__progressHandler();
             // После появления метаданных у активного слайда в активном кейсе — запустим воспроизведение
             try {
@@ -746,9 +625,6 @@
         }
       });
 
-      // Устанавливаем muted для всех видео в активном кейсе перед воспроизведением
-      try { ensureVideosMuted(activeCase); } catch(_){ }
-
       // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс, запустить активный
       var wrappers = qsa(activeCase, '.story-track-wrapper');
       each(wrappers, function(w){
@@ -776,9 +652,6 @@
       if (!qs(wrapper, '.story-progress')){
         try { buildProgress(wrapper, slides.length); } catch(_){ }
       }
-
-      // Устанавливаем muted для всех видео в wrapper до загрузки метаданных
-      ensureVideosMuted(wrapper);
 
       // Синхронизируем длительности сегментов с длительностями видео
       syncProgressDurations(wrapper);
@@ -814,47 +687,6 @@
 
     // Инициализируем Z-Index для элементов стека на мобильных
     try { initializeStackZIndex(); } catch(_){ }
-
-    // Глобально устанавливаем muted для всех видео в документе (включая talking-head)
-    try { ensureVideosMuted(document); } catch(_){ }
-
-    // Отслеживаем новые видео, добавляемые динамически
-    try {
-      if (typeof MutationObserver !== 'undefined'){
-        var videoObserver = new MutationObserver(function(mutations){
-          mutations.forEach(function(mutation){
-            mutation.addedNodes.forEach(function(node){
-              if (node.nodeType === 1){ // Element node
-                if (node.tagName && node.tagName.toLowerCase() === 'video'){
-                  // Устанавливаем muted сразу при обнаружении видео элемента
-                  try { 
-                    node.setAttribute('muted', 'muted');
-                    node.setAttribute('playsinline', 'playsinline');
-                    node.muted = true;
-                  } catch(_){ }
-                  // Также используем полную функцию для надежности
-                  setTimeout(function(){ ensureVideosMuted(node); }, 0);
-                } else {
-                  var videos = qsa(node, 'video');
-                  if (videos && videos.length) { 
-                    // Устанавливаем muted для всех найденных видео
-                    each(videos, function(v){
-                      try { 
-                        v.setAttribute('muted', 'muted');
-                        v.setAttribute('playsinline', 'playsinline');
-                        v.muted = true;
-                      } catch(_){ }
-                    });
-                    ensureVideosMuted(node); 
-                  }
-                }
-              }
-            });
-          });
-        });
-        videoObserver.observe(document.body || document.documentElement, { childList: true, subtree: true });
-      }
-    } catch(_){ }
 
     // Глобально включаем переключение active у .cases-grid__item по центру snap-скроллера
     setupCasesActiveOnScrollSnap();
