@@ -3,11 +3,7 @@
 
   // Снять с карточек классы current и любые "*-card-style".
   function clearCardDecorations(ns) {
-    console.log('[clearCardDecorations] Удаление класса current при скролле window');
     ns.collections.cards.forEach(card => {
-      if (card.classList.contains('current')) {
-        console.log('[clearCardDecorations] Удален current с карточки:', card);
-      }
       card.classList.remove('current');
       Array.from(card.classList).forEach(cls => {
         if (cls.endsWith('-card-style')) card.classList.remove(cls);
@@ -19,7 +15,6 @@
   // Пометить карточку по префиксу: добавить current и "<prefix>-card-style".
   // Управление: scrollContainer — прокрутить контейнер списка до карточки.
   function markCardByPrefix(ns, prefix, { scrollContainer = true } = {}) {
-    console.log('[markCardByPrefix] Вызвана, удаляем current со всех карточек перед добавлением новой');
     const targetCard =
           ns.maps.cardPrefixMap.get(prefix) ||
           ns.collections.cards.find(c => {
@@ -29,12 +24,8 @@
     if (!targetCard) return;
 
     ns.collections.cards.forEach(c => {
-      if (c.classList.contains('current')) {
-        console.log('[markCardByPrefix] Удален current с карточки:', c);
-      }
       c.classList.remove('current');
     });
-    console.log('[markCardByPrefix] Добавляем current и', `${prefix}-card-style`, 'на карточку:', targetCard);
     targetCard.classList.add('current', `${prefix}-card-style`);
     ns.state.lastCurrentCard = targetCard;
 
@@ -53,13 +44,11 @@
 
   // Установить активный кейс и синхронизировать карточку.
   function setActiveCase(ns, targetCase, { scrollContainer = true } = {}) {
-    console.log('[setActiveCase] Вызвана, будет удален current через clearCardDecorations');
     if (!targetCase) return;
     
     // Оптимизация: пропускаем обновление, если это тот же кейс и класс active уже установлен
     // Но только если lastActiveCase уже установлен (не был сброшен)
     if (ns.state.lastActiveCase === targetCase && targetCase.classList.contains('active')) {
-      console.log('[setActiveCase] ⚠️ Пропускаем: тот же кейс уже активен и класс установлен');
       return;
     }
     
@@ -84,7 +73,6 @@
   // Обновить активный кейс по текущему положению "линии" активации.
   // Не вызывается во время программной прокрутки окна.
   function updateCasesActiveByWindowScroll(ns, meas) {
-    console.log('[updateCasesActiveByWindowScroll] Вызвана при скролле window');
     let active = null;
     const rects = meas ? meas.caseRects : ns.collections.caseItems.map(i => i.getBoundingClientRect());
     for (let k = 0; k < ns.collections.caseItems.length; k++) {
@@ -95,24 +83,13 @@
       }
     }
     
-    // Детальное логирование для диагностики
-    console.log('[updateCasesActiveByWindowScroll] active:', active ? active.id || active : 'null');
-    console.log('[updateCasesActiveByWindowScroll] lastActiveCase:', ns.state.lastActiveCase ? ns.state.lastActiveCase.id || ns.state.lastActiveCase : 'null');
-    
-    // ВАЖНО: Всегда вызываем setActiveCase если active найден, чтобы гарантировать синхронизацию
-    // Это предотвращает ситуацию, когда active === lastActiveCase, но состояние не синхронизировано
-    if (active) {
-      // Временно сбрасываем lastActiveCase, чтобы гарантировать, что setActiveCase выполнит обновление
-      // Это предотвращает проблему, когда active и lastActiveCase ссылаются на один объект
-      const previousActiveCase = ns.state.lastActiveCase;
-      ns.state.lastActiveCase = null;
-      
-      console.log('[updateCasesActiveByWindowScroll] ✅ Вызываем setActiveCase для гарантии синхронизации');
-      console.log('[updateCasesActiveByWindowScroll] previousActiveCase === active:', previousActiveCase === active);
-      
+    // Вызываем setActiveCase только если активный кейс изменился
+    // Это предотвращает постоянное переприсваивание класса active
+    if (active && active !== ns.state.lastActiveCase) {
       setActiveCase(ns, active, { scrollContainer: true });
-    } else {
-      console.log('[updateCasesActiveByWindowScroll] ⚠️ active === null, активный кейс не найден');
+    } else if (active && active === ns.state.lastActiveCase && !active.classList.contains('active')) {
+      // Защита от race condition: если кейс тот же, но класс active отсутствует
+      setActiveCase(ns, active, { scrollContainer: true });
     }
   }
 
@@ -130,7 +107,6 @@
       if (ns.state.isProgrammaticWindowScroll) return;
       for (const entry of entries) {
         if (entry.isIntersecting) {
-          console.log('[createCasesObserver] IntersectionObserver: найден intersecting элемент, вызываем setActiveCase');
           setActiveCase(ns, entry.target, { scrollContainer: true });
           break;
         }
