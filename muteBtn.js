@@ -50,30 +50,18 @@
     if (window.CasesAudio.soundOn){
       var listToReset = window.CasesAudio.resetOnlyTheseOnce;
       videos.forEach(function(v){
-        // snapSlider.js уже запускает видео с muted = true и снимает muted после успешного запуска
-        // Здесь мы только синхронизируем состояние и сбрасываем время при необходимости
+        // snapSlider.js уже запускает видео с muted = true
+        // Здесь мы снимаем muted только если видео уже играет (не на паузе)
+        // Это важно: браузеры разрешают снимать muted только для уже играющих видео
+        // или при наличии пользовательского взаимодействия
         try { 
-          // Если видео уже играет, просто снимаем muted (на случай если snapSlider.js еще не успел)
+          // Если видео уже играет, снимаем muted
+          // Это безопасно, так как видео уже запущено с muted = true
           if (!v.paused){
             try { v.muted = false; } catch(_){ }
-          } else {
-            // Если видео на паузе, запускаем с muted = true, затем снимаем после запуска
-            try { v.muted = true; } catch(_){ }
-            try { 
-              var playPromise = v.play();
-              if (playPromise && playPromise.then){
-                playPromise.then(function(){
-                  setTimeout(function(){
-                    try { v.muted = false; } catch(_){ }
-                  }, 50);
-                }).catch(function(){
-                  try { v.muted = true; } catch(_){ }
-                });
-              } else {
-                try { v.muted = false; } catch(_){ }
-              }
-            } catch(_){ }
           }
+          // Если видео на паузе, не пытаемся запустить его со звуком автоматически
+          // Это будет заблокировано браузером без пользовательского взаимодействия
         } catch(_){ }
         
         if (listToReset){
@@ -141,11 +129,26 @@
         var isActive = item.classList.contains('active');
         if (!wasActive && isActive){
           // Слайд стал активным: snapSlider.js запускает видео с muted = true
-          // и сам снимает muted если звук включен. Здесь мы только синхронизируем состояние
-          // Используем небольшую задержку для синхронизации
+          // После того как видео начнет играть, снимаем muted если звук включен
+          // Используем событие playing для определения момента начала воспроизведения
+          var videos = findCaseVideos(item);
+          if (videos && videos.length && window.CasesAudio.soundOn){
+            videos.forEach(function(v){
+              var onPlaying = function(){
+                try { 
+                  if (!v.paused){
+                    v.muted = false; 
+                  }
+                } catch(_){ }
+                try { v.removeEventListener('playing', onPlaying); } catch(_){ }
+              };
+              try { v.addEventListener('playing', onPlaying, { once: true }); } catch(_){ }
+            });
+          }
+          // Также применяем состояние звука с небольшой задержкой для синхронизации
           setTimeout(function(){
             applySoundStateToCase(item);
-          }, 150); // Задержка для синхронизации с snapSlider.js
+          }, 200); // Задержка для синхронизации с snapSlider.js
         } else if (wasActive && !isActive){
           // Слайд потерял active: вернуть muted для всех видео в кейсе
           var videos = findCaseVideos(item);
