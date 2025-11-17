@@ -73,22 +73,22 @@
   // Обновить активный кейс по текущему положению "линии" активации.
   // Не вызывается во время программной прокрутки окна.
   function updateCasesActiveByWindowScroll(ns, meas) {
+    // Всегда используем актуальные измерения, а не переданные meas (которые могут быть устаревшими)
+    // Это критично при быстром скролле
     let active = null;
-    const rects = meas ? meas.caseRects : ns.collections.caseItems.map(i => i.getBoundingClientRect());
     for (let k = 0; k < ns.collections.caseItems.length; k++) {
-      const rect = rects[k];
+      const caseItem = ns.collections.caseItems[k];
+      const rect = caseItem.getBoundingClientRect();
       if (rect.top <= ns.metrics.triggerOffsetPx && rect.bottom >= ns.metrics.triggerOffsetPx) {
-        active = ns.collections.caseItems[k];
+        active = caseItem;
         break;
       }
     }
     
-    // Вызываем setActiveCase только если активный кейс изменился
-    // Это предотвращает постоянное переприсваивание класса active
-    if (active && active !== ns.state.lastActiveCase) {
-      setActiveCase(ns, active, { scrollContainer: true });
-    } else if (active && active === ns.state.lastActiveCase && !active.classList.contains('active')) {
-      // Защита от race condition: если кейс тот же, но класс active отсутствует
+    // Вызываем setActiveCase если:
+    // 1. Активный кейс изменился, ИЛИ
+    // 2. Кейс тот же, но класс active отсутствует (защита от race condition)
+    if (active && (active !== ns.state.lastActiveCase || !active.classList.contains('active'))) {
       setActiveCase(ns, active, { scrollContainer: true });
     }
   }
