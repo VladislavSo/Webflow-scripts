@@ -83,6 +83,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const dataSrcAttr = mobAttr || dataAttr;
     if (!video || !dataSrcAttr) return;
     if (video.dataset && video.dataset.loaded) return;
+    
+    // Устанавливаем muted ДО загрузки для разрешения автовоспроизведения
+    try {
+      video.muted = true;
+      video.setAttribute('muted', 'muted');
+      video.setAttribute('playsinline', 'playsinline');
+    } catch(_) {}
+    
     if (video.dataset.fetching === 'true') {
       // Если уже загружается, ждем завершения
       return new Promise(resolve => {
@@ -109,13 +117,32 @@ document.addEventListener("DOMContentLoaded", () => {
         source.src = url;
         source.type = 'video/mp4';
         video.appendChild(source);
+        // Убеждаемся, что muted установлен перед загрузкой
+        try {
+          video.muted = true;
+          video.setAttribute('muted', 'muted');
+          video.setAttribute('playsinline', 'playsinline');
+        } catch(_) {}
         video.preload = isIOS ? 'metadata' : 'auto';
         try { video.load(); } catch(e) {}
         await new Promise(resolve => {
           if (video.readyState >= 4) {
+            // Убеждаемся, что muted установлен
+            try {
+              video.muted = true;
+              video.setAttribute('muted', 'muted');
+            } catch(_) {}
             resolve();
           } else {
-            video.addEventListener("canplaythrough", resolve, { once: true });
+            const onCanPlay = () => {
+              // Убеждаемся, что muted установлен
+              try {
+                video.muted = true;
+                video.setAttribute('muted', 'muted');
+              } catch(_) {}
+              resolve();
+            };
+            video.addEventListener("canplaythrough", onCanPlay, { once: true });
           }
         });
         if (video.dataset) video.dataset.loaded = 'true';
@@ -150,6 +177,12 @@ document.addEventListener("DOMContentLoaded", () => {
       source.src = blobUrl;
       source.type = 'video/mp4';
       video.appendChild(source);
+      // Убеждаемся, что muted установлен перед загрузкой
+      try {
+        video.muted = true;
+        video.setAttribute('muted', 'muted');
+        video.setAttribute('playsinline', 'playsinline');
+      } catch(_) {}
       video.preload = isIOS ? 'metadata' : 'auto';
       try { video.load(); } catch(e) {}
       await new Promise(resolve => {
@@ -174,9 +207,22 @@ document.addEventListener("DOMContentLoaded", () => {
         try { video.load(); } catch(err) {}
         await new Promise(resolve => {
           if (video.readyState >= 4) {
+            // Убеждаемся, что muted установлен
+            try {
+              video.muted = true;
+              video.setAttribute('muted', 'muted');
+            } catch(_) {}
             resolve();
           } else {
-            video.addEventListener("canplaythrough", resolve, { once: true });
+            const onCanPlay = () => {
+              // Убеждаемся, что muted установлен
+              try {
+                video.muted = true;
+                video.setAttribute('muted', 'muted');
+              } catch(_) {}
+              resolve();
+            };
+            video.addEventListener("canplaythrough", onCanPlay, { once: true });
           }
         });
         if (video.dataset) video.dataset.loaded = 'true';
@@ -295,6 +341,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const allVideos = item.querySelectorAll('video');
       allVideos.forEach(video => {
         video.preload = 'none';
+        // Устанавливаем muted для всех видео при инициализации
+        try {
+          video.muted = true;
+          video.setAttribute('muted', 'muted');
+          video.setAttribute('playsinline', 'playsinline');
+        } catch(_) {}
       });
     });
 
@@ -347,8 +399,27 @@ document.addEventListener("DOMContentLoaded", () => {
           const videosToPlay = [...activeSlideVideos, ...talkingHeadVideos];
           videosToPlay.forEach(video => {
             try {
+              // Устанавливаем muted перед воспроизведением
+              video.muted = true;
+              video.setAttribute('muted', 'muted');
+              video.setAttribute('playsinline', 'playsinline');
               if (video.paused) {
-                video.play().catch(()=>{});
+                const playPromise = video.play();
+                if (playPromise && playPromise.catch) {
+                  playPromise.catch(err => {
+                    // Если play() отклонен, пробуем перезагрузить и повторить
+                    try {
+                      video.load();
+                      video.addEventListener('loadedmetadata', () => {
+                        try {
+                          video.muted = true;
+                          video.setAttribute('muted', 'muted');
+                          video.play().catch(()=>{});
+                        } catch(_){}
+                      }, { once: true });
+                    } catch(_){}
+                  });
+                }
               }
             } catch(_) {}
           });
