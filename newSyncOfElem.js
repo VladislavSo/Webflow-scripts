@@ -19,17 +19,14 @@
   // Пометить карточку по префиксу: добавить current и "<prefix>-card-style".
   // Управление: scrollContainer — прокрутить контейнер списка до карточки.
   function markCardByPrefix(ns, prefix, { scrollContainer = true } = {}) {
-    console.log('[markCardByPrefix] Вызвана, prefix:', prefix, 'удаляем current со всех карточек перед добавлением новой');
+    console.log('[markCardByPrefix] Вызвана, удаляем current со всех карточек перед добавлением новой');
     const targetCard =
           ns.maps.cardPrefixMap.get(prefix) ||
           ns.collections.cards.find(c => {
             const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
             return brand === `${prefix}-mini-view`;
           });
-    if (!targetCard) {
-      console.error('[markCardByPrefix] ⚠️ КРИТИЧЕСКАЯ ПРОБЛЕМА: targetCard не найден для prefix:', prefix);
-      return;
-    }
+    if (!targetCard) return;
 
     ns.collections.cards.forEach(c => {
       if (c.classList.contains('current')) {
@@ -39,19 +36,6 @@
     });
     console.log('[markCardByPrefix] Добавляем current и', `${prefix}-card-style`, 'на карточку:', targetCard);
     targetCard.classList.add('current', `${prefix}-card-style`);
-    
-    // Проверка после добавления классов
-    const hasCurrent = targetCard.classList.contains('current');
-    const hasCardStyle = targetCard.classList.contains(`${prefix}-card-style`);
-    if (!hasCurrent || !hasCardStyle) {
-      console.error('[markCardByPrefix] ⚠️ КРИТИЧЕСКАЯ ПРОБЛЕМА: классы не добавлены! hasCurrent:', hasCurrent, 'hasCardStyle:', hasCardStyle, 'targetCard:', targetCard);
-      // Попытка добавить еще раз
-      if (!hasCurrent) targetCard.classList.add('current');
-      if (!hasCardStyle) targetCard.classList.add(`${prefix}-card-style`);
-    } else {
-      console.log('[markCardByPrefix] ✅ Классы успешно добавлены: current и', `${prefix}-card-style`);
-    }
-    
     ns.state.lastCurrentCard = targetCard;
 
     if (scrollContainer) {
@@ -69,73 +53,15 @@
 
   // Установить активный кейс и синхронизировать карточку.
   function setActiveCase(ns, targetCase, { scrollContainer = true } = {}) {
-    console.log('[setActiveCase] Вызвана, targetCase:', targetCase, 'будет удален current через clearCardDecorations');
-    if (!targetCase) {
-      console.error('[setActiveCase] ⚠️ targetCase отсутствует!');
-      return;
-    }
-    
-    // Защита от множественных быстрых вызовов: если уже обрабатываем какой-то кейс, пропускаем
-    if (ns.state.settingActiveCase) {
-      console.log('[setActiveCase] ⚠️ Пропускаем: уже обрабатывается кейс, текущий:', ns.state.lastActiveCase, 'новый:', targetCase);
-      return;
-    }
-    
-    // Флаг для защиты от множественных вызовов
-    ns.state.settingActiveCase = true;
-    
-    // Защитный таймаут на случай, если что-то пойдет не так и флаг не сбросится
-    const timeoutId = setTimeout(() => {
-      if (ns.state.settingActiveCase) {
-        console.warn('[setActiveCase] ⚠️ Таймаут: принудительно сбрасываем флаг settingActiveCase');
-        ns.state.settingActiveCase = false;
-      }
-    }, 1000);
-    
+    console.log('[setActiveCase] Вызвана, будет удален current через clearCardDecorations');
+    if (!targetCase) return;
     ns.collections.caseItems.forEach(ci => ci.classList.remove('active'));
     targetCase.classList.add('active');
 
 
     const prefix = (targetCase.id || '').split('-')[0] || '';
-    console.log('[setActiveCase] Извлечен prefix:', prefix);
     clearCardDecorations(ns);
-    if (prefix) {
-      markCardByPrefix(ns, prefix, { scrollContainer });
-      // Проверка после markCardByPrefix - используем requestAnimationFrame для гарантии, что DOM обновлен
-      requestAnimationFrame(() => {
-        const targetCard = ns.maps.cardPrefixMap.get(prefix) ||
-          ns.collections.cards.find(c => {
-            const brand = c.getAttribute('brand-data') || c.getAttribute('data-brand') || '';
-            return brand === `${prefix}-mini-view`;
-          });
-        if (targetCard) {
-          const hasCurrent = targetCard.classList.contains('current');
-          const hasCardStyle = targetCard.classList.contains(`${prefix}-card-style`);
-          if (!hasCurrent || !hasCardStyle) {
-            console.error('[setActiveCase] ⚠️ ПРОБЛЕМА ПОСЛЕ markCardByPrefix: hasCurrent:', hasCurrent, 'hasCardStyle:', hasCardStyle, 'targetCard:', targetCard);
-            // Попытка исправить
-            if (!hasCurrent) {
-              console.log('[setActiveCase] Исправление: добавляем current');
-              targetCard.classList.add('current');
-            }
-            if (!hasCardStyle) {
-              console.log('[setActiveCase] Исправление: добавляем', `${prefix}-card-style`);
-              targetCard.classList.add(`${prefix}-card-style`);
-            }
-          } else {
-            console.log('[setActiveCase] ✅ Проверка пройдена: current и', `${prefix}-card-style`, 'на карточке');
-          }
-        } else {
-          console.error('[setActiveCase] ⚠️ targetCard не найден после markCardByPrefix для prefix:', prefix);
-        }
-        clearTimeout(timeoutId);
-        ns.state.settingActiveCase = false;
-      });
-    } else {
-      console.warn('[setActiveCase] ⚠️ prefix пустой, markCardByPrefix не вызвана');
-      clearTimeout(timeoutId);
-      ns.state.settingActiveCase = false;
-    }
+    if (prefix) markCardByPrefix(ns, prefix, { scrollContainer });
     ns.state.lastActiveCase = targetCase;
   }
 
@@ -160,6 +86,7 @@
         break;
       }
     }
+    console.log(active && active !== ns.state.lastActiveCase);
     if (active && active !== ns.state.lastActiveCase) {
       console.log('[updateCasesActiveByWindowScroll] Найден новый активный кейс, вызываем setActiveCase');
       setActiveCase(ns, active, { scrollContainer: true });
