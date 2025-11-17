@@ -17,7 +17,7 @@
    if (ns.state.isProgrammaticListScroll) return;
    if (!ns.state.isUserInteracting) return;
    ns.state.fromListScroll = true;
-   ns.effects.scheduleFrameUpdate(ns);
+   //ns.effects.scheduleFrameUpdate(ns);
   }
   
   function onWindowScroll() {
