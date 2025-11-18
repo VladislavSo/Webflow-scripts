@@ -357,14 +357,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (talkingHead) {
       const talkingHeadVideos = getTalkingHeadVideos(item);
       if (talkingHeadVideos.length > 0) {
-        // Для всех talking-head видео: load и play
+        // Для всех talking-head видео: только load (запуск управляется через snapSlider.js)
         for (const video of talkingHeadVideos) {
           await loadVideoSource(video);
-          try {
-            if (video.paused) {
-              video.play().catch(() => {});
-            }
-          } catch(_) {}
         }
       }
     }
