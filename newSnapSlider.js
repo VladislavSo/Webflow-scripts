@@ -158,16 +158,6 @@
             video.appendChild(source);
             needsLoad = true; // Нужен load только если создали новый source
           }
-        } else {
-          // Если источник есть, но видео не готово - возможно нужно перезагрузить
-          // Но не вызываем load если видео уже загружено (dataset.loaded)
-          var isAlreadyLoaded = !!(video.dataset && video.dataset.loaded);
-          if (!isAlreadyLoaded) {
-            needsLoad = true;
-          }
-        }
-        if (needsLoad) {
-          try { video.load(); } catch(_){ }
         }
         
         // Ждем завершения загрузки видео (может загружаться через newMobVideoLazy.js)
