@@ -30,38 +30,14 @@
     window.buildSnapSliderProgress = buildProgress;
   }
 
-  // Безопасный запуск видео: сначала muted, затем play, через 150мс включаем звук (если нужно)
-  function playVideosSafe(videos){
-    if (!videos || !videos.length) return;
-    var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-    each(videos, function(video){
-      try {
-        if (!video || typeof video.play !== 'function') return;
-        // Устанавливаем muted перед запуском
-        video.muted = true;
-        var p = video.play();
-        if (p && p.catch) p.catch(function(){});
-        // Если звук должен быть включен, включаем через 150мс
-        if (soundOn){
-          setTimeout(function(){
-            try {
-              if (video && !video.paused){
-                video.muted = false;
-                video.volume = 1;
-              }
-            } catch(_){ }
-          }, 150);
-        }
-      } catch(_){ }
-    });
-  }
-
   // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
   function playVideos(slideEl){
     if (!slideEl) return;
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
-    playVideosSafe(videos);
+    each(videos, function(video){
+      try { if (video && typeof video.play === 'function') { var p = video.play(); if (p && p.catch) p.catch(function(){}); } } catch(_){ }
+    });
   }
 
   function pauseAndResetVideos(slideEl){
@@ -213,12 +189,7 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ 
-    var v = getTalkingHeadVideo(root); 
-    if (v){ 
-      playVideosSafe([v]);
-    } 
-  }
+  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
   function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
 
   // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
@@ -229,7 +200,7 @@
       var onMeta = function(){
         try {
           if (caseEl.classList && caseEl.classList.contains('active')){
-            playVideosSafe([v]);
+            playTalkingHead(caseEl);
           }
         } catch(_){ }
       };
@@ -442,9 +413,7 @@
             if (video.__progressHandler) video.__progressHandler();
             // После появления метаданных у активного слайда в активном кейсе — запустим воспроизведение
             try {
-              if (idx === activeIdx && caseIsActive) { 
-                playVideosSafe([video]);
-              }
+              if (idx === activeIdx && caseIsActive) { playVideos(slide); }
             } catch(_){ }
           };
           video.__endedHandler = function(){
@@ -505,12 +474,7 @@
           var wrappersInCase0 = qsa(activeCase, '.story-track-wrapper');
           each(wrappersInCase0, function(w){ try { updateWrapperPlayback(w); } catch(_){ } });
           var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
-          if (activeSlides && activeSlides.length){ 
-            each(activeSlides, function(s){ 
-              var slideVideos = qsa(s, '.slide-inner__video-block video, video');
-              try { playVideosSafe(slideVideos); } catch(_){ } 
-            }); 
-          }
+          if (activeSlides && activeSlides.length){ each(activeSlides, function(s){ try { playVideos(s); } catch(_){ } }); }
           // talking-head автозапуск после возврата в зону
           try { ensureTalkingHeadAutoPlay(activeCase); } catch(_){ }
         }
@@ -565,18 +529,12 @@
           var activeSlide = null;
           try { activeSlide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
           try { updateWrapperPlayback(w); } catch(_){ }
-          if (activeSlide) { 
-            var slideVideos = qsa(activeSlide, '.slide-inner__video-block video, video');
-            try { playVideosSafe(slideVideos); } catch(_){ } 
-          }
+          if (activeSlide) { try { playVideos(activeSlide); } catch(_){ } }
         });
 
         // Запускаем видео только в активных слайдах внутри активного кейса
         var activeSlidesInCase = qsa(best, '.story-track-wrapper__slide.active');
-        each(activeSlidesInCase, function(s){ 
-          var slideVideos = qsa(s, '.slide-inner__video-block video, video');
-          try { playVideosSafe(slideVideos); } catch(_){ } 
-        });
+        each(activeSlidesInCase, function(s){ try { playVideos(s); } catch(_){ } });
 
         lastActiveCase = best;
       }
@@ -627,10 +585,7 @@
           });
           updateWrapperPlayback(wrapperEl);
           // После присвоения active — запускаем видео в активном слайде
-          try { 
-            var slideVideos = qsa(bestSlide, '.slide-inner__video-block video, video');
-            playVideosSafe(slideVideos); 
-          } catch(_){ }
+          try { playVideos(bestSlide); } catch(_){ }
         }
       }
     }, { root: wrapperEl, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] });
@@ -669,18 +624,12 @@
         var slide = null;
         try { slide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
         try { updateWrapperPlayback(w); } catch(_){ }
-        if (slide){ 
-          var slideVideos = qsa(slide, '.slide-inner__video-block video, video');
-          try { playVideosSafe(slideVideos); } catch(_){ } 
-        }
+        if (slide){ try { playVideos(slide); } catch(_){ } }
       });
 
       // Дополнительно запустить все уже активные слайды в активном кейсе
       var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
-      each(activeSlides, function(s){ 
-        var slideVideos = qsa(s, '.slide-inner__video-block video, video');
-        try { playVideosSafe(slideVideos); } catch(_){ } 
-      });
+      each(activeSlides, function(s){ try { playVideos(s); } catch(_){ } });
     } catch(_){ }
   }
 
@@ -797,19 +746,7 @@
                   if (caseElTarget){
                     var scroller2 = qs(document, '.main-section');
                     var cases = scroller2 ? qsa(scroller2, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
-                    each(cases, function(el){ 
-                      if (el === caseElTarget) { 
-                        try { 
-                          el.classList.add('active'); 
-                          playVideosSafe([getTalkingHeadVideo(el)].filter(Boolean)); 
-                        } catch(__){} 
-                      } else { 
-                        try { 
-                          el.classList.remove('active'); 
-                          pauseTalkingHead(el); 
-                        } catch(__){} 
-                      } 
-                    });
+                    each(cases, function(el){ if (el === caseElTarget) { try { el.classList.add('active'); playTalkingHead(el); } catch(__){} } else { try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} } });
                   }
                   // current в списке
                   var listAll = getStackList();
@@ -885,20 +822,14 @@
         // Прокручиваем к целевому и обновляем прогресс/воспроизведение
         try { scrollToSlide(wrapper, slides, nextIdx, { forceIgnoreUser: true }); } catch(_){ }
         try { updateWrapperPlayback(wrapper); } catch(_){ }
-        try { 
-          var nextSlideVideos = qsa(slides[nextIdx], '.slide-inner__video-block video, video');
-          playVideosSafe(nextSlideVideos); 
-        } catch(_){ }
+        try { playVideos(slides[nextIdx]); } catch(_){ }
         // Даем snap «досесть» и синхронизируем active и воспроизведение по центру
         try {
           setTimeout(function(){
             try {
               var actual = setActiveSlideInWrapperByCenter(wrapper);
               updateWrapperPlayback(wrapper);
-              if (actual) { 
-                var actualVideos = qsa(actual, '.slide-inner__video-block video, video');
-                playVideosSafe(actualVideos); 
-              }
+              if (actual) { playVideos(actual); }
             } catch(__){}
           }, 160);
         } catch(__){}
