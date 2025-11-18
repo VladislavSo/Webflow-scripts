@@ -129,16 +129,8 @@
   function safePlayVideo(video, shouldUnmute){
     if (!video || !video.paused) return;
     try {
-      // Логирование
-      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
       var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
       var targetMuted = !shouldUnmute; // Если shouldUnmute=true, то muted=false, иначе muted=true
-      console.log('[snapSlider] safePlayVideo:', {
-        hasSource: hasSource,
-        soundOn: soundOn,
-        shouldUnmute: shouldUnmute,
-        willStartMuted: true // Всегда начинаем с muted для автоплея
-      });
 
       // Сохраняем желаемое состояние muted для применения после запуска
       var desiredMuted = targetMuted;
@@ -155,14 +147,11 @@
           if (!desiredMuted && soundOn){
             try {
               video.muted = false;
-              console.log('[snapSlider] Unmuted after successful play');
             } catch(err){
-              console.warn('[snapSlider] Could not unmute after play (browser restriction):', err);
               // Оставляем muted=true, если браузер блокирует
             }
           }
         }).catch(function(err){
-          console.error('[snapSlider] play() promise rejected:', err);
           // Если play() не удался, восстанавливаем исходное состояние muted
           try { video.muted = originalMuted; } catch(_){ }
         });
@@ -182,7 +171,6 @@
             source.src = dataSrcAttr;
             source.type = 'video/mp4';
             video.appendChild(source);
-            console.log('[snapSlider] Created source from attributes:', dataSrcAttr);
             needsLoad = true; // Нужен load только если создали новый source
           }
         } else {
@@ -201,35 +189,16 @@
         waitForVideoLoad(video).then(function(){
           // Видео загружено - запускаем
           try {
-            console.log('[snapSlider] play() called (after load wait)');
             var p = video.play();
             tryUnmuteAfterPlay(p);
-            // Проверяем, запустилось ли видео
-            setTimeout(function(){
-              console.log('[snapSlider] Video state after play (after load wait):', {
-                paused: video.paused,
-                muted: video.muted,
-                readyState: video.readyState
-              });
-            }, 100);
           } catch(err){
-            console.error('[snapSlider] play() error (after load wait):', err);
             try { video.muted = originalMuted; } catch(_){ }
           }
         });
       } else {
         // Видео готово - сразу запускаем
-        console.log('[snapSlider] play() called (ready)');
         var p = video.play();
         tryUnmuteAfterPlay(p);
-        // Проверяем, запустилось ли видео
-        setTimeout(function(){
-          console.log('[snapSlider] Video state after play (ready):', {
-            paused: video.paused,
-            muted: video.muted,
-            readyState: video.readyState
-          });
-        }, 100);
       }
     } catch(_){ }
   }
@@ -241,9 +210,6 @@
     if (!hasMuteButton){
       // Если кнопки нет - глобальный флаг всегда muted
       if (window.CasesAudio) window.CasesAudio.soundOn = false;
-      console.log("no mute button");
-    } else {
-      console.log("mute button found");
     }
   }
 
@@ -258,20 +224,11 @@
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
     var hasTalkingHead = !!talkingHeadVideo;
     
-    console.log('[snapSlider] playVideosWithSoundControl:', {
-      hasTalkingHead: hasTalkingHead,
-      soundOn: soundOn,
-      talkingHeadVideo: talkingHeadVideo ? 'found' : 'not found'
-    });
-    
     // Если есть talking-head - управляем muted только для него
     if (hasTalkingHead){
       try {
-        console.log('[snapSlider] Talking-head shouldUnmute:', soundOn);
         safePlayVideo(talkingHeadVideo, soundOn); // Передаем shouldUnmute=soundOn
-      } catch(err){
-        console.error('[snapSlider] Error setting talking-head play:', err);
-      }
+      } catch(err){ }
       
       // Все остальные видео в активных слайдах остаются muted
       var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
