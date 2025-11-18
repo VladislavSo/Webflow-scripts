@@ -96,19 +96,48 @@
   }
 
   // Безопасный запуск видео: проверяем готовность перед play
-  function safePlayVideo(video){
+  // Безопасный запуск видео: всегда запускаем с muted=true, затем пытаемся снять muted если звук включен
+  function safePlayVideo(video, shouldUnmute){
     if (!video || !video.paused) return;
     try {
       // Логирование
       var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
       var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-      var isMuted = video.muted;
+      var targetMuted = !shouldUnmute; // Если shouldUnmute=true, то muted=false, иначе muted=true
       console.log('[muteBtn] safePlayVideo:', {
         hasSource: hasSource,
         soundOn: soundOn,
-        muted: isMuted,
-        willCallPlay: true
+        shouldUnmute: shouldUnmute,
+        willStartMuted: true // Всегда начинаем с muted для автоплея
       });
+
+      // Сохраняем желаемое состояние muted для применения после запуска
+      var desiredMuted = targetMuted;
+
+      // ВСЕГДА запускаем с muted=true для автоплея (браузер разрешает это)
+      var originalMuted = video.muted;
+      try { video.muted = true; } catch(_){ }
+
+      // Функция для попытки снять muted после успешного запуска
+      var tryUnmuteAfterPlay = function(playPromise){
+        if (!playPromise || !playPromise.then) return;
+        playPromise.then(function(){
+          // Видео успешно запустилось, пытаемся снять muted если нужно
+          if (!desiredMuted && soundOn){
+            try {
+              video.muted = false;
+              console.log('[muteBtn] Unmuted after successful play');
+            } catch(err){
+              console.warn('[muteBtn] Could not unmute after play (browser restriction):', err);
+              // Оставляем muted=true, если браузер блокирует
+            }
+          }
+        }).catch(function(err){
+          console.error('[muteBtn] play() promise rejected:', err);
+          // Если play() не удался, восстанавливаем исходное состояние muted
+          try { video.muted = originalMuted; } catch(_){ }
+        });
+      };
 
       if (!isVideoReady(video)){
         if (!video.src && (!video.querySelector || !video.querySelector('source'))){
@@ -129,14 +158,13 @@
           if (!resolved){
             resolved = true;
             try {
-              var finalMuted = video.muted;
-              console.log('[muteBtn] play() called (timeout)', {
-                muted: finalMuted,
-                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
-              });
+              console.log('[muteBtn] play() called (timeout)');
               var p = video.play();
-              if (p && p.catch) p.catch(function(){});
-            } catch(_){ }
+              tryUnmuteAfterPlay(p);
+            } catch(err){
+              console.error('[muteBtn] play() error (timeout):', err);
+              try { video.muted = originalMuted; } catch(_){ }
+            }
           }
         }, 5000);
         var onCanPlay = function(){
@@ -144,26 +172,21 @@
             resolved = true;
             clearTimeout(timeoutId);
             try {
-              var finalMuted = video.muted;
-              console.log('[muteBtn] play() called (canplay)', {
-                muted: finalMuted,
-                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
-              });
+              console.log('[muteBtn] play() called (canplay)');
               var p = video.play();
-              if (p && p.catch) p.catch(function(){});
-            } catch(_){ }
+              tryUnmuteAfterPlay(p);
+            } catch(err){
+              console.error('[muteBtn] play() error (canplay):', err);
+              try { video.muted = originalMuted; } catch(_){ }
+            }
           }
         };
         video.addEventListener('canplay', onCanPlay, { once: true });
         video.addEventListener('error', onCanPlay, { once: true });
       } else {
-        var finalMuted = video.muted;
-        console.log('[muteBtn] play() called (ready)', {
-          muted: finalMuted,
-          soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
-        });
+        console.log('[muteBtn] play() called (ready)');
         var p = video.play();
-        if (p && p.catch) p.catch(function(){});
+        tryUnmuteAfterPlay(p);
       }
     } catch(_){ }
   }
@@ -172,20 +195,21 @@
   function playVideosOnMute(caseEl){
     if (!caseEl || !caseEl.classList.contains('active')) return;
     try {
+      var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
       // Ищем talking-head видео
       var talkingHeadVideo = caseEl.querySelector('.cases-grid__item__container__wrap__talking-head__video video');
       if (talkingHeadVideo){
-        // Если есть talking-head - запускаем его
-        safePlayVideo(talkingHeadVideo);
+        // Если есть talking-head - запускаем его с учетом звука
+        safePlayVideo(talkingHeadVideo, soundOn);
       } else {
-        // Если нет talking-head - запускаем видео в активном слайде
+        // Если нет talking-head - запускаем видео в активном слайде с учетом звука
         var activeSlides = caseEl.querySelectorAll('.story-track-wrapper__slide.active');
         if (activeSlides && activeSlides.length){
           for (var i = 0; i < activeSlides.length; i++){
             var videos = activeSlides[i].querySelectorAll('video');
             if (videos && videos.length){
               for (var j = 0; j < videos.length; j++){
-                safePlayVideo(videos[j]);
+                safePlayVideo(videos[j], soundOn);
               }
             }
           }
