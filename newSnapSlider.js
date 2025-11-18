@@ -117,6 +117,15 @@
       var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
       var targetMuted = !shouldUnmute; // Если shouldUnmute=true, то muted=false, иначе muted=true
 
+      // Логирование попытки запуска
+      var videoInfo = '';
+      try {
+        var src = video.src || (video.querySelector && video.querySelector('source') && video.querySelector('source').src) || 'no source';
+        var isTalkingHead = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video'));
+        videoInfo = isTalkingHead ? 'talking-head' : 'slide video';
+        console.log('[snapSlider] Пытаемся запустить видео:', videoInfo, src);
+      } catch(_){}
+
       // Сохраняем желаемое состояние muted для применения после запуска
       var desiredMuted = targetMuted;
 
@@ -137,45 +146,35 @@
             }
           }
         }).catch(function(err){
-          // Если play() не удался, восстанавливаем исходное состояние muted
+          // Если play() не удался, выводим ошибку
+          console.error('[snapSlider] Ошибка при запуске видео:', videoInfo, err);
           try { video.muted = originalMuted; } catch(_){ }
         });
       };
 
       // Проверяем готовность видео и ждем загрузки если нужно
       if (!isVideoReady(video)){
-        // Вызываем load если нужно
-        var needsLoad = false;
-        if (!video.src && (!video.querySelector || !video.querySelector('source'))){
-          // Если нет источника, пытаемся получить из атрибутов
-          var mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
-          var dataAttr = video.dataset ? video.dataset.src : null;
-          var dataSrcAttr = mobAttr || dataAttr;
-          if (dataSrcAttr){
-            var source = document.createElement('source');
-            source.src = dataSrcAttr;
-            source.type = 'video/mp4';
-            video.appendChild(source);
-            needsLoad = true; // Нужен load только если создали новый source
-          }
-        }
-        
-        // Ждем завершения загрузки видео (может загружаться через newMobVideoLazy.js)
+        // Ждем завершения загрузки видео (загружается через mobVideoLazy.js)
         waitForVideoLoad(video).then(function(){
           // Видео загружено - запускаем
           try {
             var p = video.play();
             tryUnmuteAfterPlay(p);
           } catch(err){
+            console.error('[snapSlider] Ошибка при вызове play():', videoInfo, err);
             try { video.muted = originalMuted; } catch(_){ }
           }
+        }).catch(function(err){
+          console.error('[snapSlider] Ошибка при ожидании загрузки видео:', videoInfo, err);
         });
       } else {
         // Видео готово - сразу запускаем
         var p = video.play();
         tryUnmuteAfterPlay(p);
       }
-    } catch(_){ }
+    } catch(err){
+      console.error('[snapSlider] Ошибка в safePlayVideo:', err);
+    }
   }
 
   // Проверка наличия кнопки mute в активном кейсе
@@ -199,11 +198,19 @@
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
     var hasTalkingHead = !!talkingHeadVideo;
     
+    // Логирование контекста запуска
+    try {
+      var caseId = caseEl.id || 'unknown';
+      console.log('[snapSlider] Запуск видео для кейса:', caseId, 'soundOn:', soundOn, 'hasTalkingHead:', hasTalkingHead);
+    } catch(_){}
+    
     // Если есть talking-head - управляем muted только для него
     if (hasTalkingHead){
       try {
         safePlayVideo(talkingHeadVideo, soundOn); // Передаем shouldUnmute=soundOn
-      } catch(err){ }
+      } catch(err){
+        console.error('[snapSlider] Ошибка при запуске talking-head:', err);
+      }
       
       // Все остальные видео в активных слайдах остаются muted
       var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
@@ -635,6 +642,13 @@
         // Если активный кейс не изменился — ничего не делаем, чтобы избежать дёрганий
         if (best === lastActiveCase) return;
 
+        // Логирование смены кейса
+        try {
+          var prevCaseId = lastActiveCase ? (lastActiveCase.id || 'unknown') : 'none';
+          var newCaseId = best.id || 'unknown';
+          console.log('[snapSlider] Смена активного кейса:', prevCaseId, '->', newCaseId);
+        } catch(_){}
+
         // Ставим на паузу talking-head в предыдущем активном кейсе
         if (lastActiveCase) {
           try { pauseTalkingHead(lastActiveCase); } catch(_){ }
@@ -724,7 +738,10 @@
           // Находим предыдущий активный слайд и ставим на паузу
           var previousActiveSlide = qs(wrapperEl, '.story-track-wrapper__slide.active');
           if (previousActiveSlide && previousActiveSlide !== bestSlide) {
-            try { pauseVideosInActiveSlide(previousActiveSlide); } catch(_){ }
+            try {
+              console.log('[snapSlider] Смена активного слайда (IntersectionObserver): предыдущий -> новый');
+              pauseVideosInActiveSlide(previousActiveSlide);
+            } catch(_){ }
           }
 
           each(slides, function(slide){
@@ -969,6 +986,9 @@
         if (isRight) { nextIdx = (curIdx + 1) < slides.length ? (curIdx + 1) : 0; }
         else if (isLeft) { nextIdx = (curIdx - 1) >= 0 ? (curIdx - 1) : (slides.length - 1); }
 
+        // Логирование смены слайда
+        console.log('[snapSlider] Смена активного слайда (клик):', curIdx, '->', nextIdx, isRight ? '(вправо)' : '(влево)');
+
         // Ставим на паузу видео в текущем активном слайде
         if (curIdx >= 0 && slides[curIdx]) {
           try { pauseVideosInActiveSlide(slides[curIdx]); } catch(_){ }
@@ -992,7 +1012,10 @@
               var actual = setActiveSlideInWrapperByCenter(wrapper);
               // Если активный слайд изменился, ставим на паузу предыдущий
               if (previousActive && actual && previousActive !== actual) {
-                try { pauseVideosInActiveSlide(previousActive); } catch(__){}
+                try {
+                  console.log('[snapSlider] Смена активного слайда (синхронизация после snap): предыдущий -> новый');
+                  pauseVideosInActiveSlide(previousActive);
+                } catch(__){}
               }
               updateWrapperPlayback(wrapper);
               try { playVideosWithSoundControl(caseEl); } catch(__){}
