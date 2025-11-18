@@ -115,6 +115,7 @@
       // Если видео не готово - ждем готовности
       if (!isVideoReady(video)){
         // Вызываем load если нужно
+        var needsLoad = false;
         if (!video.src && (!video.querySelector || !video.querySelector('source'))){
           // Если нет источника, пытаемся получить из атрибутов
           var mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
@@ -126,9 +127,19 @@
             source.type = 'video/mp4';
             video.appendChild(source);
             console.log('[snapSlider] Created source from attributes:', dataSrcAttr);
+            needsLoad = true; // Нужен load только если создали новый source
+          }
+        } else {
+          // Если источник есть, но видео не готово - возможно нужно перезагрузить
+          // Но не вызываем load если видео уже загружено (dataset.loaded)
+          var isAlreadyLoaded = !!(video.dataset && video.dataset.loaded);
+          if (!isAlreadyLoaded) {
+            needsLoad = true;
           }
         }
-        try { video.load(); } catch(_){ }
+        if (needsLoad) {
+          try { video.load(); } catch(_){ }
+        }
         // Ждем готовности с таймаутом
         var resolved = false;
         var timeoutId = setTimeout(function(){
@@ -200,6 +211,9 @@
     if (!hasMuteButton){
       // Если кнопки нет - глобальный флаг всегда muted
       if (window.CasesAudio) window.CasesAudio.soundOn = false;
+      console.log("no mute button");
+    } else {
+      console.log("mute button found");
     }
   }
 
@@ -398,7 +412,21 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
+  function pauseTalkingHead(root){ 
+    if (!root) return;
+    // Не ставим на паузу talking-head в активном кейсе
+    var isActive = !!(root.classList && root.classList.contains('active'));
+    if (isActive) return;
+    var v = getTalkingHeadVideo(root); 
+    if (v){ 
+      try { 
+        // Проверяем, что видео не в активном кейсе (дополнительная проверка)
+        var caseEl = v.closest ? v.closest('.cases-grid__item, .case') : null;
+        if (caseEl && caseEl.classList && caseEl.classList.contains('active')) return;
+        v.pause(); 
+      } catch(_){ } 
+    } 
+  }
 
   // Извлекаем ключ бренда из айтема стека: brand-data="xx-mini-view" на самом айтеме или его потомке
   function extractBrandKeyFromStackItem(item){
