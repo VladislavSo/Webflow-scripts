@@ -70,6 +70,40 @@
     activeCases.forEach(applySoundStateToCase);
   }
 
+  // Запустить видео: talking-head если есть, иначе видео в активном слайде
+  function playVideosOnMute(caseEl){
+    if (!caseEl || !caseEl.classList.contains('active')) return;
+    try {
+      // Ищем talking-head видео
+      var talkingHeadVideo = caseEl.querySelector('.cases-grid__item__container__wrap__talking-head__video video');
+      if (talkingHeadVideo){
+        // Если есть talking-head - запускаем его
+        if (talkingHeadVideo.paused){
+          var p = talkingHeadVideo.play();
+          if (p && p.catch) p.catch(function(){});
+        }
+      } else {
+        // Если нет talking-head - запускаем видео в активном слайде
+        var activeSlides = caseEl.querySelectorAll('.story-track-wrapper__slide.active');
+        if (activeSlides && activeSlides.length){
+          for (var i = 0; i < activeSlides.length; i++){
+            var videos = activeSlides[i].querySelectorAll('video');
+            if (videos && videos.length){
+              for (var j = 0; j < videos.length; j++){
+                if (videos[j].paused){
+                  try {
+                    var p = videos[j].play();
+                    if (p && p.catch) p.catch(function(){});
+                  } catch(_){ }
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch(_){ }
+  }
+
   function onMuteButtonClick(ev){
     try{ ev.preventDefault(); ev.stopPropagation(); }catch(_){ }
     var btn = ev.currentTarget;
@@ -94,6 +128,13 @@
     }
     if (caseEl) applySoundStateToCase(caseEl);
     applySoundStateToActiveCases();
+    
+    // Запускаем видео после применения состояния звука для всех активных кейсов
+    var activeCases = $all('.cases-grid__item.active');
+    activeCases.forEach(function(activeCase){
+      playVideosOnMute(activeCase);
+    });
+    
     // Очистить одноразовый список после применения ко всем активным
     window.CasesAudio.resetOnlyTheseOnce = null;
   }
