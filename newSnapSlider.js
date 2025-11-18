@@ -54,18 +54,74 @@
     });
   }
 
-  // Проверка готовности видео: есть source и был вызван load
+  // Проверка готовности видео: есть source и было загружено
   function isVideoReady(video){
     if (!video) return false;
     try {
       // Проверяем наличие источника
       var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
       if (!hasSource) return false;
+      // Проверяем, что видео загружено (dataset.loaded === 'true')
+      var isLoaded = !!(video.dataset && video.dataset.loaded === 'true');
+      if (!isLoaded) return false;
       // Проверяем, что видео готово к воспроизведению (readyState >= 2)
       return video.readyState >= 2;
     } catch(_){
       return false;
     }
+  }
+  
+  // Ожидание загрузки видео (если оно еще загружается)
+  function waitForVideoLoad(video){
+    if (!video) return Promise.resolve();
+    return new Promise(function(resolve){
+      // Если видео уже загружено - сразу возвращаемся
+      if (video.dataset && video.dataset.loaded === 'true' && video.readyState >= 2) {
+        resolve();
+        return;
+      }
+      
+      // Если видео еще загружается (fetching) - ждем завершения
+      if (video.dataset && video.dataset.fetching === 'true') {
+        var checkLoaded = function(){
+          if (video.dataset && video.dataset.loaded === 'true' && video.readyState >= 2) {
+            resolve();
+          } else {
+            setTimeout(checkLoaded, 100);
+          }
+        };
+        checkLoaded();
+        return;
+      }
+      
+      // Если источник есть, но видео еще не готово - ждем canplay
+      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
+      if (hasSource) {
+        if (video.readyState >= 2) {
+          resolve();
+        } else {
+          var resolved = false;
+          var timeoutId = setTimeout(function(){
+            if (!resolved) {
+              resolved = true;
+              resolve();
+            }
+          }, 5000);
+          var onCanPlay = function(){
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timeoutId);
+              resolve();
+            }
+          };
+          video.addEventListener('canplay', onCanPlay, { once: true });
+          video.addEventListener('error', onCanPlay, { once: true });
+        }
+      } else {
+        // Нет источника - не ждем
+        resolve();
+      }
+    });
   }
 
   // Безопасный запуск видео: проверяем готовность перед play
@@ -112,7 +168,7 @@
         });
       };
 
-      // Если видео не готово - ждем готовности
+      // Проверяем готовность видео и ждем загрузки если нужно
       if (!isVideoReady(video)){
         // Вызываем load если нужно
         var needsLoad = false;
@@ -140,53 +196,27 @@
         if (needsLoad) {
           try { video.load(); } catch(_){ }
         }
-        // Ждем готовности с таймаутом
-        var resolved = false;
-        var timeoutId = setTimeout(function(){
-          if (!resolved){
-            resolved = true;
-            try {
-              console.log('[snapSlider] play() called (timeout)');
-              var p = video.play();
-              tryUnmuteAfterPlay(p);
-              // Проверяем, запустилось ли видео
-              setTimeout(function(){
-                console.log('[snapSlider] Video state after play (timeout):', {
-                  paused: video.paused,
-                  muted: video.muted,
-                  readyState: video.readyState
-                });
-              }, 100);
-            } catch(err){
-              console.error('[snapSlider] play() error (timeout):', err);
-              try { video.muted = originalMuted; } catch(_){ }
-            }
+        
+        // Ждем завершения загрузки видео (может загружаться через newMobVideoLazy.js)
+        waitForVideoLoad(video).then(function(){
+          // Видео загружено - запускаем
+          try {
+            console.log('[snapSlider] play() called (after load wait)');
+            var p = video.play();
+            tryUnmuteAfterPlay(p);
+            // Проверяем, запустилось ли видео
+            setTimeout(function(){
+              console.log('[snapSlider] Video state after play (after load wait):', {
+                paused: video.paused,
+                muted: video.muted,
+                readyState: video.readyState
+              });
+            }, 100);
+          } catch(err){
+            console.error('[snapSlider] play() error (after load wait):', err);
+            try { video.muted = originalMuted; } catch(_){ }
           }
-        }, 5000);
-        var onCanPlay = function(){
-          if (!resolved){
-            resolved = true;
-            clearTimeout(timeoutId);
-            try {
-              console.log('[snapSlider] play() called (canplay)');
-              var p = video.play();
-              tryUnmuteAfterPlay(p);
-              // Проверяем, запустилось ли видео
-              setTimeout(function(){
-                console.log('[snapSlider] Video state after play (canplay):', {
-                  paused: video.paused,
-                  muted: video.muted,
-                  readyState: video.readyState
-                });
-              }, 100);
-            } catch(err){
-              console.error('[snapSlider] play() error (canplay):', err);
-              try { video.muted = originalMuted; } catch(_){ }
-            }
-          }
-        };
-        video.addEventListener('canplay', onCanPlay, { once: true });
-        video.addEventListener('error', onCanPlay, { once: true });
+        });
       } else {
         // Видео готово - сразу запускаем
         console.log('[snapSlider] play() called (ready)');
