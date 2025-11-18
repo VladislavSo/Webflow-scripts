@@ -35,12 +35,9 @@
     if (!slideEl) return;
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
-    var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
     each(videos, function(video){
       try {
         if (video && typeof video.play === 'function') {
-          // Устанавливаем muted в соответствии с состоянием звука
-          try { video.muted = !soundOn; } catch(_){ }
           var p = video.play();
           if (p && p.catch) p.catch(function(){});
         }
@@ -201,9 +198,6 @@
     var v = getTalkingHeadVideo(root);
     if (v){
       try {
-        var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-        // Устанавливаем muted в соответствии с состоянием звука
-        try { v.muted = !soundOn; } catch(_){ }
         var p = v.play();
         if (p && p.catch) p.catch(function(){});
       } catch(_){ }
