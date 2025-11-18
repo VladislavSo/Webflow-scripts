@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   // Работаем только на мобильных устройствах (ширина экрана до 479px)
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
+  console.log("start");
   
   // Кеш для хранения информации о загруженных видео
   // Структура: { itemId: { storyTrackLoaded: boolean, talkingHeadLoaded: boolean } }
@@ -57,7 +58,20 @@ document.addEventListener("DOMContentLoaded", () => {
           if (video.readyState >= 2) { // HAVE_CURRENT_DATA
             resolve();
           } else {
-            const onCanPlay = () => { resolve(); };
+            var resolved = false;
+            var timeoutId = setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            }, 10000); // Таймаут 10 секунд
+            const onCanPlay = () => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                resolve();
+              }
+            };
             video.addEventListener('canplay', onCanPlay, { once: true });
             video.addEventListener('error', onCanPlay, { once: true });
           }
@@ -78,7 +92,20 @@ document.addEventListener("DOMContentLoaded", () => {
           if (video.readyState >= 2) {
             resolve();
           } else {
-            const onCanPlay = () => { resolve(); };
+            var resolved = false;
+            var timeoutId = setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            }, 10000); // Таймаут 10 секунд
+            const onCanPlay = () => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                resolve();
+              }
+            };
             video.addEventListener('canplay', onCanPlay, { once: true });
             video.addEventListener('error', onCanPlay, { once: true });
           }
@@ -95,7 +122,20 @@ document.addEventListener("DOMContentLoaded", () => {
           if (video.readyState >= 2) {
             resolve();
           } else {
-            const onCanPlay = () => { resolve(); };
+            var resolved = false;
+            var timeoutId = setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            }, 10000); // Таймаут 10 секунд
+            const onCanPlay = () => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                resolve();
+              }
+            };
             video.addEventListener('canplay', onCanPlay, { once: true });
             video.addEventListener('error', onCanPlay, { once: true });
           }
@@ -114,7 +154,20 @@ document.addEventListener("DOMContentLoaded", () => {
               if (video.readyState >= 2) {
                 resolve();
               } else {
-                const onCanPlay = () => { resolve(); };
+                var resolved = false;
+                var timeoutId = setTimeout(() => {
+                  if (!resolved) {
+                    resolved = true;
+                    resolve();
+                  }
+                }, 10000); // Таймаут 10 секунд
+                const onCanPlay = () => {
+                  if (!resolved) {
+                    resolved = true;
+                    clearTimeout(timeoutId);
+                    resolve();
+                  }
+                };
                 video.addEventListener('canplay', onCanPlay, { once: true });
                 video.addEventListener('error', onCanPlay, { once: true });
               }
@@ -150,7 +203,20 @@ document.addEventListener("DOMContentLoaded", () => {
           if (video.readyState >= 2) {
             resolve();
           } else {
-            const onCanPlay = () => { resolve(); };
+            var resolved = false;
+            var timeoutId = setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            }, 10000); // Таймаут 10 секунд
+            const onCanPlay = () => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                resolve();
+              }
+            };
             video.addEventListener('canplay', onCanPlay, { once: true });
             video.addEventListener('error', onCanPlay, { once: true });
           }
@@ -228,7 +294,20 @@ document.addEventListener("DOMContentLoaded", () => {
           if (video.readyState >= 2) {
             resolve();
           } else {
-            const onCanPlay = () => { resolve(); };
+            var resolved = false;
+            var timeoutId = setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                resolve();
+              }
+            }, 10000); // Таймаут 10 секунд
+            const onCanPlay = () => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                resolve();
+              }
+            };
             video.addEventListener('canplay', onCanPlay, { once: true });
             video.addEventListener('error', onCanPlay, { once: true });
           }
