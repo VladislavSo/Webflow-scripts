@@ -140,6 +140,7 @@
       };
 
       if (!isVideoReady(video)){
+        var needsLoad = false;
         if (!video.src && (!video.querySelector || !video.querySelector('source'))){
           var mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
           var dataAttr = video.dataset ? video.dataset.src : null;
@@ -150,9 +151,19 @@
             source.type = 'video/mp4';
             video.appendChild(source);
             console.log('[muteBtn] Created source from attributes:', dataSrcAttr);
+            needsLoad = true; // Нужен load только если создали новый source
+          }
+        } else {
+          // Если источник есть, но видео не готово - возможно нужно перезагрузить
+          // Но не вызываем load если видео уже загружено (dataset.loaded)
+          var isAlreadyLoaded = !!(video.dataset && video.dataset.loaded);
+          if (!isAlreadyLoaded) {
+            needsLoad = true;
           }
         }
-        try { video.load(); } catch(_){ }
+        if (needsLoad) {
+          try { video.load(); } catch(_){ }
+        }
         var resolved = false;
         var timeoutId = setTimeout(function(){
           if (!resolved){
