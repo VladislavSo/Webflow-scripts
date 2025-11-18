@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // Загрузить источник видео (если нужно) и вызвать load()
+  // Загрузить источник видео (если нужно) и вызвать load(), ждем готовности
   async function loadVideoSource(video) {
     if (!video) return;
     
@@ -52,6 +52,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (video.src || (video.querySelector && video.querySelector('source'))) {
       try {
         video.load();
+        // Ждем готовности видео
+        await new Promise(resolve => {
+          if (video.readyState >= 2) { // HAVE_CURRENT_DATA
+            resolve();
+          } else {
+            const onCanPlay = () => { resolve(); };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        });
       } catch(e) {}
       return;
     }
@@ -64,6 +74,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!dataSrcAttr) {
       try {
         video.load();
+        await new Promise(resolve => {
+          if (video.readyState >= 2) {
+            resolve();
+          } else {
+            const onCanPlay = () => { resolve(); };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        });
       } catch(e) {}
       return;
     }
@@ -72,6 +91,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (video.dataset && video.dataset.loaded) {
       try {
         video.load();
+        await new Promise(resolve => {
+          if (video.readyState >= 2) {
+            resolve();
+          } else {
+            const onCanPlay = () => { resolve(); };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        });
       } catch(e) {}
       return;
     }
@@ -83,8 +111,16 @@ document.addEventListener("DOMContentLoaded", () => {
           if (video.dataset.loaded) {
             try {
               video.load();
-            } catch(e) {}
-            resolve();
+              if (video.readyState >= 2) {
+                resolve();
+              } else {
+                const onCanPlay = () => { resolve(); };
+                video.addEventListener('canplay', onCanPlay, { once: true });
+                video.addEventListener('error', onCanPlay, { once: true });
+              }
+            } catch(e) {
+              resolve();
+            }
           } else {
             setTimeout(checkLoaded, 100);
           }
@@ -109,6 +145,16 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           video.load();
         } catch(e) {}
+        // Ждем готовности
+        await new Promise(resolve => {
+          if (video.readyState >= 2) {
+            resolve();
+          } else {
+            const onCanPlay = () => { resolve(); };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        });
         if (video.dataset) video.dataset.loaded = 'true';
         try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
         return;
@@ -123,6 +169,16 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         video.load();
       } catch(e) {}
+      // Ждем готовности
+      await new Promise(resolve => {
+        if (video.readyState >= 2) {
+          resolve();
+        } else {
+          const onCanPlay = () => { resolve(); };
+          video.addEventListener('canplay', onCanPlay, { once: true });
+          video.addEventListener('error', onCanPlay, { once: true });
+        }
+      });
       if (video.dataset) video.dataset.loaded = 'true';
       try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
       return;
@@ -142,6 +198,16 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         video.load();
       } catch(e) {}
+      // Ждем готовности
+      await new Promise(resolve => {
+        if (video.readyState >= 2) {
+          resolve();
+        } else {
+          const onCanPlay = () => { resolve(); };
+          video.addEventListener('canplay', onCanPlay, { once: true });
+          video.addEventListener('error', onCanPlay, { once: true });
+        }
+      });
       if (video.dataset) {
         video.dataset.loaded = 'true';
         video.dataset.blobUrl = blobUrl;
@@ -157,6 +223,16 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
           video.load();
         } catch(err) {}
+        // Ждем готовности
+        await new Promise(resolve => {
+          if (video.readyState >= 2) {
+            resolve();
+          } else {
+            const onCanPlay = () => { resolve(); };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        });
         if (video.dataset) video.dataset.loaded = 'true';
       } catch (_) {}
     } finally {
