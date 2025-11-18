@@ -39,6 +39,17 @@
     buttons.forEach(function(btn){ setButtonIconsState(btn, soundOn); });
   }
 
+  // Проверка наличия кнопки mute в активном кейсе
+  function checkMuteButtonAndUpdateFlag(){
+    var activeCase = document.querySelector('.cases-grid__item.active');
+    if (!activeCase) return;
+    var hasMuteButton = !!(activeCase.querySelector && activeCase.querySelector('.action-bar__mute-btn'));
+    if (!hasMuteButton){
+      // Если кнопки нет - глобальный флаг всегда muted
+      window.CasesAudio.soundOn = false;
+    }
+  }
+
   function applySoundStateToCase(caseEl){
     var videos = findCaseVideos(caseEl);
     if (!videos || !videos.length) return;
@@ -47,6 +58,8 @@
       videos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
       return;
     }
+    // Проверяем наличие кнопки mute перед применением состояния
+    checkMuteButtonAndUpdateFlag();
     if (window.CasesAudio.soundOn){
       var listToReset = window.CasesAudio.resetOnlyTheseOnce;
       videos.forEach(function(v){
@@ -86,6 +99,17 @@
   function safePlayVideo(video){
     if (!video || !video.paused) return;
     try {
+      // Логирование
+      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
+      var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
+      var isMuted = video.muted;
+      console.log('[muteBtn] safePlayVideo:', {
+        hasSource: hasSource,
+        soundOn: soundOn,
+        muted: isMuted,
+        willCallPlay: true
+      });
+
       if (!isVideoReady(video)){
         if (!video.src && (!video.querySelector || !video.querySelector('source'))){
           var mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
@@ -96,6 +120,7 @@
             source.src = dataSrcAttr;
             source.type = 'video/mp4';
             video.appendChild(source);
+            console.log('[muteBtn] Created source from attributes:', dataSrcAttr);
           }
         }
         try { video.load(); } catch(_){ }
@@ -104,6 +129,7 @@
           if (!resolved){
             resolved = true;
             try {
+              console.log('[muteBtn] play() called (timeout)');
               var p = video.play();
               if (p && p.catch) p.catch(function(){});
             } catch(_){ }
@@ -114,6 +140,7 @@
             resolved = true;
             clearTimeout(timeoutId);
             try {
+              console.log('[muteBtn] play() called (canplay)');
               var p = video.play();
               if (p && p.catch) p.catch(function(){});
             } catch(_){ }
@@ -122,6 +149,7 @@
         video.addEventListener('canplay', onCanPlay, { once: true });
         video.addEventListener('error', onCanPlay, { once: true });
       } else {
+        console.log('[muteBtn] play() called (ready)');
         var p = video.play();
         if (p && p.catch) p.catch(function(){});
       }
@@ -206,7 +234,9 @@
         var wasActive = (m.oldValue || '').split(/\s+/).indexOf('active') !== -1;
         var isActive = item.classList.contains('active');
         if (!wasActive && isActive){
-          // Слайд стал активным: если глобально включен звук, запускаем с начала; иначе оставляем muted
+          // Слайд стал активным: проверяем наличие кнопки mute и обновляем флаг
+          checkMuteButtonAndUpdateFlag();
+          // Если глобально включен звук, запускаем с начала; иначе оставляем muted
           applySoundStateToCase(item);
         } else if (wasActive && !isActive){
           // Слайд потерял active: вернуть muted для всех видео в кейсе
