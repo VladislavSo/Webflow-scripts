@@ -6,6 +6,47 @@
   function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
   function each(list, cb){ if(!list) return; (list.forEach ? list.forEach(cb) : Array.prototype.forEach.call(list, cb)); }
 
+  // Кеш для хранения информации о загруженных видео
+  var loadCache = new Map();
+
+  // Простая детекция iOS Safari
+  var ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+  var isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
+
+  // Получить ID элемента .cases-grid__item
+  function getItemId(item){
+    if (!item) return null;
+    try {
+      return item.id || (item.getAttribute ? item.getAttribute('id') : null) || null;
+    } catch(_) {
+      return null;
+    }
+  }
+
+  // Найти все видео в .story-track-wrapper в любой глубине вложенности
+  function getStoryTrackVideos(item){
+    if (!item) return [];
+    try {
+      var storyWrapper = qs(item, '.story-track-wrapper');
+      if (!storyWrapper) return [];
+      return qsa(storyWrapper, 'video');
+    } catch(_) {
+      return [];
+    }
+  }
+
+  // Найти видео в .cases-grid__item__container__wrap__talking-head в любой глубине
+  function getTalkingHeadVideos(item){
+    if (!item) return [];
+    try {
+      var talkingHead = qs(item, '.cases-grid__item__container__wrap__talking-head');
+      if (!talkingHead) return [];
+      return qsa(talkingHead, 'video');
+    } catch(_) {
+      return [];
+    }
+  }
+
   // Построение прогресса внутри .story-track-wrapper
   function buildProgress(containerEl, slidesCount){
     if (!containerEl || !slidesCount || slidesCount <= 0) return null;
@@ -56,6 +97,229 @@
     }
   }
   
+  // Загрузить источник видео (если нужно) и вызвать load(), ждем готовности
+  function loadVideoSource(video){
+    if (!video) return Promise.resolve();
+    
+    // Проверяем, загружено ли видео уже
+    if (video.dataset && video.dataset.loaded === 'true') {
+      return Promise.resolve();
+    }
+    
+    // Проверяем, есть ли уже источник
+    if (video.src || (video.querySelector && video.querySelector('source'))) {
+      // Если источник есть, но видео еще не готово - ждем готовности без вызова load()
+      return new Promise(function(resolve){
+        if (video.readyState >= 2) {
+          if (video.dataset) video.dataset.loaded = 'true';
+          resolve();
+        } else {
+          var resolved = false;
+          var timeoutId = setTimeout(function(){
+            if (!resolved) {
+              resolved = true;
+              resolve();
+            }
+          }, 10000);
+          var onCanPlay = function(){
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timeoutId);
+              if (video.dataset) video.dataset.loaded = 'true';
+              resolve();
+            }
+          };
+          video.addEventListener('canplay', onCanPlay, { once: true });
+          video.addEventListener('error', onCanPlay, { once: true });
+        }
+      });
+    }
+
+    // Получаем URL из атрибутов
+    var mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
+    var dataAttr = video.dataset ? video.dataset.src : null;
+    var dataSrcAttr = mobAttr || dataAttr;
+    
+    if (!dataSrcAttr) {
+      return Promise.resolve();
+    }
+
+    // Если уже загружено - не пересоздаем
+    if (video.dataset && video.dataset.loaded === 'true') {
+      return Promise.resolve();
+    }
+
+    if (video.dataset && video.dataset.fetching === 'true') {
+      // Ждем завершения загрузки
+      return new Promise(function(resolve){
+        var checkLoaded = function(){
+          if (video.dataset && video.dataset.loaded === 'true') {
+            resolve();
+          } else {
+            setTimeout(checkLoaded, 100);
+          }
+        };
+        checkLoaded();
+      });
+    }
+
+    if (video.dataset) video.dataset.fetching = 'true';
+    var url = dataSrcAttr;
+
+    // Если источник кросс-доменный — подключаем напрямую
+    try {
+      var urlObj = new URL(url, window.location.href);
+      var sameOrigin = urlObj.origin === window.location.origin;
+      if (!sameOrigin) {
+        var source = document.createElement('source');
+        source.src = url;
+        source.type = 'video/mp4';
+        video.appendChild(source);
+        video.preload = 'metadata';
+        try {
+          video.load();
+        } catch(e) {}
+        // Ждем готовности
+        return new Promise(function(resolve){
+          if (video.readyState >= 2) {
+            if (video.dataset) video.dataset.loaded = 'true';
+            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+            resolve();
+          } else {
+            var resolved = false;
+            var timeoutId = setTimeout(function(){
+              if (!resolved) {
+                resolved = true;
+                try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+                resolve();
+              }
+            }, 10000);
+            var onCanPlay = function(){
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                if (video.dataset) video.dataset.loaded = 'true';
+                try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+                resolve();
+              }
+            };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        });
+      }
+    } catch (_) {
+      // В случае ошибок парсинга URL — подключаем напрямую
+      var source = document.createElement('source');
+      source.src = url;
+      source.type = 'video/mp4';
+      video.appendChild(source);
+      video.preload = isIOS ? 'metadata' : 'auto';
+      try {
+        video.load();
+      } catch(e) {}
+      // Ждем готовности
+      return new Promise(function(resolve){
+        if (video.readyState >= 2) {
+          if (video.dataset) video.dataset.loaded = 'true';
+          try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+          resolve();
+        } else {
+          var onCanPlay = function(){ 
+            if (video.dataset) video.dataset.loaded = 'true';
+            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+            resolve(); 
+          };
+          video.addEventListener('canplay', onCanPlay, { once: true });
+          video.addEventListener('error', onCanPlay, { once: true });
+        }
+      });
+    }
+
+    // Пытаемся загрузить через fetch
+    return new Promise(function(resolve){
+      fetch(url, { credentials: 'omit', cache: 'default' }).then(function(response){
+        if (!response.ok) throw new Error('Failed to fetch video');
+        return response.blob();
+      }).then(function(blob){
+        var blobUrl = URL.createObjectURL(blob);
+        var source = document.createElement('source');
+        source.src = blobUrl;
+        source.type = 'video/mp4';
+        video.appendChild(source);
+        video.preload = isIOS ? 'metadata' : 'auto';
+        try {
+          video.load();
+        } catch(e) {}
+        // Ждем готовности
+        return new Promise(function(resolveInner){
+          if (video.readyState >= 2) {
+            if (video.dataset) {
+              video.dataset.loaded = 'true';
+              video.dataset.blobUrl = blobUrl;
+            }
+            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+            resolveInner();
+          } else {
+            var onCanPlay = function(){ 
+              if (video.dataset) {
+                video.dataset.loaded = 'true';
+                video.dataset.blobUrl = blobUrl;
+              }
+              try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+              resolveInner(); 
+            };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        });
+      }).then(function(){
+        resolve();
+      }).catch(function(e){
+        // Фолбэк: подключаем источник напрямую
+        try {
+          var source = document.createElement('source');
+          source.src = url;
+          source.type = 'video/mp4';
+          video.appendChild(source);
+          video.preload = 'metadata';
+          try {
+            video.load();
+          } catch(err) {}
+          // Ждем готовности
+          var resolveFallback = function(){
+            if (video.dataset) video.dataset.loaded = 'true';
+            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+            resolve();
+          };
+          if (video.readyState >= 2) {
+            resolveFallback();
+          } else {
+            var resolved = false;
+            var timeoutId = setTimeout(function(){
+              if (!resolved) {
+                resolved = true;
+                resolveFallback();
+              }
+            }, 10000);
+            var onCanPlay = function(){
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeoutId);
+                resolveFallback();
+              }
+            };
+            video.addEventListener('canplay', onCanPlay, { once: true });
+            video.addEventListener('error', onCanPlay, { once: true });
+          }
+        } catch (_) {
+          try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
+          resolve();
+        }
+      });
+    });
+  }
+
   // Ожидание загрузки видео (если оно еще загружается)
   function waitForVideoLoad(video){
     if (!video) return Promise.resolve();
@@ -103,8 +367,12 @@
           video.addEventListener('error', onCanPlay, { once: true });
         }
       } else {
-        // Нет источника - не ждем
-        resolve();
+        // Нет источника - пытаемся загрузить
+        loadVideoSource(video).then(function(){
+          resolve();
+        }).catch(function(){
+          resolve();
+        });
       }
     });
   }
@@ -152,10 +420,13 @@
         });
       };
 
-      // Проверяем готовность видео и ждем загрузки если нужно
+      // Проверяем готовность видео и загружаем если нужно
       if (!isVideoReady(video)){
-        // Ждем завершения загрузки видео (загружается через mobVideoLazy.js)
-        waitForVideoLoad(video).then(function(){
+        // Сначала загружаем источник видео, затем ждем готовности
+        loadVideoSource(video).then(function(){
+          // Ждем завершения загрузки видео
+          return waitForVideoLoad(video);
+        }).then(function(){
           // Видео загружено - запускаем
           try {
             var p = video.play();
@@ -165,7 +436,7 @@
             try { video.muted = originalMuted; } catch(_){ }
           }
         }).catch(function(err){
-          console.error('[snapSlider] Ошибка при ожидании загрузки видео:', videoInfo, err);
+          console.error('[snapSlider] Ошибка при загрузке/ожидании видео:', videoInfo, err);
         });
       } else {
         // Видео готово - сразу запускаем
@@ -185,6 +456,45 @@
       // Если кнопки нет - глобальный флаг всегда muted
       if (window.CasesAudio) window.CasesAudio.soundOn = false;
     }
+  }
+
+  // Загрузить видео для активного элемента
+  function loadVideosForItem(item){
+    if (!item) return;
+    var itemId = getItemId(item);
+    if (!itemId) {
+      return;
+    }
+
+    // Проверяем кеш - если запись есть, значит все видео уже загружены
+    if (loadCache.has(itemId)) {
+      return; // Все уже загружено
+    }
+
+    // Находим все видео в .story-track-wrapper
+    var storyTrackVideos = getStoryTrackVideos(item);
+    
+    // Загружаем видео из story-track-wrapper (только load, без play - play управляется через snapSlider)
+    if (storyTrackVideos.length > 0) {
+      for (var i = 0; i < storyTrackVideos.length; i++) {
+        loadVideoSource(storyTrackVideos[i]).catch(function(){});
+      }
+    }
+
+    // Проверяем наличие talking-head
+    var talkingHead = qs(item, '.cases-grid__item__container__wrap__talking-head');
+    if (talkingHead) {
+      var talkingHeadVideos = getTalkingHeadVideos(item);
+      if (talkingHeadVideos.length > 0) {
+        // Для всех talking-head видео: только load (запуск управляется через snapSlider.js)
+        for (var j = 0; j < talkingHeadVideos.length; j++) {
+          loadVideoSource(talkingHeadVideos[j]).catch(function(){});
+        }
+      }
+    }
+
+    // Сохраняем в кеш - отмечаем, что для этого элемента видео загружены
+    loadCache.set(itemId, true);
   }
 
   // Управление воспроизведением с учетом флага звука
@@ -654,6 +964,9 @@
           try { pauseTalkingHead(lastActiveCase); } catch(_){ }
         }
 
+        // Загружаем видео для нового активного кейса
+        try { loadVideosForItem(best); } catch(_){ }
+
         // Проверяем наличие кнопки mute в новом активном кейсе
         try { checkMuteButtonAndUpdateFlag(best); } catch(_){ }
 
@@ -779,6 +1092,9 @@
           try { pauseTalkingHead(el); } catch(_){ }
         }
       });
+
+      // Загружаем видео для активного кейса
+      try { loadVideosForItem(activeCase); } catch(_){ }
 
       // Проверяем наличие кнопки mute в активном кейсе
       try { checkMuteButtonAndUpdateFlag(activeCase); } catch(_){ }
@@ -913,6 +1229,7 @@
                       if (el === caseElTarget) { 
                         try { 
                           el.classList.add('active'); 
+                          loadVideosForItem(el);
                           checkMuteButtonAndUpdateFlag(el);
                           playVideosWithSoundControl(el); 
                         } catch(__){} 
