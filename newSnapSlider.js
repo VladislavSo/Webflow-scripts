@@ -54,6 +54,71 @@
     });
   }
 
+  // Проверка готовности видео: есть source и был вызван load
+  function isVideoReady(video){
+    if (!video) return false;
+    try {
+      // Проверяем наличие источника
+      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
+      if (!hasSource) return false;
+      // Проверяем, что видео готово к воспроизведению (readyState >= 2)
+      return video.readyState >= 2;
+    } catch(_){
+      return false;
+    }
+  }
+
+  // Безопасный запуск видео: проверяем готовность перед play
+  function safePlayVideo(video){
+    if (!video || !video.paused) return;
+    try {
+      // Если видео не готово - ждем готовности
+      if (!isVideoReady(video)){
+        // Вызываем load если нужно
+        if (!video.src && (!video.querySelector || !video.querySelector('source'))){
+          // Если нет источника, пытаемся получить из атрибутов
+          var mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
+          var dataAttr = video.dataset ? video.dataset.src : null;
+          var dataSrcAttr = mobAttr || dataAttr;
+          if (dataSrcAttr){
+            var source = document.createElement('source');
+            source.src = dataSrcAttr;
+            source.type = 'video/mp4';
+            video.appendChild(source);
+          }
+        }
+        try { video.load(); } catch(_){ }
+        // Ждем готовности с таймаутом
+        var resolved = false;
+        var timeoutId = setTimeout(function(){
+          if (!resolved){
+            resolved = true;
+            try {
+              var p = video.play();
+              if (p && p.catch) p.catch(function(){});
+            } catch(_){ }
+          }
+        }, 5000);
+        var onCanPlay = function(){
+          if (!resolved){
+            resolved = true;
+            clearTimeout(timeoutId);
+            try {
+              var p = video.play();
+              if (p && p.catch) p.catch(function(){});
+            } catch(_){ }
+          }
+        };
+        video.addEventListener('canplay', onCanPlay, { once: true });
+        video.addEventListener('error', onCanPlay, { once: true });
+      } else {
+        // Видео готово - сразу запускаем
+        var p = video.play();
+        if (p && p.catch) p.catch(function(){});
+      }
+    } catch(_){ }
+  }
+
   // Управление воспроизведением с учетом флага звука
   function playVideosWithSoundControl(caseEl){
     if (!caseEl) return;
@@ -66,10 +131,7 @@
     if (hasTalkingHead){
       try {
         talkingHeadVideo.muted = !soundOn;
-        if (talkingHeadVideo.paused) {
-          var p = talkingHeadVideo.play();
-          if (p && p.catch) p.catch(function(){});
-        }
+        safePlayVideo(talkingHeadVideo);
       } catch(_){ }
       
       // Все остальные видео в активных слайдах остаются muted
@@ -78,12 +140,7 @@
         var videos = qsa(slide, 'video');
         each(videos, function(video){
           try { video.muted = true; } catch(_){ }
-          if (video.paused) {
-            try {
-              var p = video.play();
-              if (p && p.catch) p.catch(function(){});
-            } catch(_){ }
-          }
+          safePlayVideo(video);
         });
       });
     } else {
@@ -94,10 +151,7 @@
         each(videos, function(video){
           try {
             video.muted = !soundOn;
-            if (video.paused) {
-              var p = video.play();
-              if (p && p.catch) p.catch(function(){});
-            }
+            safePlayVideo(video);
           } catch(_){ }
         });
       });
