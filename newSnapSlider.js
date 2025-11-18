@@ -72,6 +72,17 @@
   function safePlayVideo(video){
     if (!video || !video.paused) return;
     try {
+      // Логирование
+      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
+      var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
+      var isMuted = video.muted;
+      console.log('[snapSlider] safePlayVideo:', {
+        hasSource: hasSource,
+        soundOn: soundOn,
+        muted: isMuted,
+        willCallPlay: true
+      });
+
       // Если видео не готово - ждем готовности
       if (!isVideoReady(video)){
         // Вызываем load если нужно
@@ -85,6 +96,7 @@
             source.src = dataSrcAttr;
             source.type = 'video/mp4';
             video.appendChild(source);
+            console.log('[snapSlider] Created source from attributes:', dataSrcAttr);
           }
         }
         try { video.load(); } catch(_){ }
@@ -94,6 +106,11 @@
           if (!resolved){
             resolved = true;
             try {
+              var finalMuted = video.muted;
+              console.log('[snapSlider] play() called (timeout)', {
+                muted: finalMuted,
+                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
+              });
               var p = video.play();
               if (p && p.catch) p.catch(function(){});
             } catch(_){ }
@@ -104,6 +121,11 @@
             resolved = true;
             clearTimeout(timeoutId);
             try {
+              var finalMuted = video.muted;
+              console.log('[snapSlider] play() called (canplay)', {
+                muted: finalMuted,
+                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
+              });
               var p = video.play();
               if (p && p.catch) p.catch(function(){});
             } catch(_){ }
@@ -113,15 +135,33 @@
         video.addEventListener('error', onCanPlay, { once: true });
       } else {
         // Видео готово - сразу запускаем
+        var finalMuted = video.muted;
+        console.log('[snapSlider] play() called (ready)', {
+          muted: finalMuted,
+          soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
+        });
         var p = video.play();
         if (p && p.catch) p.catch(function(){});
       }
     } catch(_){ }
   }
 
+  // Проверка наличия кнопки mute в активном кейсе
+  function checkMuteButtonAndUpdateFlag(caseEl){
+    if (!caseEl) return;
+    var hasMuteButton = !!(caseEl.querySelector && caseEl.querySelector('.action-bar__mute-btn'));
+    if (!hasMuteButton){
+      // Если кнопки нет - глобальный флаг всегда muted
+      if (window.CasesAudio) window.CasesAudio.soundOn = false;
+    }
+  }
+
   // Управление воспроизведением с учетом флага звука
   function playVideosWithSoundControl(caseEl){
     if (!caseEl) return;
+    
+    // Проверяем наличие кнопки mute перед применением состояния
+    checkMuteButtonAndUpdateFlag(caseEl);
     
     var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
@@ -599,6 +639,9 @@
           try { pauseVideosInActiveCase(lastActiveCase); } catch(_){ }
         }
 
+        // Проверяем наличие кнопки mute в новом активном кейсе
+        try { checkMuteButtonAndUpdateFlag(best); } catch(_){ }
+
         (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
           if (el === best) { 
             el.classList.add('active'); 
@@ -725,6 +768,9 @@
           try { pauseAndResetVideosInElement(el); } catch(_){ }
         }
       });
+
+      // Проверяем наличие кнопки mute в активном кейсе
+      try { checkMuteButtonAndUpdateFlag(activeCase); } catch(_){ }
 
       // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс
       var wrappers = qsa(activeCase, '.story-track-wrapper');
@@ -854,7 +900,11 @@
                     var cases = scroller2 ? qsa(scroller2, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
                     each(cases, function(el){ 
                       if (el === caseElTarget) { 
-                        try { el.classList.add('active'); playVideosWithSoundControl(el); } catch(__){} 
+                        try { 
+                          el.classList.add('active'); 
+                          checkMuteButtonAndUpdateFlag(el);
+                          playVideosWithSoundControl(el); 
+                        } catch(__){} 
                       } else { 
                         try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} 
                       } 
