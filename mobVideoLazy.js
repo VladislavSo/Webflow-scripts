@@ -49,11 +49,18 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadVideoSource(video) {
     if (!video) return;
     
+    // Проверяем, загружено ли видео уже
+    if (video.dataset && video.dataset.loaded === 'true') {
+      // Видео уже загружено - не пересоздаем его
+      return;
+    }
+    
     // Проверяем, есть ли уже источник
     if (video.src || (video.querySelector && video.querySelector('source'))) {
+      // Если источник есть, но видео еще не готово - ждем готовности без вызова load()
+      // (load() сбросит состояние видео, если оно уже играет)
       try {
-        video.load();
-        // Ждем готовности видео
+        // Ждем готовности видео без вызова load()
         await new Promise(resolve => {
           if (video.readyState >= 2) { // HAVE_CURRENT_DATA
             resolve();
@@ -76,6 +83,7 @@ document.addEventListener("DOMContentLoaded", () => {
             video.addEventListener('error', onCanPlay, { once: true });
           }
         });
+        if (video.dataset) video.dataset.loaded = 'true';
       } catch(e) {}
       return;
     }
@@ -86,61 +94,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const dataSrcAttr = mobAttr || dataAttr;
     
     if (!dataSrcAttr) {
-      try {
-        video.load();
-        await new Promise(resolve => {
-          if (video.readyState >= 2) {
-            resolve();
-          } else {
-            var resolved = false;
-            var timeoutId = setTimeout(() => {
-              if (!resolved) {
-                resolved = true;
-                resolve();
-              }
-            }, 10000); // Таймаут 10 секунд
-            const onCanPlay = () => {
-              if (!resolved) {
-                resolved = true;
-                clearTimeout(timeoutId);
-                resolve();
-              }
-            };
-            video.addEventListener('canplay', onCanPlay, { once: true });
-            video.addEventListener('error', onCanPlay, { once: true });
-          }
-        });
-      } catch(e) {}
+      // Нет источника и нет атрибутов - ничего не делаем
+      // Не вызываем load() чтобы не пересоздать видео
       return;
     }
 
-    // Если уже загружается или загружено
-    if (video.dataset && video.dataset.loaded) {
-      try {
-        video.load();
-        await new Promise(resolve => {
-          if (video.readyState >= 2) {
-            resolve();
-          } else {
-            var resolved = false;
-            var timeoutId = setTimeout(() => {
-              if (!resolved) {
-                resolved = true;
-                resolve();
-              }
-            }, 10000); // Таймаут 10 секунд
-            const onCanPlay = () => {
-              if (!resolved) {
-                resolved = true;
-                clearTimeout(timeoutId);
-                resolve();
-              }
-            };
-            video.addEventListener('canplay', onCanPlay, { once: true });
-            video.addEventListener('error', onCanPlay, { once: true });
-          }
-        });
-      } catch(e) {}
+    // Если уже загружено - не пересоздаем
+    if (video.dataset && video.dataset.loaded === 'true') {
       return;
     }
 
@@ -148,32 +108,9 @@ document.addEventListener("DOMContentLoaded", () => {
       // Ждем завершения загрузки
       return new Promise(resolve => {
         const checkLoaded = () => {
-          if (video.dataset.loaded) {
-            try {
-              video.load();
-              if (video.readyState >= 2) {
-                resolve();
-              } else {
-                var resolved = false;
-                var timeoutId = setTimeout(() => {
-                  if (!resolved) {
-                    resolved = true;
-                    resolve();
-                  }
-                }, 10000); // Таймаут 10 секунд
-                const onCanPlay = () => {
-                  if (!resolved) {
-                    resolved = true;
-                    clearTimeout(timeoutId);
-                    resolve();
-                  }
-                };
-                video.addEventListener('canplay', onCanPlay, { once: true });
-                video.addEventListener('error', onCanPlay, { once: true });
-              }
-            } catch(e) {
-              resolve();
-            }
+          if (video.dataset.loaded === 'true') {
+            // Видео уже загружено - не вызываем load(), чтобы не пересоздать его
+            resolve();
           } else {
             setTimeout(checkLoaded, 100);
           }
