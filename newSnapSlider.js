@@ -583,22 +583,39 @@
     var activeCase = qs(document, '.cases-grid__item.active');
     if (!activeCase) return;
 
+    try {
+      var caseId = activeCase.id || 'unknown';
+      var oldSoundOn = !!window.CasesAudio.soundOn;
+      console.log('[snapSlider] ===== КЛИК ПО КНОПКЕ MUTE =====');
+      console.log('[snapSlider] Активный кейс:', caseId);
+      console.log('[snapSlider] Текущее состояние soundOn:', oldSoundOn);
+    } catch(_){}
+
     // Переключаем глобальный флаг
     var newSoundOn = !window.CasesAudio.soundOn;
     window.CasesAudio.soundOn = newSoundOn;
+    console.log('[snapSlider] Новое состояние soundOn:', newSoundOn);
 
     // Синхронизируем все кнопки
     setButtonIconsStateForAll(newSoundOn);
 
     if (newSoundOn === false){
       // Если soundOn стал false - добавляем muted
+      console.log('[snapSlider] soundOn стал false: добавляем muted');
       var talkingHeadVideo = getTalkingHeadVideo(activeCase);
       if (talkingHeadVideo){
+        console.log('[snapSlider] Найден talking-head, добавляем muted');
         try {
-          if (!talkingHeadVideo.muted) talkingHeadVideo.muted = true;
+          if (!talkingHeadVideo.muted) {
+            talkingHeadVideo.muted = true;
+            console.log('[snapSlider] Muted добавлен для talking-head');
+          } else {
+            console.log('[snapSlider] Talking-head уже muted');
+          }
         } catch(_){}
       } else {
         // Если talking-head нет - добавляем muted первому видео index 0
+        console.log('[snapSlider] Talking-head не найден, ищем первое видео (index 0)');
         var firstWrapper = qs(activeCase, '.story-track-wrapper');
         if (firstWrapper){
           var allSlides = qsa(firstWrapper, '.story-track-wrapper__slide');
@@ -607,22 +624,40 @@
             var firstVideo = qs(firstSlide, 'video');
             if (firstVideo){
               try {
-                if (!firstVideo.muted) firstVideo.muted = true;
+                if (!firstVideo.muted) {
+                  firstVideo.muted = true;
+                  console.log('[snapSlider] Muted добавлен для первого видео (index 0)');
+                } else {
+                  console.log('[snapSlider] Первое видео уже muted');
+                }
               } catch(_){}
+            } else {
+              console.warn('[snapSlider] Видео в первом слайде не найдено');
             }
           }
         }
       }
     } else {
       // Если soundOn стал true
+      console.log('[snapSlider] soundOn стал true: пауза, удаляем muted, currentTime=0, play');
       var talkingHeadVideo = getTalkingHeadVideo(activeCase);
       if (talkingHeadVideo){
         // Если есть talking-head - пауза, удалить muted, currentTime=0, play
+        console.log('[snapSlider] Найден talking-head, обрабатываем его');
         try {
           talkingHeadVideo.pause();
-          if (talkingHeadVideo.muted) talkingHeadVideo.muted = false;
-          if (typeof talkingHeadVideo.currentTime === 'number') talkingHeadVideo.currentTime = 0;
-          talkingHeadVideo.play().catch(function(err){
+          console.log('[snapSlider] Talking-head поставлен на паузу');
+          if (talkingHeadVideo.muted) {
+            talkingHeadVideo.muted = false;
+            console.log('[snapSlider] Muted удален у talking-head');
+          }
+          if (typeof talkingHeadVideo.currentTime === 'number') {
+            talkingHeadVideo.currentTime = 0;
+            console.log('[snapSlider] currentTime сброшен до 0 для talking-head');
+          }
+          talkingHeadVideo.play().then(function(){
+            console.log('[snapSlider] Talking-head успешно запущен после unmute');
+          }).catch(function(err){
             console.error('[snapSlider] Ошибка при запуске talking-head после unmute:', err);
           });
         } catch(err){
@@ -630,6 +665,7 @@
         }
       } else {
         // Если talking-head нет - первое видео index 0: пауза, удалить muted, currentTime=0, play
+        console.log('[snapSlider] Talking-head не найден, обрабатываем первое видео (index 0)');
         var firstWrapper = qs(activeCase, '.story-track-wrapper');
         if (firstWrapper){
           var allSlides = qsa(firstWrapper, '.story-track-wrapper__slide');
@@ -639,14 +675,25 @@
             if (firstVideo){
               try {
                 firstVideo.pause();
-                if (firstVideo.muted) firstVideo.muted = false;
-                if (typeof firstVideo.currentTime === 'number') firstVideo.currentTime = 0;
-                firstVideo.play().catch(function(err){
+                console.log('[snapSlider] Первое видео поставлено на паузу');
+                if (firstVideo.muted) {
+                  firstVideo.muted = false;
+                  console.log('[snapSlider] Muted удален у первого видео');
+                }
+                if (typeof firstVideo.currentTime === 'number') {
+                  firstVideo.currentTime = 0;
+                  console.log('[snapSlider] currentTime сброшен до 0 для первого видео');
+                }
+                firstVideo.play().then(function(){
+                  console.log('[snapSlider] Первое видео успешно запущено после unmute');
+                }).catch(function(err){
                   console.error('[snapSlider] Ошибка при запуске первого видео после unmute:', err);
                 });
               } catch(err){
                 console.error('[snapSlider] Ошибка при обработке первого видео после unmute:', err);
               }
+            } else {
+              console.warn('[snapSlider] Видео в первом слайде не найдено');
             }
           }
         }
@@ -815,12 +862,21 @@
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
     var hasTalkingHead = !!talkingHeadVideo;
     
+    try {
+      var caseId = caseEl.id || 'unknown';
+      console.log('[snapSlider] Установка muted для кейса:', caseId, 'soundOn:', soundOn, 'hasTalkingHead:', hasTalkingHead);
+    } catch(_){}
+    
     if (soundOn === false){
       // Если soundOn false - добавляем muted всем видео в кейсе
       var allVideos = findCaseVideos(caseEl);
+      console.log('[snapSlider] soundOn=false: добавляем muted всем видео в кейсе, количество видео:', allVideos.length);
       each(allVideos, function(video){
         try {
-          if (!video.muted) video.muted = true;
+          if (!video.muted) {
+            video.muted = true;
+            console.log('[snapSlider] Добавлен muted для видео');
+          }
         } catch(_){}
       });
     } else {
@@ -828,13 +884,19 @@
       if (hasTalkingHead){
         // Если есть talking-head - удаляем muted только у него, остальным добавляем
         try {
-          if (talkingHeadVideo.muted) talkingHeadVideo.muted = false;
+          if (talkingHeadVideo.muted) {
+            talkingHeadVideo.muted = false;
+            console.log('[snapSlider] soundOn=true, есть talking-head: удален muted у talking-head');
+          }
         } catch(_){}
         var allVideos = findCaseVideos(caseEl);
         each(allVideos, function(video){
           if (video !== talkingHeadVideo){
             try {
-              if (!video.muted) video.muted = true;
+              if (!video.muted) {
+                video.muted = true;
+                console.log('[snapSlider] Добавлен muted для видео в слайде (есть talking-head)');
+              }
             } catch(_){}
           }
         });
@@ -848,7 +910,10 @@
             var firstVideo = qs(firstSlide, 'video');
             if (firstVideo){
               try {
-                if (firstVideo.muted) firstVideo.muted = false;
+                if (firstVideo.muted) {
+                  firstVideo.muted = false;
+                  console.log('[snapSlider] soundOn=true, нет talking-head: удален muted у первого видео (index 0)');
+                }
               } catch(_){}
             }
             // Остальным видео добавляем muted
@@ -856,7 +921,10 @@
             each(allVideos, function(video){
               if (video !== firstVideo){
                 try {
-                  if (!video.muted) video.muted = true;
+                  if (!video.muted) {
+                    video.muted = true;
+                    console.log('[snapSlider] Добавлен muted для остальных видео в кейсе');
+                  }
                 } catch(_){}
               }
             });
@@ -870,9 +938,18 @@
   function playVideosOnCaseChange(caseEl, previousCaseEl){
     if (!caseEl) return;
     
+    try {
+      var caseId = caseEl.id || 'unknown';
+      var prevCaseId = previousCaseEl ? (previousCaseEl.id || 'unknown') : 'none';
+      console.log('[snapSlider] ===== СМЕНА АКТИВНОГО КЕЙСА =====');
+      console.log('[snapSlider] Предыдущий кейс:', prevCaseId);
+      console.log('[snapSlider] Новый кейс:', caseId);
+    } catch(_){}
+    
     // Ставим на паузу видео в предыдущем активном слайде предыдущего кейса
     if (previousCaseEl){
       var previousActiveSlides = qsa(previousCaseEl, '.story-track-wrapper__slide.active');
+      console.log('[snapSlider] Пауза видео в предыдущем кейсе, активных слайдов:', previousActiveSlides.length);
       each(previousActiveSlides, function(previousSlide){
         try {
           pauseVideosInActiveSlide(previousSlide);
@@ -883,53 +960,91 @@
     // 1. Находим все видео и talking head
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
     var allVideos = findCaseVideos(caseEl);
+    console.log('[snapSlider] 1. Найдено видео в кейсе: всего=', allVideos.length, 'talking-head=', !!talkingHeadVideo);
     
     // 2. Вызываем load для всех видео
+    console.log('[snapSlider] 2. Загрузка source для всех видео в кейсе...');
     each(allVideos, function(video){
-      loadVideoSource(video).catch(function(){});
+      loadVideoSource(video).then(function(){
+        try {
+          var src = video.src || (video.querySelector && video.querySelector('source') && video.querySelector('source').src) || 'no source';
+          console.log('[snapSlider] Source загружен для видео:', src);
+        } catch(_){}
+      }).catch(function(err){
+        console.error('[snapSlider] Ошибка при загрузке source:', err);
+      });
     });
     
     // 3. Устанавливаем muted согласно soundOn
+    console.log('[snapSlider] 3. Установка muted согласно soundOn...');
     setMutedStateForCase(caseEl);
     
     // 4. Через 100мс начинаем проверять готовность
+    console.log('[snapSlider] 4. Ожидание 100мс перед проверкой готовности...');
     setTimeout(function(){
+      var checkCount = 0;
+      var maxChecks = 50; // максимум 50 проверок (10 секунд при интервале 200мс)
       var checkAndPlay = function(){
+        checkCount++;
         if (talkingHeadVideo){
           // Если есть talking-head - проверяем только его готовность
+          var hasSource = !!(talkingHeadVideo.src || (talkingHeadVideo.querySelector && talkingHeadVideo.querySelector('source')));
+          var readyState = talkingHeadVideo.readyState || 0;
           var talkingHeadReady = isVideoReadyToPlay(talkingHeadVideo);
+          console.log('[snapSlider] Проверка готовности talking-head (попытка', checkCount, '): hasSource=', hasSource, 'readyState=', readyState, 'ready=', talkingHeadReady);
+          
           if (talkingHeadReady){
             // 5. Когда проверка пройдена - вызываем play для talking-head
+            console.log('[snapSlider] 5. Talking-head готов к запуску, вызываем play()');
             try {
-              talkingHeadVideo.play().catch(function(err){
+              talkingHeadVideo.play().then(function(){
+                console.log('[snapSlider] Talking-head успешно запущен');
+              }).catch(function(err){
                 console.error('[snapSlider] Ошибка при запуске talking-head:', err);
               });
             } catch(err){
               console.error('[snapSlider] Ошибка при вызове play() для talking-head:', err);
             }
           } else {
-            // Повторяем проверку через 200мс
-            setTimeout(checkAndPlay, 200);
+            if (checkCount < maxChecks){
+              // Повторяем проверку через 200мс
+              setTimeout(checkAndPlay, 200);
+            } else {
+              console.error('[snapSlider] Превышено максимальное количество попыток проверки готовности talking-head');
+            }
           }
         } else {
           // Если нет talking-head - проверяем готовность видео в активном слайде
           var activeSlide = qs(caseEl, '.story-track-wrapper__slide.active');
           var activeSlideVideo = activeSlide ? (qs(activeSlide, 'video')) : null;
           if (activeSlideVideo){
+            var hasSource = !!(activeSlideVideo.src || (activeSlideVideo.querySelector && activeSlideVideo.querySelector('source')));
+            var readyState = activeSlideVideo.readyState || 0;
             var activeSlideReady = isVideoReadyToPlay(activeSlideVideo);
+            console.log('[snapSlider] Проверка готовности видео в активном слайде (попытка', checkCount, '): hasSource=', hasSource, 'readyState=', readyState, 'ready=', activeSlideReady);
+            
             if (activeSlideReady){
               // 5. Когда проверка пройдена - вызываем play для видео в активном слайде
+              console.log('[snapSlider] 5. Видео в активном слайде готово к запуску, вызываем play()');
               try {
-                activeSlideVideo.play().catch(function(err){
+                activeSlideVideo.play().then(function(){
+                  console.log('[snapSlider] Видео в активном слайде успешно запущено');
+                }).catch(function(err){
                   console.error('[snapSlider] Ошибка при запуске видео в активном слайде:', err);
                 });
               } catch(err){
                 console.error('[snapSlider] Ошибка при вызове play() для видео в активном слайде:', err);
               }
             } else {
-              // Повторяем проверку через 200мс
-              setTimeout(checkAndPlay, 200);
+              if (checkCount < maxChecks){
+                // Повторяем проверку через 200мс
+                setTimeout(checkAndPlay, 200);
+              } else {
+                console.error('[snapSlider] Превышено максимальное количество попыток проверки готовности видео в активном слайде');
+              }
             }
+          } else {
+            console.warn('[snapSlider] Видео в активном слайде не найдено');
           }
         }
       };
@@ -941,11 +1056,18 @@
   function playVideosOnSlideChange(slideEl, caseEl){
     if (!slideEl || !caseEl) return;
     
+    try {
+      var caseId = caseEl.id || 'unknown';
+      console.log('[snapSlider] ===== СМЕНА АКТИВНОГО СЛАЙДА =====');
+      console.log('[snapSlider] Кейс:', caseId);
+    } catch(_){}
+    
     // Ставим на паузу видео в предыдущем активном слайде
     var wrapper = slideEl.closest ? slideEl.closest('.story-track-wrapper') : null;
     if (wrapper){
       var previousActiveSlide = qs(wrapper, '.story-track-wrapper__slide.active');
       if (previousActiveSlide && previousActiveSlide !== slideEl){
+        console.log('[snapSlider] Пауза видео в предыдущем активном слайде');
         try {
           pauseVideosInActiveSlide(previousActiveSlide);
         } catch(_){}
@@ -953,22 +1075,40 @@
     }
     
     var video = qs(slideEl, 'video');
-    if (!video) return;
+    if (!video) {
+      console.warn('[snapSlider] Видео в слайде не найдено');
+      return;
+    }
     
     // 1. Проверяем готовность
+    var checkCount = 0;
+    var maxChecks = 100; // максимум 100 проверок (10 секунд при интервале 100мс)
     var checkAndPlay = function(){
-      if (isVideoReadyToPlay(video)){
+      checkCount++;
+      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
+      var readyState = video.readyState || 0;
+      var isReady = isVideoReadyToPlay(video);
+      console.log('[snapSlider] 1. Проверка готовности видео в слайде (попытка', checkCount, '): hasSource=', hasSource, 'readyState=', readyState, 'ready=', isReady);
+      
+      if (isReady){
         // 2. Когда проверка пройдена - вызываем play
+        console.log('[snapSlider] 2. Видео готово к запуску, вызываем play()');
         try {
-          video.play().catch(function(err){
+          video.play().then(function(){
+            console.log('[snapSlider] Видео в слайде успешно запущено');
+          }).catch(function(err){
             console.error('[snapSlider] Ошибка при запуске видео в слайде:', err);
           });
         } catch(err){
           console.error('[snapSlider] Ошибка при вызове play() для видео в слайде:', err);
         }
       } else {
-        // Повторяем проверку через 100мс
-        setTimeout(checkAndPlay, 100);
+        if (checkCount < maxChecks){
+          // Повторяем проверку через 100мс
+          setTimeout(checkAndPlay, 100);
+        } else {
+          console.error('[snapSlider] Превышено максимальное количество попыток проверки готовности видео в слайде');
+        }
       }
     };
     checkAndPlay();
