@@ -194,7 +194,8 @@ document.addEventListener("DOMContentLoaded", () => {
         source.src = url;
         source.type = 'video/mp4';
         video.appendChild(source);
-        video.preload = isIOS ? 'metadata' : 'auto';
+        // Используем 'metadata' вместо 'auto' чтобы избежать автозапуска
+        video.preload = 'metadata';
         try {
           video.load();
         } catch(e) {}
@@ -285,7 +286,8 @@ document.addEventListener("DOMContentLoaded", () => {
         source.src = url;
         source.type = 'video/mp4';
         video.appendChild(source);
-        video.preload = isIOS ? 'metadata' : 'auto';
+        // Используем 'metadata' вместо 'auto' чтобы избежать автозапуска
+        video.preload = 'metadata';
         try {
           video.load();
         } catch(err) {}
