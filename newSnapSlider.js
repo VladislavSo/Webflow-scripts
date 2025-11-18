@@ -69,19 +69,48 @@
   }
 
   // Безопасный запуск видео: проверяем готовность перед play
-  function safePlayVideo(video){
+  // Всегда запускаем с muted=true, затем пытаемся снять muted если звук включен
+  function safePlayVideo(video, shouldUnmute){
     if (!video || !video.paused) return;
     try {
       // Логирование
       var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
       var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-      var isMuted = video.muted;
+      var targetMuted = !shouldUnmute; // Если shouldUnmute=true, то muted=false, иначе muted=true
       console.log('[snapSlider] safePlayVideo:', {
         hasSource: hasSource,
         soundOn: soundOn,
-        muted: isMuted,
-        willCallPlay: true
+        shouldUnmute: shouldUnmute,
+        willStartMuted: true // Всегда начинаем с muted для автоплея
       });
+
+      // Сохраняем желаемое состояние muted для применения после запуска
+      var desiredMuted = targetMuted;
+
+      // ВСЕГДА запускаем с muted=true для автоплея (браузер разрешает это)
+      var originalMuted = video.muted;
+      try { video.muted = true; } catch(_){ }
+
+      // Функция для попытки снять muted после успешного запуска
+      var tryUnmuteAfterPlay = function(playPromise){
+        if (!playPromise || !playPromise.then) return;
+        playPromise.then(function(){
+          // Видео успешно запустилось, пытаемся снять muted если нужно
+          if (!desiredMuted && soundOn){
+            try {
+              video.muted = false;
+              console.log('[snapSlider] Unmuted after successful play');
+            } catch(err){
+              console.warn('[snapSlider] Could not unmute after play (browser restriction):', err);
+              // Оставляем muted=true, если браузер блокирует
+            }
+          }
+        }).catch(function(err){
+          console.error('[snapSlider] play() promise rejected:', err);
+          // Если play() не удался, восстанавливаем исходное состояние muted
+          try { video.muted = originalMuted; } catch(_){ }
+        });
+      };
 
       // Если видео не готово - ждем готовности
       if (!isVideoReady(video)){
@@ -106,17 +135,9 @@
           if (!resolved){
             resolved = true;
             try {
-              var finalMuted = video.muted;
-              console.log('[snapSlider] play() called (timeout)', {
-                muted: finalMuted,
-                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
-              });
+              console.log('[snapSlider] play() called (timeout)');
               var p = video.play();
-              if (p && p.catch) {
-                p.catch(function(err){
-                  console.error('[snapSlider] play() failed (timeout):', err);
-                });
-              }
+              tryUnmuteAfterPlay(p);
               // Проверяем, запустилось ли видео
               setTimeout(function(){
                 console.log('[snapSlider] Video state after play (timeout):', {
@@ -127,6 +148,7 @@
               }, 100);
             } catch(err){
               console.error('[snapSlider] play() error (timeout):', err);
+              try { video.muted = originalMuted; } catch(_){ }
             }
           }
         }, 5000);
@@ -135,17 +157,9 @@
             resolved = true;
             clearTimeout(timeoutId);
             try {
-              var finalMuted = video.muted;
-              console.log('[snapSlider] play() called (canplay)', {
-                muted: finalMuted,
-                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
-              });
+              console.log('[snapSlider] play() called (canplay)');
               var p = video.play();
-              if (p && p.catch) {
-                p.catch(function(err){
-                  console.error('[snapSlider] play() failed (canplay):', err);
-                });
-              }
+              tryUnmuteAfterPlay(p);
               // Проверяем, запустилось ли видео
               setTimeout(function(){
                 console.log('[snapSlider] Video state after play (canplay):', {
@@ -156,6 +170,7 @@
               }, 100);
             } catch(err){
               console.error('[snapSlider] play() error (canplay):', err);
+              try { video.muted = originalMuted; } catch(_){ }
             }
           }
         };
@@ -163,17 +178,9 @@
         video.addEventListener('error', onCanPlay, { once: true });
       } else {
         // Видео готово - сразу запускаем
-        var finalMuted = video.muted;
-        console.log('[snapSlider] play() called (ready)', {
-          muted: finalMuted,
-          soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
-        });
+        console.log('[snapSlider] play() called (ready)');
         var p = video.play();
-        if (p && p.catch) {
-          p.catch(function(err){
-            console.error('[snapSlider] play() failed (ready):', err);
-          });
-        }
+        tryUnmuteAfterPlay(p);
         // Проверяем, запустилось ли видео
         setTimeout(function(){
           console.log('[snapSlider] Video state after play (ready):', {
@@ -216,11 +223,10 @@
     // Если есть talking-head - управляем muted только для него
     if (hasTalkingHead){
       try {
-        talkingHeadVideo.muted = !soundOn;
-        console.log('[snapSlider] Talking-head muted set to:', !soundOn);
-        safePlayVideo(talkingHeadVideo);
+        console.log('[snapSlider] Talking-head shouldUnmute:', soundOn);
+        safePlayVideo(talkingHeadVideo, soundOn); // Передаем shouldUnmute=soundOn
       } catch(err){
-        console.error('[snapSlider] Error setting talking-head muted/play:', err);
+        console.error('[snapSlider] Error setting talking-head play:', err);
       }
       
       // Все остальные видео в активных слайдах остаются muted
@@ -228,8 +234,7 @@
       each(activeSlides, function(slide){
         var videos = qsa(slide, 'video');
         each(videos, function(video){
-          try { video.muted = true; } catch(_){ }
-          safePlayVideo(video);
+          safePlayVideo(video, false); // Всегда muted для видео в слайдах, если есть talking-head
         });
       });
     } else {
@@ -238,10 +243,7 @@
       each(activeSlides, function(slide){
         var videos = qsa(slide, 'video');
         each(videos, function(video){
-          try {
-            video.muted = !soundOn;
-            safePlayVideo(video);
-          } catch(_){ }
+          safePlayVideo(video, soundOn); // Передаем shouldUnmute=soundOn
         });
       });
     }
