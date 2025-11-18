@@ -867,8 +867,18 @@
   }
 
   // Запуск видео при смене активного кейса
-  function playVideosOnCaseChange(caseEl){
+  function playVideosOnCaseChange(caseEl, previousCaseEl){
     if (!caseEl) return;
+    
+    // Ставим на паузу видео в предыдущем активном слайде предыдущего кейса
+    if (previousCaseEl){
+      var previousActiveSlides = qsa(previousCaseEl, '.story-track-wrapper__slide.active');
+      each(previousActiveSlides, function(previousSlide){
+        try {
+          pauseVideosInActiveSlide(previousSlide);
+        } catch(_){}
+      });
+    }
     
     // 1. Находим все видео и talking head
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
@@ -930,6 +940,17 @@
   // Запуск видео при смене активного слайда
   function playVideosOnSlideChange(slideEl, caseEl){
     if (!slideEl || !caseEl) return;
+    
+    // Ставим на паузу видео в предыдущем активном слайде
+    var wrapper = slideEl.closest ? slideEl.closest('.story-track-wrapper') : null;
+    if (wrapper){
+      var previousActiveSlide = qs(wrapper, '.story-track-wrapper__slide.active');
+      if (previousActiveSlide && previousActiveSlide !== slideEl){
+        try {
+          pauseVideosInActiveSlide(previousActiveSlide);
+        } catch(_){}
+      }
+    }
     
     var video = qs(slideEl, 'video');
     if (!video) return;
@@ -1392,8 +1413,8 @@
         if (activeCase){
           var wrappersInCase0 = qsa(activeCase, '.story-track-wrapper');
           each(wrappersInCase0, function(w){ try { updateWrapperPlayback(w); } catch(_){ } });
-          // Запускаем видео при возврате в активную зону
-          try { playVideosOnCaseChange(activeCase); } catch(_){ }
+          // Запускаем видео при возврате в активную зону (предыдущего кейса нет, т.к. это возврат в активную зону)
+          try { playVideosOnCaseChange(activeCase, null); } catch(_){ }
         }
       }
       lastEligibility = true;
@@ -1428,8 +1449,8 @@
         (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
           if (el === best) { 
             el.classList.add('active'); 
-            // Запускаем видео при смене активного кейса
-            try { playVideosOnCaseChange(el); } catch(_){ } 
+            // Запускаем видео при смене активного кейса (передаем предыдущий кейс)
+            try { playVideosOnCaseChange(el, lastActiveCase); } catch(_){ } 
           }
           else { el.classList.remove('active'); pauseTalkingHead(el); }
         });
@@ -1501,11 +1522,12 @@
         var caseEl = wrapperEl.closest ? wrapperEl.closest('.cases-grid__item, .case') : null;
         var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
         if (caseIsActive){
-          // Находим предыдущий активный слайд и ставим на паузу
+          // Находим предыдущий активный слайд и ставим на паузу (пауза уже выполняется внутри playVideosOnSlideChange)
           var previousActiveSlide = qs(wrapperEl, '.story-track-wrapper__slide.active');
           if (previousActiveSlide && previousActiveSlide !== bestSlide) {
             try {
               console.log('[snapSlider] Смена активного слайда (IntersectionObserver): предыдущий -> новый');
+              // Пауза уже выполняется внутри playVideosOnSlideChange, но делаем и здесь для надежности
               pauseVideosInActiveSlide(previousActiveSlide);
             } catch(_){ }
           }
@@ -1513,7 +1535,7 @@
           each(slides, function(slide){
             if (slide === bestSlide){ 
               try { slide.classList.add('active'); } catch(_){ }
-              // Запускаем видео при смене активного слайда
+              // Запускаем видео при смене активного слайда (внутри функции уже ставится пауза предыдущему)
               try { playVideosOnSlideChange(slide, caseEl); } catch(_){ }
             }
             else { try { slide.classList.remove('active'); } catch(_){ } }
@@ -1556,8 +1578,8 @@
         try { updateWrapperPlayback(w); } catch(_){ }
       });
 
-      // Запускаем видео при инициализации активного кейса
-      try { playVideosOnCaseChange(activeCase); } catch(_){ }
+      // Запускаем видео при инициализации активного кейса (предыдущего кейса нет при инициализации)
+      try { playVideosOnCaseChange(activeCase, null); } catch(_){ }
     } catch(_){ }
   }
 
@@ -1677,9 +1699,12 @@
                     each(cases, function(el){ 
                       if (el === caseElTarget) { 
                         try { 
+                          // Находим предыдущий активный кейс перед изменением
+                          var previousCase = qs(document, '.cases-grid__item.active, .case.active');
+                          if (previousCase === el) previousCase = null; // Если кликнули по уже активному кейсу
                           el.classList.add('active'); 
                           // Запускаем видео при смене активного кейса (клик по стеку)
-                          try { playVideosOnCaseChange(el); } catch(__){} 
+                          try { playVideosOnCaseChange(el, previousCase); } catch(__){} 
                         } catch(__){} 
                       } else { 
                         try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} 
