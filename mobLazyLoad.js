@@ -6,7 +6,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const itemsArray = Array.from(items);
   const indexByItem = new Map(itemsArray.map((el, i) => [el, i]));
   let prioritySequenceId = 0;
-  let initialPlayDone = false;
 
   // Простая детекция iOS Safari
   const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
@@ -192,56 +191,11 @@ document.addEventListener("DOMContentLoaded", () => {
     startPrioritySequence(activeIndex);
   }
 
-  function isInScope(index, activeIndex) {
-    return index === activeIndex || index === activeIndex - 1 || index === activeIndex + 1;
-  }
-
-  function pauseVideos(item) {
-    const videos = getStoryTrackVideos(item, false);
-    const soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-    videos.forEach(video => {
-      try { video.pause(); } catch(e) {}
-      // Устанавливаем muted только если звук выключен, иначе сохраняем текущее состояние
-      if (!soundOn) {
-        try { video.muted = true; } catch(e) {}
-      }
-      // talking-head видео не сбрасываем
-      const isTalking = video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video');
-      if (!isTalking) {
-        try { video.currentTime = 0; } catch(e) {}
-      }
-      if (video.autoplay) video.autoplay = false;
-      if (video.hasAttribute("autoplay")) video.removeAttribute("autoplay");
-    });
-  }
-
-  function updateLoadingScope(activeIndex) {
-    itemsArray.forEach((item, index) => {
-      if (!isInScope(index, activeIndex)) {
-        pauseVideos(item);
-      }
-    });
-  }
-
-
-  function waitAllCanPlayThrough(videos) {
-    const waiters = videos.map(video => new Promise(resolve => {
-      if (video.readyState >= 4) {
-        resolve();
-      } else {
-        const onReady = () => resolve();
-        video.addEventListener("canplaythrough", onReady, { once: true });
-      }
-    }));
-    return Promise.all(waiters);
-  }
 
   async function startPrioritySequence(activeIndex) {
     const seqId = ++prioritySequenceId;
     const activeItem = itemsArray[activeIndex];
     const nextItem = activeIndex < itemsArray.length - 1 ? itemsArray[activeIndex + 1] : null;
-
-    updateLoadingScope(activeIndex);
 
     // 1) talking-head видео в cases-grid__item.active
     const talkingHeadVideos = getTalkingHeadVideos(activeItem);
@@ -342,31 +296,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     updateActiveVideos();
-    
-    const activeItem = itemsArray.find(item => item.classList.contains('active'));
-    if (activeItem) {
-      (async () => {
-        try {
-          await waitAllCanPlayThrough(getStoryTrackVideos(activeItem, false));
-        } catch(_) {}
-        if (!initialPlayDone) {
-          const activeSlideVideos = getActiveSlideVideos(activeItem);
-          const talkingHeadVideos = Array.from(activeItem.querySelectorAll('.cases-grid__item__container__wrap__talking-head video'));
-          const videosToPlay = [...activeSlideVideos, ...talkingHeadVideos];
-          const soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-          videosToPlay.forEach(video => {
-            try {
-              if (video.paused) {
-                // Устанавливаем muted в соответствии с состоянием звука
-                try { video.muted = !soundOn; } catch(_) {}
-                video.play().catch(()=>{});
-              }
-            } catch(_) {}
-          });
-          initialPlayDone = true;
-        }
-      })();
-    }
   }
 
   if (document.readyState === 'complete') {
