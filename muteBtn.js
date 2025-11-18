@@ -2,8 +2,10 @@
   'use strict';
   if (window.CasesAudio && window.CasesAudio.initMuteHandlers) return;
   window.CasesAudio = window.CasesAudio || {};
-  window.CasesAudio.soundOn = !!window.CasesAudio.soundOn;
+  window.CasesAudio.soundOn = !!window.CasesAudio.soundOn; // глобальный флаг: был клик и снят muted
   window.CasesAudio.initMuteHandlers = true;
+  // При клике по mute/unmute, если в кейсе есть talking-head видео,
+  // сбрасываем currentTime только для этих видео (одноразово)
   window.CasesAudio.resetOnlyTheseOnce = null;
 
   function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
@@ -20,6 +22,7 @@
     } catch(_) { return []; }
   }
 
+  // Внутри кнопки два икон-элемента. По индексу 0 — mute, по индексу 1 — unmute
   function setButtonIconsState(btn, soundOn){
     try{
       var icons = btn.querySelectorAll('.action-bar__mute-btn__icon, .cases-grid__item__container__wrap__talking-head__btn__icon');
@@ -39,6 +42,7 @@
   function applySoundStateToCase(caseEl){
     var videos = findCaseVideos(caseEl);
     if (!videos || !videos.length) return;
+    // звук доступен только когда слайд активен
     if (!caseEl.classList.contains('active')){
       videos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
       return;
@@ -72,10 +76,14 @@
     var btn = ev.currentTarget;
     var caseEl = getCaseItem(btn);
 
+    // переключаем глобальный флаг
     window.CasesAudio.soundOn = !window.CasesAudio.soundOn;
 
+    // синхронизируем все кнопки
     setButtonIconsStateForAll(window.CasesAudio.soundOn);
 
+    // применяем к ближайшему кейсу (если активен) и ко всем активным
+    // Если в кейсе есть talking-head видео — сбросить currentTime только им (одноразово)
     if (caseEl){
       try{
         var thVideos = caseEl.querySelectorAll('.cases-grid__item__container__wrap__talking-head__video video');
@@ -87,6 +95,7 @@
     }
     if (caseEl) applySoundStateToCase(caseEl);
     applySoundStateToActiveCases();
+    // Очистить одноразовый список после применения ко всем активным
     window.CasesAudio.resetOnlyTheseOnce = null;
   }
 
@@ -107,8 +116,10 @@
         var wasActive = (m.oldValue || '').split(/\s+/).indexOf('active') !== -1;
         var isActive = item.classList.contains('active');
         if (!wasActive && isActive){
+          // Слайд стал активным: если глобально включен звук, запускаем с начала; иначе оставляем muted
           applySoundStateToCase(item);
         } else if (wasActive && !isActive){
+          // Слайд потерял active: вернуть muted для всех видео в кейсе
           var videos = findCaseVideos(item);
           videos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
         }
