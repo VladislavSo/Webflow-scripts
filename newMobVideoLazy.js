@@ -345,24 +345,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const activeSlideVideos = getActiveSlideVideos(activeItem);
           const talkingHeadVideos = Array.from(activeItem.querySelectorAll('.cases-grid__item__container__wrap__talking-head video'));
           const videosToPlay = [...activeSlideVideos, ...talkingHeadVideos];
-          // Безопасный запуск: сначала muted, затем play, через 150мс включаем звук (если нужно)
-          const soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
           videosToPlay.forEach(video => {
             try {
-              if (video && typeof video.play === 'function') {
-                video.muted = true;
-                const p = video.play();
-                if (p && p.catch) p.catch(()=>{});
-                if (soundOn) {
-                  setTimeout(() => {
-                    try {
-                      if (video && !video.paused) {
-                        video.muted = false;
-                        video.volume = 1;
-                      }
-                    } catch(_) {}
-                  }, 150);
-                }
+              if (video.paused) {
+                video.play().catch(()=>{});
               }
             } catch(_) {}
           });
