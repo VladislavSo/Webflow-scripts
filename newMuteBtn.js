@@ -129,7 +129,11 @@
           if (!resolved){
             resolved = true;
             try {
-              console.log('[muteBtn] play() called (timeout)');
+              var finalMuted = video.muted;
+              console.log('[muteBtn] play() called (timeout)', {
+                muted: finalMuted,
+                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
+              });
               var p = video.play();
               if (p && p.catch) p.catch(function(){});
             } catch(_){ }
@@ -140,7 +144,11 @@
             resolved = true;
             clearTimeout(timeoutId);
             try {
-              console.log('[muteBtn] play() called (canplay)');
+              var finalMuted = video.muted;
+              console.log('[muteBtn] play() called (canplay)', {
+                muted: finalMuted,
+                soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
+              });
               var p = video.play();
               if (p && p.catch) p.catch(function(){});
             } catch(_){ }
@@ -149,7 +157,11 @@
         video.addEventListener('canplay', onCanPlay, { once: true });
         video.addEventListener('error', onCanPlay, { once: true });
       } else {
-        console.log('[muteBtn] play() called (ready)');
+        var finalMuted = video.muted;
+        console.log('[muteBtn] play() called (ready)', {
+          muted: finalMuted,
+          soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
+        });
         var p = video.play();
         if (p && p.catch) p.catch(function(){});
       }
@@ -252,11 +264,15 @@
 
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', function(){
+      // Проверяем наличие кнопки mute при инициализации
+      checkMuteButtonAndUpdateFlag();
       initButtons();
       setButtonIconsStateForAll(!!window.CasesAudio.soundOn);
       initMutationForCases();
     });
   } else {
+    // Проверяем наличие кнопки mute при инициализации
+    checkMuteButtonAndUpdateFlag();
     initButtons();
     setButtonIconsStateForAll(!!window.CasesAudio.soundOn);
     initMutationForCases();
