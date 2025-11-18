@@ -112,8 +112,22 @@
                 soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
               });
               var p = video.play();
-              if (p && p.catch) p.catch(function(){});
-            } catch(_){ }
+              if (p && p.catch) {
+                p.catch(function(err){
+                  console.error('[snapSlider] play() failed (timeout):', err);
+                });
+              }
+              // Проверяем, запустилось ли видео
+              setTimeout(function(){
+                console.log('[snapSlider] Video state after play (timeout):', {
+                  paused: video.paused,
+                  muted: video.muted,
+                  readyState: video.readyState
+                });
+              }, 100);
+            } catch(err){
+              console.error('[snapSlider] play() error (timeout):', err);
+            }
           }
         }, 5000);
         var onCanPlay = function(){
@@ -127,8 +141,22 @@
                 soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
               });
               var p = video.play();
-              if (p && p.catch) p.catch(function(){});
-            } catch(_){ }
+              if (p && p.catch) {
+                p.catch(function(err){
+                  console.error('[snapSlider] play() failed (canplay):', err);
+                });
+              }
+              // Проверяем, запустилось ли видео
+              setTimeout(function(){
+                console.log('[snapSlider] Video state after play (canplay):', {
+                  paused: video.paused,
+                  muted: video.muted,
+                  readyState: video.readyState
+                });
+              }, 100);
+            } catch(err){
+              console.error('[snapSlider] play() error (canplay):', err);
+            }
           }
         };
         video.addEventListener('canplay', onCanPlay, { once: true });
@@ -141,7 +169,19 @@
           soundOn: !!(window.CasesAudio && window.CasesAudio.soundOn)
         });
         var p = video.play();
-        if (p && p.catch) p.catch(function(){});
+        if (p && p.catch) {
+          p.catch(function(err){
+            console.error('[snapSlider] play() failed (ready):', err);
+          });
+        }
+        // Проверяем, запустилось ли видео
+        setTimeout(function(){
+          console.log('[snapSlider] Video state after play (ready):', {
+            paused: video.paused,
+            muted: video.muted,
+            readyState: video.readyState
+          });
+        }, 100);
       }
     } catch(_){ }
   }
@@ -167,12 +207,21 @@
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
     var hasTalkingHead = !!talkingHeadVideo;
     
+    console.log('[snapSlider] playVideosWithSoundControl:', {
+      hasTalkingHead: hasTalkingHead,
+      soundOn: soundOn,
+      talkingHeadVideo: talkingHeadVideo ? 'found' : 'not found'
+    });
+    
     // Если есть talking-head - управляем muted только для него
     if (hasTalkingHead){
       try {
         talkingHeadVideo.muted = !soundOn;
+        console.log('[snapSlider] Talking-head muted set to:', !soundOn);
         safePlayVideo(talkingHeadVideo);
-      } catch(_){ }
+      } catch(err){
+        console.error('[snapSlider] Error setting talking-head muted/play:', err);
+      }
       
       // Все остальные видео в активных слайдах остаются muted
       var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
