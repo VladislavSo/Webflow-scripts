@@ -30,21 +30,6 @@
     window.buildSnapSliderProgress = buildProgress;
   }
 
-  // Пауза всех видео в активном элементе (для предыдущего активного)
-  function pauseVideosInActiveCase(caseEl){
-    if (!caseEl) return;
-    // Пауза talking-head
-    try { pauseTalkingHead(caseEl); } catch(_){ }
-    // Пауза всех видео в активных слайдах
-    var activeSlides = qsa(caseEl, '.story-track-wrapper__slide.active');
-    each(activeSlides, function(slide){
-      var videos = qsa(slide, 'video');
-      each(videos, function(video){
-        try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
-      });
-    });
-  }
-
   // Пауза всех видео в активном слайде (для предыдущего активного)
   function pauseVideosInActiveSlide(slideEl){
     if (!slideEl) return;
@@ -250,43 +235,6 @@
     }
   }
 
-  function pauseAndResetVideos(slideEl){
-    if (!slideEl) return;
-    var videos = qsa(slideEl, '.slide-inner__video-block video, video');
-    if (!videos || !videos.length) return;
-    each(videos, function(video){
-      var isTalking = false;
-      try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
-      if (isTalking) return;
-      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
-      try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
-    });
-  }
-
-  function pauseAndResetVideosInElement(rootEl){
-    if (!rootEl) return;
-    var videos = qsa(rootEl, 'video');
-    if (!videos || !videos.length) return;
-    each(videos, function(video){
-      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
-      // talking-head: не сбрасываем время, только пауза
-      var isTalking = false;
-      try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
-      if (!isTalking){
-        try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
-      }
-    });
-  }
-
-  // Пауза всех видео без сброса времени (используем при выходе .cases-grid из зоны)
-  function pauseAllVideosInElement(rootEl){
-    if (!rootEl) return;
-    var videos = qsa(rootEl, 'video');
-    if (!videos || !videos.length) return;
-    each(videos, function(video){
-      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
-    });
-  }
 
   // Сброс/загрузка видео не в зоне ответственности этого скрипта
 
@@ -567,8 +515,6 @@
       if (idx !== activeIdx || !caseIsActive){
         detachHandlers(video);
         if (fill) { try { fill.style.transform = 'scaleX(0)'; } catch(_){ } }
-        // сбрасываем видео в неактивных слайдах
-        try { pauseAndResetVideos(slide); } catch(_){ }
         try { delete slide.__progressAdvancedOnce; } catch(_){ }
       } else {
         if (video){
@@ -670,8 +616,7 @@
       setCasesGridInProgress(eligible);
       if (!eligible){
         lastEligibility = false;
-        // Вне активной зоны — ставим все видео на паузу и не меняем active
-        pauseAllVideosInElement(document);
+        // Вне активной зоны — не меняем active
         return;
       }
       // Вернулись в активную зону после паузы — синхронизируем и запускаем активный слайд
@@ -700,9 +645,9 @@
         // Если активный кейс не изменился — ничего не делаем, чтобы избежать дёрганий
         if (best === lastActiveCase) return;
 
-        // Ставим на паузу видео в предыдущем активном кейсе
+        // Ставим на паузу talking-head в предыдущем активном кейсе
         if (lastActiveCase) {
-          try { pauseVideosInActiveCase(lastActiveCase); } catch(_){ }
+          try { pauseTalkingHead(lastActiveCase); } catch(_){ }
         }
 
         // Проверяем наличие кнопки mute в новом активном кейсе
@@ -730,12 +675,6 @@
           (nonActiveSlides.forEach ? nonActiveSlides.forEach : Array.prototype.forEach).call(nonActiveSlides, function(s){
             try { s.classList.remove('active'); } catch(_){ }
           });
-        });
-
-        // Ставим на паузу и сбрасываем все видео внутри неактивных кейсов
-        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (!el.classList || el.classList.contains('active')) return;
-          pauseAndResetVideosInElement(el);
         });
 
         // Переопределяем active для слайда внутри каждого wrapper по центру
@@ -824,14 +763,13 @@
       var activeCase = qs(document, '.cases-grid__item.active, .case.active');
       if (!activeCase) return;
 
-      // Снимаем active с остальных кейсов, ставим паузу+0 для видео; talking-head только пауза
+      // Снимаем active с остальных кейсов, ставим паузу talking-head
       (cases.forEach ? cases.forEach : Array.prototype.forEach).call(cases, function(el){
         if (el === activeCase){
           try { el.classList.add('active'); } catch(_){ }
         } else {
           try { el.classList.remove('active'); } catch(_){ }
           try { pauseTalkingHead(el); } catch(_){ }
-          try { pauseAndResetVideosInElement(el); } catch(_){ }
         }
       });
 
