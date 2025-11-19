@@ -462,7 +462,7 @@
     try { if (grid){ if (gridEligible) grid.classList.add('state-view'); else grid.classList.remove('state-view'); } } catch(_){ }
   }
 
-  // Получить слайд внутри wrapper по близости к центру wrapper (без установки active - это делает только IntersectionObserver)
+  // Получить слайд внутри wrapper по близости к центру wrapper (без установки active)
   function getSlideByCenter(wrapperEl){
     if (!wrapperEl) return null;
     var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
@@ -475,6 +475,21 @@
       var ix = r.left + (r.width || 0) / 2;
       var d = Math.abs(ix - centerX);
       if (d < bestDist){ bestDist = d; best = slides[i]; }
+    }
+    return best;
+  }
+
+  // Установить active для слайда внутри wrapper по центру (единоразово при смене кейса)
+  function setActiveSlideInWrapperByCenter(wrapperEl){
+    if (!wrapperEl) return null;
+    var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
+    if (!slides || !slides.length) return null;
+    var best = getSlideByCenter(wrapperEl);
+    if (best){
+      (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s){
+        if (s === best) { try { s.classList.add('active'); } catch(_){ } }
+        else { try { s.classList.remove('active'); } catch(_){ } }
+      });
     }
     return best;
   }
@@ -818,9 +833,11 @@
           pauseAndResetVideosInElement(el);
         });
 
-        // Обновляем playback для каждого wrapper (active определит IntersectionObserver)
+        // Единоразово устанавливаем active для слайда по центру каждого wrapper при смене кейса
+        // Дальше IntersectionObserver будет управлять active
         var wrappersInCase = qsa(best, '.story-track-wrapper');
         each(wrappersInCase, function(w){
+          try { setActiveSlideInWrapperByCenter(w); } catch(_){ }
           try { updateWrapperPlayback(w); } catch(_){ }
         });
 
@@ -852,6 +869,7 @@
 
     var ratios = new Map();
     var ACTIVE_THRESHOLD = 0.6; // Слайд считается активным при видимости >= 60%
+    var lastActiveSlide = null; // Запоминаем последний активный слайд
 
     var io = new IntersectionObserver(function(entries){
       each(entries, function(entry){
@@ -870,13 +888,22 @@
         var caseEl = wrapperEl.closest ? wrapperEl.closest('.cases-grid__item, .case') : null;
         var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
         if (caseIsActive){
-          each(slides, function(slide){
-            if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
-            else { try { slide.classList.remove('active'); } catch(_){ } }
-          });
-          updateWrapperPlayback(wrapperEl);
-          // Обрабатываем смену активного слайда (проверка готовности и воспроизведение)
-          try { handleActiveSlideChange(bestSlide, caseEl); } catch(e){ console.error('[snapSlider] Ошибка при обработке смены слайда:', e); }
+          // Проверяем, изменился ли активный слайд
+          var slideChanged = (bestSlide !== lastActiveSlide);
+          
+          if (slideChanged){
+            each(slides, function(slide){
+              if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
+              else { try { slide.classList.remove('active'); } catch(_){ } }
+            });
+            lastActiveSlide = bestSlide;
+            updateWrapperPlayback(wrapperEl);
+            // Обрабатываем смену активного слайда только если он действительно изменился
+            try { handleActiveSlideChange(bestSlide, caseEl); } catch(e){ console.error('[snapSlider] Ошибка при обработке смены слайда:', e); }
+          } else {
+            // Если слайд не изменился, только обновляем playback (без вызова handleActiveSlideChange)
+            updateWrapperPlayback(wrapperEl);
+          }
         }
       }
     }, { root: wrapperEl, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] });
@@ -884,7 +911,14 @@
     each(slides, function(slide){ io.observe(slide); });
 
     // Начальная инициализация
-    setTimeout(function(){ updateWrapperPlayback(wrapperEl); }, 0);
+    setTimeout(function(){ 
+      // Устанавливаем начальный активный слайд
+      var initialActive = qs(wrapperEl, '.story-track-wrapper__slide.active');
+      if (initialActive) {
+        lastActiveSlide = initialActive;
+      }
+      updateWrapperPlayback(wrapperEl); 
+    }, 0);
   }
 
   // Начальная синхронизация: оставить активным текущий кейс, остальные — пауза+сброс; в активном — выбрать слайды по центру и запустить
@@ -909,9 +943,11 @@
         }
       });
 
-      // Для каждого wrapper внутри активного кейса — обновить прогресс (active определит IntersectionObserver)
+      // Единоразово устанавливаем active для слайда по центру каждого wrapper при начальной инициализации
+      // Дальше IntersectionObserver будет управлять active
       var wrappers = qsa(activeCase, '.story-track-wrapper');
       each(wrappers, function(w){
+        try { setActiveSlideInWrapperByCenter(w); } catch(_){ }
         try { updateWrapperPlayback(w); } catch(_){ }
       });
 
