@@ -30,324 +30,53 @@
     window.buildSnapSliderProgress = buildProgress;
   }
 
-  // Пауза всех видео в активном слайде (для предыдущего активного)
-  function pauseVideosInActiveSlide(slideEl){
+  // Здесь только базовое управление воспроизведением: play/pause и сброс времени.
+  function playVideos(slideEl){
     if (!slideEl) return;
-    var videos = qsa(slideEl, 'video');
+    var videos = qsa(slideEl, '.slide-inner__video-block video, video');
+    if (!videos || !videos.length) return;
+    each(videos, function(video){
+      try { if (video && typeof video.play === 'function') { var p = video.play(); if (p && p.catch) p.catch(function(){}); } } catch(_){ }
+    });
+  }
+
+  function pauseAndResetVideos(slideEl){
+    if (!slideEl) return;
+    var videos = qsa(slideEl, '.slide-inner__video-block video, video');
+    if (!videos || !videos.length) return;
+    each(videos, function(video){
+      var isTalking = false;
+      try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+      if (isTalking) return;
+      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
+      try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
+    });
+  }
+
+  function pauseAndResetVideosInElement(rootEl){
+    if (!rootEl) return;
+    var videos = qsa(rootEl, 'video');
+    if (!videos || !videos.length) return;
+    each(videos, function(video){
+      try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
+      // talking-head: не сбрасываем время, только пауза
+      var isTalking = false;
+      try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+      if (!isTalking){
+        try { if (typeof video.currentTime === 'number') video.currentTime = 0; } catch(_){ }
+      }
+    });
+  }
+
+  // Пауза всех видео без сброса времени (используем при выходе .cases-grid из зоны)
+  function pauseAllVideosInElement(rootEl){
+    if (!rootEl) return;
+    var videos = qsa(rootEl, 'video');
+    if (!videos || !videos.length) return;
     each(videos, function(video){
       try { if (video && typeof video.pause === 'function') video.pause(); } catch(_){ }
     });
   }
-
-  // Проверка готовности видео: есть source и было загружено
-  function isVideoReady(video){
-    if (!video) return false;
-    try {
-      // Проверяем наличие источника
-      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
-      if (!hasSource) return false;
-      // Проверяем, что видео загружено (dataset.loaded === 'true')
-      var isLoaded = !!(video.dataset && video.dataset.loaded === 'true');
-      if (!isLoaded) return false;
-      // Проверяем, что видео готово к воспроизведению (readyState >= 2)
-      return video.readyState >= 2;
-    } catch(_){
-      return false;
-    }
-  }
-  
-  // Ожидание загрузки видео (если оно еще загружается)
-  function waitForVideoLoad(video){
-    if (!video) return Promise.resolve();
-    return new Promise(function(resolve){
-      // Если видео уже загружено - сразу возвращаемся
-      if (video.dataset && video.dataset.loaded === 'true' && video.readyState >= 2) {
-        resolve();
-        return;
-      }
-      
-      // Если видео еще загружается (fetching) - ждем завершения
-      if (video.dataset && video.dataset.fetching === 'true') {
-        var checkLoaded = function(){
-          if (video.dataset && video.dataset.loaded === 'true' && video.readyState >= 2) {
-            resolve();
-          } else {
-            setTimeout(checkLoaded, 100);
-          }
-        };
-        checkLoaded();
-        return;
-      }
-      
-      // Если источник есть, но видео еще не готово - ждем canplay
-      var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
-      if (hasSource) {
-        if (video.readyState >= 2) {
-          resolve();
-        } else {
-          var resolved = false;
-          var timeoutId = setTimeout(function(){
-            if (!resolved) {
-              resolved = true;
-              resolve();
-            }
-          }, 5000);
-          var onCanPlay = function(){
-            if (!resolved) {
-              resolved = true;
-              clearTimeout(timeoutId);
-              resolve();
-            }
-          };
-          video.addEventListener('canplay', onCanPlay, { once: true });
-          video.addEventListener('error', onCanPlay, { once: true });
-        }
-      } else {
-        // Нет источника - не ждем
-        resolve();
-      }
-    });
-  }
-
-  // Безопасный запуск видео: проверяем готовность перед play
-  // Всегда запускаем с muted=true, затем пытаемся снять muted если звук включен
-  function safePlayVideo(video, shouldUnmute){
-    if (!video || !video.paused) return;
-    try {
-      var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-      var targetMuted = !shouldUnmute; // Если shouldUnmute=true, то muted=false, иначе muted=true
-
-      // Логирование попытки запуска
-      var videoInfo = '';
-      try {
-        var src = video.src || (video.querySelector && video.querySelector('source') && video.querySelector('source').src) || 'no source';
-        var isTalkingHead = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video'));
-        videoInfo = isTalkingHead ? 'talking-head' : 'slide video';
-        console.log('[snapSlider] Пытаемся запустить видео:', videoInfo, src);
-      } catch(_){}
-
-      // Сохраняем желаемое состояние muted для применения после запуска
-      var desiredMuted = targetMuted;
-
-      // ВСЕГДА запускаем с muted=true для автоплея (браузер разрешает это)
-      var originalMuted = video.muted;
-      try { video.muted = true; } catch(_){ }
-
-      // Функция для попытки снять muted после успешного запуска
-      var tryUnmuteAfterPlay = function(playPromise){
-        if (!playPromise || !playPromise.then) return;
-        playPromise.then(function(){
-          // Видео успешно запустилось, пытаемся снять muted если нужно
-          if (!desiredMuted && soundOn){
-            try {
-              video.muted = false;
-            } catch(err){
-              // Оставляем muted=true, если браузер блокирует
-            }
-          }
-        }).catch(function(err){
-          // Если play() не удался, выводим ошибку
-          console.error('[snapSlider] Ошибка при запуске видео:', videoInfo, err);
-          try { video.muted = originalMuted; } catch(_){ }
-        });
-      };
-
-      // Проверяем готовность видео и ждем загрузки если нужно
-      if (!isVideoReady(video)){
-        // Ждем завершения загрузки видео (загружается через mobVideoLazy.js)
-        waitForVideoLoad(video).then(function(){
-          // Видео загружено - запускаем
-          try {
-            var p = video.play();
-            tryUnmuteAfterPlay(p);
-          } catch(err){
-            console.error('[snapSlider] Ошибка при вызове play():', videoInfo, err);
-            try { video.muted = originalMuted; } catch(_){ }
-          }
-        }).catch(function(err){
-          console.error('[snapSlider] Ошибка при ожидании загрузки видео:', videoInfo, err);
-        });
-      } else {
-        // Видео готово - сразу запускаем
-        var p = video.play();
-        tryUnmuteAfterPlay(p);
-      }
-    } catch(err){
-      console.error('[snapSlider] Ошибка в safePlayVideo:', err);
-    }
-  }
-
-  // Проверка наличия кнопки mute в активном кейсе
-  function checkMuteButtonAndUpdateFlag(caseEl){
-    if (!caseEl) return;
-    var hasMuteButton = !!(caseEl.querySelector && caseEl.querySelector('.action-bar__mute-btn'));
-    if (!hasMuteButton){
-      // Если кнопки нет - глобальный флаг всегда muted
-      if (window.CasesAudio) window.CasesAudio.soundOn = false;
-    }
-  }
-
-  // Установка muted для видео в кейсе согласно soundOn
-  function setMutedStateForCase(caseEl){
-    if (!caseEl) return;
-    var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
-    var talkingHeadVideo = getTalkingHeadVideo(caseEl);
-    var hasTalkingHead = !!talkingHeadVideo;
-    var allVideos = qsa(caseEl, 'video');
-    
-    if (soundOn === false){
-      // Если soundOn false - проверяем и добавляем muted всем видео
-      each(allVideos, function(video){
-        try {
-          if (!video.muted) {
-            video.muted = true;
-          }
-        } catch(_){}
-      });
-    } else {
-      // Если soundOn true
-      if (hasTalkingHead){
-        // Если есть talking-head - удаляем muted только у него, остальным добавляем
-        try {
-          if (talkingHeadVideo.muted) {
-            talkingHeadVideo.muted = false;
-          }
-        } catch(_){}
-        each(allVideos, function(video){
-          if (video !== talkingHeadVideo){
-            try {
-              if (!video.muted) {
-                video.muted = true;
-              }
-            } catch(_){}
-          }
-        });
-      } else {
-        // Если talking-head нет - удаляем muted у первого видео в первом слайде (index 0)
-        var firstWrapper = qs(caseEl, '.story-track-wrapper');
-        if (firstWrapper){
-          var allSlides = qsa(firstWrapper, '.story-track-wrapper__slide');
-          if (allSlides && allSlides.length > 0){
-            var firstSlide = allSlides[0];
-            var firstVideo = qs(firstSlide, 'video');
-            if (firstVideo){
-              try {
-                if (firstVideo.muted) {
-                  firstVideo.muted = false;
-                }
-              } catch(_){}
-            }
-            // Остальным видео добавляем muted
-            each(allVideos, function(video){
-              if (video !== firstVideo){
-                try {
-                  if (!video.muted) {
-                    video.muted = true;
-                  }
-                } catch(_){}
-              }
-            });
-          }
-        }
-      }
-    }
-  }
-
-  // Запуск видео при смене активного кейса
-  function playVideosOnCaseChange(caseEl){
-    if (!caseEl) return;
-    
-    // Проверяем наличие кнопки mute перед применением состояния
-    checkMuteButtonAndUpdateFlag(caseEl);
-    
-    // 1. Находим все видео и talking head (если есть) в том кейсе, на который переключаемся
-    var talkingHeadVideo = getTalkingHeadVideo(caseEl);
-    var allVideos = qsa(caseEl, 'video');
-    
-    // 2. Вызываем для всех видео внутри кейса load (это делает mobVideoLazy.js через MutationObserver)
-    // mobVideoLazy.js автоматически загружает видео при добавлении .active к кейсу
-    
-    // 3. Проверяем глобальный флаг soundOn и устанавливаем muted
-    setMutedStateForCase(caseEl);
-    
-    // 4. Через 100мс проверяем готовность talking-head (если есть) и видео в активном слайде
-    setTimeout(function(){
-      var checkCount = 0;
-      var maxChecks = 50; // максимум 50 проверок (10 секунд при интервале 200мс)
-      var checkAndPlay = function(){
-        checkCount++;
-        var talkingHeadReady = talkingHeadVideo ? isVideoReady(talkingHeadVideo) : true;
-        var activeSlide = qs(caseEl, '.story-track-wrapper__slide.active');
-        var activeSlideVideo = activeSlide ? qs(activeSlide, 'video') : null;
-        var activeSlideReady = activeSlideVideo ? isVideoReady(activeSlideVideo) : true;
-        
-        if (talkingHeadReady && activeSlideReady){
-          // 5. Когда проверка пройдена - вызываем play
-          if (talkingHeadVideo){
-            try {
-              console.log('[snapSlider] Запуск talking-head видео');
-              talkingHeadVideo.play().catch(function(err){
-                console.error('[snapSlider] Ошибка при запуске talking-head:', err);
-              });
-            } catch(err){
-              console.error('[snapSlider] Ошибка при вызове play() для talking-head:', err);
-            }
-          }
-          if (activeSlideVideo){
-            try {
-              console.log('[snapSlider] Запуск видео в активном слайде');
-              activeSlideVideo.play().catch(function(err){
-                console.error('[snapSlider] Ошибка при запуске видео в активном слайде:', err);
-              });
-            } catch(err){
-              console.error('[snapSlider] Ошибка при вызове play() для видео в активном слайде:', err);
-            }
-          }
-        } else {
-          if (checkCount < maxChecks){
-            // Повторяем проверку через 200мс
-            setTimeout(checkAndPlay, 200);
-          }
-        }
-      };
-      checkAndPlay();
-    }, 100);
-  }
-
-  // Запуск видео при смене активного слайда
-  function playVideosOnSlideChange(slideEl, caseEl){
-    if (!slideEl || !caseEl) return;
-    
-    var video = qs(slideEl, 'video');
-    if (!video) return;
-    
-    // 1. Проверяем готовность видео в активном слайде
-    var checkCount = 0;
-    var maxChecks = 100; // максимум 100 проверок (10 секунд при интервале 100мс)
-    var checkAndPlay = function(){
-      checkCount++;
-      var isReady = isVideoReady(video);
-      
-      if (isReady){
-        // 2. Когда проверка пройдена - вызываем play
-        try {
-          console.log('[snapSlider] Запуск видео в слайде');
-          video.play().catch(function(err){
-            console.error('[snapSlider] Ошибка при запуске видео в слайде:', err);
-          });
-        } catch(err){
-          console.error('[snapSlider] Ошибка при вызове play() для видео в слайде:', err);
-        }
-      } else {
-        if (checkCount < maxChecks){
-          // Повторяем проверку через 100мс
-          setTimeout(checkAndPlay, 100);
-        }
-      }
-    };
-    checkAndPlay();
-  }
-
 
   // Сброс/загрузка видео не в зоне ответственности этого скрипта
 
@@ -460,20 +189,23 @@
 
   // Talking-head helpers
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function pauseTalkingHead(root){ 
-    if (!root) return;
-    // Не ставим на паузу talking-head в активном кейсе
-    var isActive = !!(root.classList && root.classList.contains('active'));
-    if (isActive) return;
-    var v = getTalkingHeadVideo(root); 
-    if (v){ 
-      try { 
-        // Проверяем, что видео не в активном кейсе (дополнительная проверка)
-        var caseEl = v.closest ? v.closest('.cases-grid__item, .case') : null;
-        if (caseEl && caseEl.classList && caseEl.classList.contains('active')) return;
-        v.pause(); 
-      } catch(_){ } 
-    } 
+  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
+  function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
+
+  // Гарантированный старт talking-head после загрузки метаданных, если кейс активен
+  function ensureTalkingHeadAutoPlay(caseEl){
+    try {
+      var v = getTalkingHeadVideo(caseEl);
+      if (!v) return;
+      var onMeta = function(){
+        try {
+          if (caseEl.classList && caseEl.classList.contains('active')){
+            playTalkingHead(caseEl);
+          }
+        } catch(_){ }
+      };
+      try { v.addEventListener('loadedmetadata', onMeta, { once: true }); } catch(_){ }
+    } catch(_){ }
   }
 
   // Извлекаем ключ бренда из айтема стека: brand-data="xx-mini-view" на самом айтеме или его потомке
@@ -628,6 +360,8 @@
       if (idx !== activeIdx || !caseIsActive){
         detachHandlers(video);
         if (fill) { try { fill.style.transform = 'scaleX(0)'; } catch(_){ } }
+        // сбрасываем видео в неактивных слайдах
+        try { pauseAndResetVideos(slide); } catch(_){ }
         try { delete slide.__progressAdvancedOnce; } catch(_){ }
       } else {
         if (video){
@@ -679,12 +413,7 @@
             if (video.__progressHandler) video.__progressHandler();
             // После появления метаданных у активного слайда в активном кейсе — запустим воспроизведение
             try {
-              if (idx === activeIdx && caseIsActive) { 
-                var activeSlide = slides[idx];
-                if (activeSlide) {
-                  playVideosOnSlideChange(activeSlide, caseEl);
-                }
-              }
+              if (idx === activeIdx && caseIsActive) { playVideos(slide); }
             } catch(_){ }
           };
           video.__endedHandler = function(){
@@ -734,7 +463,8 @@
       setCasesGridInProgress(eligible);
       if (!eligible){
         lastEligibility = false;
-        // Вне активной зоны — не меняем active
+        // Вне активной зоны — ставим все видео на паузу и не меняем active
+        pauseAllVideosInElement(document);
         return;
       }
       // Вернулись в активную зону после паузы — синхронизируем и запускаем активный слайд
@@ -743,7 +473,10 @@
         if (activeCase){
           var wrappersInCase0 = qsa(activeCase, '.story-track-wrapper');
           each(wrappersInCase0, function(w){ try { updateWrapperPlayback(w); } catch(_){ } });
-          try { playVideosOnCaseChange(activeCase); } catch(_){ }
+          var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
+          if (activeSlides && activeSlides.length){ each(activeSlides, function(s){ try { playVideos(s); } catch(_){ } }); }
+          // talking-head автозапуск после возврата в зону
+          try { ensureTalkingHeadAutoPlay(activeCase); } catch(_){ }
         }
       }
       lastEligibility = true;
@@ -763,25 +496,8 @@
         // Если активный кейс не изменился — ничего не делаем, чтобы избежать дёрганий
         if (best === lastActiveCase) return;
 
-        // Логирование смены кейса
-        try {
-          var prevCaseId = lastActiveCase ? (lastActiveCase.id || 'unknown') : 'none';
-          var newCaseId = best.id || 'unknown';
-          console.log('[snapSlider] Смена активного кейса:', prevCaseId, '->', newCaseId);
-        } catch(_){}
-
-        // Ставим на паузу talking-head в предыдущем активном кейсе
-        if (lastActiveCase) {
-          try { pauseTalkingHead(lastActiveCase); } catch(_){ }
-        }
-
-        // Проверяем наличие кнопки mute в новом активном кейсе
-        try { checkMuteButtonAndUpdateFlag(best); } catch(_){ }
-
         (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
-          if (el === best) { 
-            el.classList.add('active'); 
-          }
+          if (el === best) { el.classList.add('active'); playTalkingHead(el); try { ensureTalkingHeadAutoPlay(el); } catch(_){ } }
           else { el.classList.remove('active'); pauseTalkingHead(el); }
         });
 
@@ -801,16 +517,24 @@
           });
         });
 
+        // Ставим на паузу и сбрасываем все видео внутри неактивных кейсов
+        (items.forEach ? items.forEach : Array.prototype.forEach).call(items, function(el){
+          if (!el.classList || el.classList.contains('active')) return;
+          pauseAndResetVideosInElement(el);
+        });
+
         // Переопределяем active для слайда внутри каждого wrapper по центру
         var wrappersInCase = qsa(best, '.story-track-wrapper');
         each(wrappersInCase, function(w){
           var activeSlide = null;
           try { activeSlide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
           try { updateWrapperPlayback(w); } catch(_){ }
+          if (activeSlide) { try { playVideos(activeSlide); } catch(_){ } }
         });
 
-        // Запускаем видео при смене активного кейса
-        try { playVideosOnCaseChange(best); } catch(_){ }
+        // Запускаем видео только в активных слайдах внутри активного кейса
+        var activeSlidesInCase = qsa(best, '.story-track-wrapper__slide.active');
+        each(activeSlidesInCase, function(s){ try { playVideos(s); } catch(_){ } });
 
         lastActiveCase = best;
       }
@@ -855,26 +579,13 @@
         var caseEl = wrapperEl.closest ? wrapperEl.closest('.cases-grid__item, .case') : null;
         var caseIsActive = !!(caseEl && caseEl.classList && caseEl.classList.contains('active'));
         if (caseIsActive){
-          // Находим предыдущий активный слайд и ставим на паузу
-          var previousActiveSlide = qs(wrapperEl, '.story-track-wrapper__slide.active');
-          if (previousActiveSlide && previousActiveSlide !== bestSlide) {
-            try {
-              console.log('[snapSlider] Смена активного слайда (IntersectionObserver): предыдущий -> новый');
-              pauseVideosInActiveSlide(previousActiveSlide);
-            } catch(_){ }
-          }
-
           each(slides, function(slide){
             if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
             else { try { slide.classList.remove('active'); } catch(_){ } }
           });
           updateWrapperPlayback(wrapperEl);
           // После присвоения active — запускаем видео в активном слайде
-          try { 
-            if (bestSlide) {
-              playVideosOnSlideChange(bestSlide, caseEl);
-            }
-          } catch(_){ }
+          try { playVideos(bestSlide); } catch(_){ }
         }
       }
     }, { root: wrapperEl, threshold: [0, 0.25, 0.5, 0.6, 0.75, 1] });
@@ -894,29 +605,31 @@
       var activeCase = qs(document, '.cases-grid__item.active, .case.active');
       if (!activeCase) return;
 
-      // Снимаем active с остальных кейсов, ставим паузу talking-head
+      // Снимаем active с остальных кейсов, ставим паузу+0 для видео; talking-head только пауза
       (cases.forEach ? cases.forEach : Array.prototype.forEach).call(cases, function(el){
         if (el === activeCase){
           try { el.classList.add('active'); } catch(_){ }
+          try { playTalkingHead(el); } catch(_){ }
+          try { ensureTalkingHeadAutoPlay(el); } catch(_){ }
         } else {
           try { el.classList.remove('active'); } catch(_){ }
           try { pauseTalkingHead(el); } catch(_){ }
+          try { pauseAndResetVideosInElement(el); } catch(_){ }
         }
       });
 
-      // Проверяем наличие кнопки mute в активном кейсе
-      try { checkMuteButtonAndUpdateFlag(activeCase); } catch(_){ }
-
-      // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс
+      // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс, запустить активный
       var wrappers = qsa(activeCase, '.story-track-wrapper');
       each(wrappers, function(w){
         var slide = null;
         try { slide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
         try { updateWrapperPlayback(w); } catch(_){ }
+        if (slide){ try { playVideos(slide); } catch(_){ } }
       });
 
-      // Запускаем видео при инициализации активного кейса
-      try { playVideosOnCaseChange(activeCase); } catch(_){ }
+      // Дополнительно запустить все уже активные слайды в активном кейсе
+      var activeSlides = qsa(activeCase, '.story-track-wrapper__slide.active');
+      each(activeSlides, function(s){ try { playVideos(s); } catch(_){ } });
     } catch(_){ }
   }
 
@@ -1033,17 +746,7 @@
                   if (caseElTarget){
                     var scroller2 = qs(document, '.main-section');
                     var cases = scroller2 ? qsa(scroller2, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
-                    each(cases, function(el){ 
-                      if (el === caseElTarget) { 
-                        try { 
-                          el.classList.add('active'); 
-                          checkMuteButtonAndUpdateFlag(el);
-                          playVideosOnCaseChange(el); 
-                        } catch(__){} 
-                      } else { 
-                        try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} 
-                      } 
-                    });
+                    each(cases, function(el){ if (el === caseElTarget) { try { el.classList.add('active'); playTalkingHead(el); } catch(__){} } else { try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} } });
                   }
                   // current в списке
                   var listAll = getStackList();
@@ -1110,14 +813,6 @@
         if (isRight) { nextIdx = (curIdx + 1) < slides.length ? (curIdx + 1) : 0; }
         else if (isLeft) { nextIdx = (curIdx - 1) >= 0 ? (curIdx - 1) : (slides.length - 1); }
 
-        // Логирование смены слайда
-        console.log('[snapSlider] Смена активного слайда (клик):', curIdx, '->', nextIdx, isRight ? '(вправо)' : '(влево)');
-
-        // Ставим на паузу видео в текущем активном слайде
-        if (curIdx >= 0 && slides[curIdx]) {
-          try { pauseVideosInActiveSlide(slides[curIdx]); } catch(_){ }
-        }
-
         // Ставим active на целевой, снимаем с остальных
         (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s, i){
           if (i === nextIdx) { try { s.classList.add('active'); } catch(_){ } }
@@ -1127,27 +822,14 @@
         // Прокручиваем к целевому и обновляем прогресс/воспроизведение
         try { scrollToSlide(wrapper, slides, nextIdx, { forceIgnoreUser: true }); } catch(_){ }
         try { updateWrapperPlayback(wrapper); } catch(_){ }
-        // Запускаем видео при смене активного слайда
-        if (slides[nextIdx]) {
-          try { playVideosOnSlideChange(slides[nextIdx], caseEl); } catch(_){ }
-        }
+        try { playVideos(slides[nextIdx]); } catch(_){ }
         // Даем snap «досесть» и синхронизируем active и воспроизведение по центру
         try {
           setTimeout(function(){
             try {
-              var previousActive = qs(wrapper, '.story-track-wrapper__slide.active');
               var actual = setActiveSlideInWrapperByCenter(wrapper);
-              // Если активный слайд изменился, ставим на паузу предыдущий
-              if (previousActive && actual && previousActive !== actual) {
-                try {
-                  console.log('[snapSlider] Смена активного слайда (синхронизация после snap): предыдущий -> новый');
-                  pauseVideosInActiveSlide(previousActive);
-                } catch(__){}
-              }
               updateWrapperPlayback(wrapper);
-              if (actual) {
-                try { playVideosOnSlideChange(actual, caseEl); } catch(__){}
-              }
+              if (actual) { playVideos(actual); }
             } catch(__){}
           }, 160);
         } catch(__){}
