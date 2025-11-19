@@ -1,63 +1,10 @@
 (function(){
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
-  
-  // Инициализация глобального объекта для управления звуком
-  if (!window.CasesAudio || !window.CasesAudio.initMuteHandlers) {
-    window.CasesAudio = window.CasesAudio || {};
-    window.CasesAudio.soundOn = !!window.CasesAudio.soundOn; // глобальный флаг: был клик и снят muted
-    window.CasesAudio.initMuteHandlers = true;
-    // При клике по mute/unmute, если в кейсе есть talking-head видео,
-    // сбрасываем currentTime только для этих видео (одноразово)
-    window.CasesAudio.resetOnlyTheseOnce = null;
-  }
-  
   // Утилиты
   var PROGRESS_ADVANCE_THRESHOLD = 0.98;
   function qs(root, sel){ return (root||document).querySelector ? (root||document).querySelector(sel) : null; }
   function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
   function each(list, cb){ if(!list) return; (list.forEach ? list.forEach(cb) : Array.prototype.forEach.call(list, cb)); }
-  function $all(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
-
-  // Кеш для хранения информации о загруженных видео
-  var loadCache = new Map();
-
-  // Простая детекция iOS Safari
-  var ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
-  var isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
-
-  // Получить ID элемента .cases-grid__item
-  function getItemId(item){
-    if (!item) return null;
-    try {
-      return item.id || (item.getAttribute ? item.getAttribute('id') : null) || null;
-    } catch(_) {
-      return null;
-    }
-  }
-
-  // Найти все видео в .story-track-wrapper в любой глубине вложенности
-  function getStoryTrackVideos(item){
-    if (!item) return [];
-    try {
-      var storyWrapper = qs(item, '.story-track-wrapper');
-      if (!storyWrapper) return [];
-      return qsa(storyWrapper, 'video');
-    } catch(_) {
-      return [];
-    }
-  }
-
-  // Найти видео в .cases-grid__item__container__wrap__talking-head в любой глубине
-  function getTalkingHeadVideos(item){
-    if (!item) return [];
-    try {
-      var talkingHead = qs(item, '.cases-grid__item__container__wrap__talking-head');
-      if (!talkingHead) return [];
-      return qsa(talkingHead, 'video');
-    } catch(_) {
-      return [];
-    }
-  }
 
   // Построение прогресса внутри .story-track-wrapper
   function buildProgress(containerEl, slidesCount){
@@ -92,265 +39,23 @@
     });
   }
 
-  // Проверка готовности видео: есть source и readyState >= 2
+  // Проверка готовности видео: есть source и было загружено
   function isVideoReady(video){
     if (!video) return false;
     try {
       // Проверяем наличие источника
       var hasSource = !!(video.src || (video.querySelector && video.querySelector('source')));
       if (!hasSource) return false;
+      // Проверяем, что видео загружено (dataset.loaded === 'true')
+      var isLoaded = !!(video.dataset && video.dataset.loaded === 'true');
+      if (!isLoaded) return false;
       // Проверяем, что видео готово к воспроизведению (readyState >= 2)
       return video.readyState >= 2;
     } catch(_){
       return false;
     }
   }
-
-  // Ожидание готовности видео с повторными проверками
-  function waitForVideoReady(video, interval, maxAttempts){
-    if (!video) return Promise.resolve(false);
-    interval = interval || 100;
-    maxAttempts = maxAttempts || 50; // максимум 50 попыток
-    
-    return new Promise(function(resolve){
-      var attempts = 0;
-      var checkReady = function(){
-        attempts++;
-        if (isVideoReady(video)){
-          resolve(true);
-        } else if (attempts >= maxAttempts){
-          resolve(false);
-        } else {
-          setTimeout(checkReady, interval);
-        }
-      };
-      setTimeout(checkReady, interval);
-    });
-  }
   
-  // Загрузить источник видео (если нужно) и вызвать load(), ждем готовности
-  function loadVideoSource(video){
-    if (!video) return Promise.resolve();
-    
-    // Проверяем, загружено ли видео уже
-    if (video.dataset && video.dataset.loaded === 'true') {
-      return Promise.resolve();
-    }
-    
-    // Проверяем, есть ли уже источник
-    if (video.src || (video.querySelector && video.querySelector('source'))) {
-      // Если источник есть, но видео еще не готово - ждем готовности без вызова load()
-      return new Promise(function(resolve){
-        if (video.readyState >= 2) {
-          if (video.dataset) video.dataset.loaded = 'true';
-          resolve();
-        } else {
-          var resolved = false;
-          var timeoutId = setTimeout(function(){
-            if (!resolved) {
-              resolved = true;
-              resolve();
-            }
-          }, 10000);
-          var onCanPlay = function(){
-            if (!resolved) {
-              resolved = true;
-              clearTimeout(timeoutId);
-              if (video.dataset) video.dataset.loaded = 'true';
-              resolve();
-            }
-          };
-          video.addEventListener('canplay', onCanPlay, { once: true });
-          video.addEventListener('error', onCanPlay, { once: true });
-        }
-      });
-    }
-
-    // Получаем URL из атрибутов
-    var mobAttr = typeof video.getAttribute === 'function' ? video.getAttribute('mob-data-src') : null;
-    var dataAttr = video.dataset ? video.dataset.src : null;
-    var dataSrcAttr = mobAttr || dataAttr;
-    
-    if (!dataSrcAttr) {
-      return Promise.resolve();
-    }
-
-    // Если уже загружено - не пересоздаем
-    if (video.dataset && video.dataset.loaded === 'true') {
-      return Promise.resolve();
-    }
-
-    if (video.dataset && video.dataset.fetching === 'true') {
-      // Ждем завершения загрузки
-      return new Promise(function(resolve){
-        var checkLoaded = function(){
-          if (video.dataset && video.dataset.loaded === 'true') {
-            resolve();
-          } else {
-            setTimeout(checkLoaded, 100);
-          }
-        };
-        checkLoaded();
-      });
-    }
-
-    if (video.dataset) video.dataset.fetching = 'true';
-    var url = dataSrcAttr;
-
-    // Если источник кросс-доменный — подключаем напрямую
-    try {
-      var urlObj = new URL(url, window.location.href);
-      var sameOrigin = urlObj.origin === window.location.origin;
-      if (!sameOrigin) {
-        var source = document.createElement('source');
-        source.src = url;
-        source.type = 'video/mp4';
-        video.appendChild(source);
-        video.preload = 'metadata';
-        try {
-          video.load();
-        } catch(e) {}
-        // Ждем готовности
-        return new Promise(function(resolve){
-          if (video.readyState >= 2) {
-            if (video.dataset) video.dataset.loaded = 'true';
-            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-            resolve();
-          } else {
-            var resolved = false;
-            var timeoutId = setTimeout(function(){
-              if (!resolved) {
-                resolved = true;
-                try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-                resolve();
-              }
-            }, 10000);
-            var onCanPlay = function(){
-              if (!resolved) {
-                resolved = true;
-                clearTimeout(timeoutId);
-                if (video.dataset) video.dataset.loaded = 'true';
-                try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-                resolve();
-              }
-            };
-            video.addEventListener('canplay', onCanPlay, { once: true });
-            video.addEventListener('error', onCanPlay, { once: true });
-          }
-        });
-      }
-    } catch (_) {
-      // В случае ошибок парсинга URL — подключаем напрямую
-      var source = document.createElement('source');
-      source.src = url;
-      source.type = 'video/mp4';
-      video.appendChild(source);
-      video.preload = isIOS ? 'metadata' : 'auto';
-      try {
-        video.load();
-      } catch(e) {}
-      // Ждем готовности
-      return new Promise(function(resolve){
-        if (video.readyState >= 2) {
-          if (video.dataset) video.dataset.loaded = 'true';
-          try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-          resolve();
-        } else {
-          var onCanPlay = function(){ 
-            if (video.dataset) video.dataset.loaded = 'true';
-            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-            resolve(); 
-          };
-          video.addEventListener('canplay', onCanPlay, { once: true });
-          video.addEventListener('error', onCanPlay, { once: true });
-        }
-      });
-    }
-
-    // Пытаемся загрузить через fetch
-    return new Promise(function(resolve){
-      fetch(url, { credentials: 'omit', cache: 'default' }).then(function(response){
-        if (!response.ok) throw new Error('Failed to fetch video');
-        return response.blob();
-      }).then(function(blob){
-        var blobUrl = URL.createObjectURL(blob);
-        var source = document.createElement('source');
-        source.src = blobUrl;
-        source.type = 'video/mp4';
-        video.appendChild(source);
-        video.preload = isIOS ? 'metadata' : 'auto';
-        try {
-          video.load();
-        } catch(e) {}
-        // Ждем готовности
-        return new Promise(function(resolveInner){
-          if (video.readyState >= 2) {
-            if (video.dataset) {
-              video.dataset.loaded = 'true';
-              video.dataset.blobUrl = blobUrl;
-            }
-            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-            resolveInner();
-          } else {
-            var onCanPlay = function(){ 
-              if (video.dataset) {
-                video.dataset.loaded = 'true';
-                video.dataset.blobUrl = blobUrl;
-              }
-              try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-              resolveInner(); 
-            };
-            video.addEventListener('canplay', onCanPlay, { once: true });
-            video.addEventListener('error', onCanPlay, { once: true });
-          }
-        });
-      }).then(function(){
-        resolve();
-      }).catch(function(e){
-        // Фолбэк: подключаем источник напрямую
-        try {
-          var source = document.createElement('source');
-          source.src = url;
-          source.type = 'video/mp4';
-          video.appendChild(source);
-          video.preload = 'metadata';
-          try {
-            video.load();
-          } catch(err) {}
-          // Ждем готовности
-          var resolveFallback = function(){
-            if (video.dataset) video.dataset.loaded = 'true';
-            try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-            resolve();
-          };
-          if (video.readyState >= 2) {
-            resolveFallback();
-          } else {
-            var resolved = false;
-            var timeoutId = setTimeout(function(){
-              if (!resolved) {
-                resolved = true;
-                resolveFallback();
-              }
-            }, 10000);
-            var onCanPlay = function(){
-              if (!resolved) {
-                resolved = true;
-                clearTimeout(timeoutId);
-                resolveFallback();
-              }
-            };
-            video.addEventListener('canplay', onCanPlay, { once: true });
-            video.addEventListener('error', onCanPlay, { once: true });
-          }
-        } catch (_) {
-          try { if (video.dataset) delete video.dataset.fetching; } catch(_) {}
-          resolve();
-        }
-      });
-    });
-  }
-
   // Ожидание загрузки видео (если оно еще загружается)
   function waitForVideoLoad(video){
     if (!video) return Promise.resolve();
@@ -398,12 +103,8 @@
           video.addEventListener('error', onCanPlay, { once: true });
         }
       } else {
-        // Нет источника - пытаемся загрузить
-        loadVideoSource(video).then(function(){
-          resolve();
-        }).catch(function(){
-          resolve();
-        });
+        // Нет источника - не ждем
+        resolve();
       }
     });
   }
@@ -451,13 +152,10 @@
         });
       };
 
-      // Проверяем готовность видео и загружаем если нужно
+      // Проверяем готовность видео и ждем загрузки если нужно
       if (!isVideoReady(video)){
-        // Сначала загружаем источник видео, затем ждем готовности
-        loadVideoSource(video).then(function(){
-          // Ждем завершения загрузки видео
-          return waitForVideoLoad(video);
-        }).then(function(){
+        // Ждем завершения загрузки видео (загружается через mobVideoLazy.js)
+        waitForVideoLoad(video).then(function(){
           // Видео загружено - запускаем
           try {
             var p = video.play();
@@ -467,7 +165,7 @@
             try { video.muted = originalMuted; } catch(_){ }
           }
         }).catch(function(err){
-          console.error('[snapSlider] Ошибка при загрузке/ожидании видео:', videoInfo, err);
+          console.error('[snapSlider] Ошибка при ожидании загрузки видео:', videoInfo, err);
         });
       } else {
         // Видео готово - сразу запускаем
@@ -479,45 +177,9 @@
     }
   }
 
-  // Получить кейс из элемента
-  function getCaseItem(el){
-    try { return el.closest ? el.closest('.cases-grid__item') : null; } catch(_) { return null; }
-  }
-
-  // Найти все видео в кейсе
-  function findCaseVideos(caseEl){
-    if (!caseEl) return [];
-    try {
-      var list = caseEl.querySelectorAll ? caseEl.querySelectorAll('.cases-grid__item__container video, .cases-grid__item__container__wrap__talking-head__video video, .story-track-wrapper video') : [];
-      return Array.prototype.slice.call(list);
-    } catch(_) { return []; }
-  }
-
-  // Внутри кнопки два икон-элемента. По индексу 0 — mute, по индексу 1 — unmute
-  function setButtonIconsState(btn, soundOn){
-    try{
-      var icons = btn.querySelectorAll ? btn.querySelectorAll('.action-bar__mute-btn__icon, .cases-grid__item__container__wrap__talking-head__btn__icon') : [];
-      if (!icons || icons.length < 2) return;
-      icons = Array.prototype.slice.call(icons);
-      each(icons, function(icon){ try { icon.classList.remove('active'); } catch(_){} });
-      var index = soundOn ? 1 : 0;
-      if (icons[index]) { try { icons[index].classList.add('active'); } catch(_){} }
-    }catch(_){ }
-  }
-
-  function setButtonIconsStateForAll(soundOn){
-    var buttons = $all('.action-bar__mute-btn, .cases-grid__item__container__wrap__talking-head__mute-btn');
-    each(buttons, function(btn){ setButtonIconsState(btn, soundOn); });
-  }
-
   // Проверка наличия кнопки mute в активном кейсе
   function checkMuteButtonAndUpdateFlag(caseEl){
-    if (!caseEl) {
-      // Если caseEl не передан, ищем активный кейс
-      var activeCase = qs(document, '.cases-grid__item.active');
-      if (!activeCase) return;
-      caseEl = activeCase;
-    }
+    if (!caseEl) return;
     var hasMuteButton = !!(caseEl.querySelector && caseEl.querySelector('.action-bar__mute-btn'));
     if (!hasMuteButton){
       // Если кнопки нет - глобальный флаг всегда muted
@@ -531,10 +193,10 @@
     var soundOn = !!(window.CasesAudio && window.CasesAudio.soundOn);
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
     var hasTalkingHead = !!talkingHeadVideo;
-    var allVideos = findCaseVideos(caseEl);
+    var allVideos = qsa(caseEl, 'video');
     
     if (soundOn === false){
-      // Если soundOn false - добавляем muted всем видео в кейсе
+      // Если soundOn false - проверяем и добавляем muted всем видео
       each(allVideos, function(video){
         try {
           if (!video.muted) {
@@ -566,7 +228,7 @@
         if (firstWrapper){
           var allSlides = qsa(firstWrapper, '.story-track-wrapper__slide');
           if (allSlides && allSlides.length > 0){
-            var firstSlide = allSlides[0]; // Первый слайд по индексу 0
+            var firstSlide = allSlides[0];
             var firstVideo = qs(firstSlide, 'video');
             if (firstVideo){
               try {
@@ -591,193 +253,19 @@
     }
   }
 
-
-  // Обработчик клика по кнопке mute
-  function onMuteButtonClick(ev){
-    try{ ev.preventDefault(); ev.stopPropagation(); }catch(_){ }
-    var btn = ev.currentTarget;
-    var activeCase = qs(document, '.cases-grid__item.active');
-    if (!activeCase) return;
-
-    var oldSoundOn = !!window.CasesAudio.soundOn;
-    // переключаем глобальный флаг
-    window.CasesAudio.soundOn = !window.CasesAudio.soundOn;
-    var newSoundOn = window.CasesAudio.soundOn;
-
-    // синхронизируем все кнопки
-    setButtonIconsStateForAll(newSoundOn);
-
-    var talkingHeadVideo = getTalkingHeadVideo(activeCase);
-    var hasTalkingHead = !!talkingHeadVideo;
-
-    if (newSoundOn === false){
-      // Если soundOn стал false - добавляем muted
-      if (hasTalkingHead){
-        // Находим talking-head и добавляем muted
-        try {
-          if (!talkingHeadVideo.muted) {
-            talkingHeadVideo.muted = true;
-          }
-        } catch(_){}
-      } else {
-        // Если talking-head нет - добавляем muted первому видео index 0
-        var firstWrapper = qs(activeCase, '.story-track-wrapper');
-        if (firstWrapper){
-          var allSlides = qsa(firstWrapper, '.story-track-wrapper__slide');
-          if (allSlides && allSlides.length > 0){
-            var firstSlide = allSlides[0]; // Первый слайд по индексу 0
-            var firstVideo = qs(firstSlide, 'video');
-            if (firstVideo){
-              try {
-                if (!firstVideo.muted) {
-                  firstVideo.muted = true;
-                }
-              } catch(_){}
-            }
-          }
-        }
-      }
-    } else {
-      // Если soundOn стал true
-      if (hasTalkingHead){
-        // Находим talking-head: пауза, удалить muted, currentTime=0, play
-        try {
-          talkingHeadVideo.pause();
-          if (talkingHeadVideo.muted) {
-            talkingHeadVideo.muted = false;
-          }
-          if (typeof talkingHeadVideo.currentTime === 'number') {
-            talkingHeadVideo.currentTime = 0;
-          }
-          talkingHeadVideo.play().catch(function(err){
-            console.error('[snapSlider] Ошибка при запуске talking-head после unmute:', err);
-          });
-        } catch(err){
-          console.error('[snapSlider] Ошибка при обработке talking-head после unmute:', err);
-        }
-      } else {
-        // Если talking-head нет - первое видео index 0: пауза, удалить muted, currentTime=0, play
-        var firstWrapper = qs(activeCase, '.story-track-wrapper');
-        if (firstWrapper){
-          var allSlides = qsa(firstWrapper, '.story-track-wrapper__slide');
-          if (allSlides && allSlides.length > 0){
-            var firstSlide = allSlides[0]; // Первый слайд по индексу 0
-            var firstVideo = qs(firstSlide, 'video');
-            if (firstVideo){
-              try {
-                firstVideo.pause();
-                if (firstVideo.muted) {
-                  firstVideo.muted = false;
-                }
-                if (typeof firstVideo.currentTime === 'number') {
-                  firstVideo.currentTime = 0;
-                }
-                firstVideo.play().catch(function(err){
-                  console.error('[snapSlider] Ошибка при запуске первого видео после unmute:', err);
-                });
-              } catch(err){
-                console.error('[snapSlider] Ошибка при обработке первого видео после unmute:', err);
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // Инициализация кнопок mute
-  function initButtons(){
-    var buttons = $all('.action-bar__mute-btn, .cases-grid__item__container__wrap__talking-head__mute-btn');
-    each(buttons, function(btn){
-      try {
-        btn.removeEventListener('click', onMuteButtonClick, false);
-      } catch(_){}
-      try {
-        btn.addEventListener('click', onMuteButtonClick, false);
-        setButtonIconsState(btn, !!window.CasesAudio.soundOn);
-      } catch(_){}
-    });
-  }
-
-  // MutationObserver для отслеживания изменения active у кейсов
-  function initMutationForCases(){
-    var items = $all('.cases-grid__item');
-    var obs = new MutationObserver(function(mutations){
-      each(mutations, function(m){
-        var item = m.target;
-        if (!item || !item.classList || !item.classList.contains('cases-grid__item')) return;
-        var wasActive = (m.oldValue || '').split(/\s+/).indexOf('active') !== -1;
-        var isActive = item.classList.contains('active');
-        if (!wasActive && isActive){
-          // Слайд стал активным: проверяем наличие кнопки mute и обновляем флаг
-          checkMuteButtonAndUpdateFlag(item);
-          // Устанавливаем muted согласно soundOn
-          setMutedStateForCase(item);
-        } else if (wasActive && !isActive){
-          // Слайд потерял active: вернуть muted для всех видео в кейсе
-          var videos = findCaseVideos(item);
-          each(videos, function(v){ try { v.muted = true; } catch(_){ } });
-        }
-      });
-    });
-    each(items, function(item){
-      try {
-        obs.observe(item, { attributes: true, attributeFilter: ['class'], attributeOldValue: true });
-      } catch(_){}
-    });
-  }
-
-  // Загрузить видео для активного элемента
-  function loadVideosForItem(item){
-    if (!item) return;
-    var itemId = getItemId(item);
-    if (!itemId) {
-      return;
-    }
-
-    // Проверяем кеш - если запись есть, значит все видео уже загружены
-    if (loadCache.has(itemId)) {
-      return; // Все уже загружено
-    }
-
-    // Находим все видео в .story-track-wrapper
-    var storyTrackVideos = getStoryTrackVideos(item);
-    
-    // Загружаем видео из story-track-wrapper (только load, без play - play управляется через snapSlider)
-    if (storyTrackVideos.length > 0) {
-      for (var i = 0; i < storyTrackVideos.length; i++) {
-        loadVideoSource(storyTrackVideos[i]).catch(function(){});
-      }
-    }
-
-    // Проверяем наличие talking-head
-    var talkingHead = qs(item, '.cases-grid__item__container__wrap__talking-head');
-    if (talkingHead) {
-      var talkingHeadVideos = getTalkingHeadVideos(item);
-      if (talkingHeadVideos.length > 0) {
-        // Для всех talking-head видео: только load (запуск управляется через snapSlider.js)
-        for (var j = 0; j < talkingHeadVideos.length; j++) {
-          loadVideoSource(talkingHeadVideos[j]).catch(function(){});
-        }
-      }
-    }
-
-    // Сохраняем в кеш - отмечаем, что для этого элемента видео загружены
-    loadCache.set(itemId, true);
-  }
-
   // Запуск видео при смене активного кейса
   function playVideosOnCaseChange(caseEl){
     if (!caseEl) return;
     
+    // Проверяем наличие кнопки mute перед применением состояния
+    checkMuteButtonAndUpdateFlag(caseEl);
+    
     // 1. Находим все видео и talking head (если есть) в том кейсе, на который переключаемся
     var talkingHeadVideo = getTalkingHeadVideo(caseEl);
-    var allVideos = findCaseVideos(caseEl);
+    var allVideos = qsa(caseEl, 'video');
     
-    // 2. Вызываем для всех видео внутри кейса load
-    each(allVideos, function(video){
-      loadVideoSource(video).catch(function(){});
-    });
+    // 2. Вызываем для всех видео внутри кейса load (это делает mobVideoLazy.js через MutationObserver)
+    // mobVideoLazy.js автоматически загружает видео при добавлении .active к кейсу
     
     // 3. Проверяем глобальный флаг soundOn и устанавливаем muted
     setMutedStateForCase(caseEl);
@@ -791,13 +279,13 @@
         var talkingHeadReady = talkingHeadVideo ? isVideoReady(talkingHeadVideo) : true;
         var activeSlide = qs(caseEl, '.story-track-wrapper__slide.active');
         var activeSlideVideo = activeSlide ? qs(activeSlide, 'video') : null;
-        // Если нет активного слайда или видео в нем - считаем готовым
         var activeSlideReady = activeSlideVideo ? isVideoReady(activeSlideVideo) : true;
         
         if (talkingHeadReady && activeSlideReady){
           // 5. Когда проверка пройдена - вызываем play
           if (talkingHeadVideo){
             try {
+              console.log('[snapSlider] Запуск talking-head видео');
               talkingHeadVideo.play().catch(function(err){
                 console.error('[snapSlider] Ошибка при запуске talking-head:', err);
               });
@@ -807,6 +295,7 @@
           }
           if (activeSlideVideo){
             try {
+              console.log('[snapSlider] Запуск видео в активном слайде');
               activeSlideVideo.play().catch(function(err){
                 console.error('[snapSlider] Ошибка при запуске видео в активном слайде:', err);
               });
@@ -842,6 +331,7 @@
       if (isReady){
         // 2. Когда проверка пройдена - вызываем play
         try {
+          console.log('[snapSlider] Запуск видео в слайде');
           video.play().catch(function(err){
             console.error('[snapSlider] Ошибка при запуске видео в слайде:', err);
           });
@@ -1285,9 +775,6 @@
           try { pauseTalkingHead(lastActiveCase); } catch(_){ }
         }
 
-        // Загружаем видео для нового активного кейса
-        try { loadVideosForItem(best); } catch(_){ }
-
         // Проверяем наличие кнопки mute в новом активном кейсе
         try { checkMuteButtonAndUpdateFlag(best); } catch(_){ }
 
@@ -1416,9 +903,6 @@
           try { pauseTalkingHead(el); } catch(_){ }
         }
       });
-
-      // Загружаем видео для активного кейса
-      try { loadVideosForItem(activeCase); } catch(_){ }
 
       // Проверяем наличие кнопки mute в активном кейсе
       try { checkMuteButtonAndUpdateFlag(activeCase); } catch(_){ }
@@ -1553,7 +1037,6 @@
                       if (el === caseElTarget) { 
                         try { 
                           el.classList.add('active'); 
-                          loadVideosForItem(el);
                           checkMuteButtonAndUpdateFlag(el);
                           playVideosOnCaseChange(el); 
                         } catch(__){} 
@@ -1675,21 +1158,11 @@
   if (typeof document !== 'undefined'){
     if (document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', function(){
-        // Проверяем наличие кнопки mute при инициализации
-        checkMuteButtonAndUpdateFlag();
-        initButtons();
-        setButtonIconsStateForAll(!!window.CasesAudio.soundOn);
-        initMutationForCases();
         initSnapSlider();
         // Начальная синхронизация проигрывания для активного кейса
         initializeActiveCasePlaybackOnce();
       }, { once: true });
     } else {
-      // Проверяем наличие кнопки mute при инициализации
-      checkMuteButtonAndUpdateFlag();
-      initButtons();
-      setButtonIconsStateForAll(!!window.CasesAudio.soundOn);
-      initMutationForCases();
       initSnapSlider();
       // Начальная синхронизация проигрывания для активного кейса
       initializeActiveCasePlaybackOnce();
