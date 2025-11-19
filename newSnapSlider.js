@@ -100,15 +100,61 @@
     } catch(_){ return false; }
   }
 
+  function createSourceFromAttributes(video, isTalkingHead){
+    if (!video) return false;
+    try {
+      // Если source уже есть, не создаем новый
+      if (hasVideoSource(video)) {
+        console.log('[snapSlider] Видео уже имеет source, пропускаем создание', video);
+        return false;
+      }
+
+      // Для talking head используем mob-data-src, для остальных - data-src
+      var srcAttr = null;
+      if (isTalkingHead) {
+        srcAttr = video.getAttribute ? video.getAttribute('mob-data-src') : null;
+        if (!srcAttr && video.dataset && video.dataset.mobSrc) {
+          srcAttr = video.dataset.mobSrc;
+        }
+      } else {
+        srcAttr = video.getAttribute ? video.getAttribute('data-src') : null;
+        if (!srcAttr && video.dataset && video.dataset.src) {
+          srcAttr = video.dataset.src;
+        }
+      }
+
+      if (!srcAttr || !srcAttr.length) {
+        console.log('[snapSlider] Видео не имеет атрибута ' + (isTalkingHead ? 'mob-data-src' : 'data-src'), video);
+        return false;
+      }
+
+      console.log('[snapSlider] Создаем source для видео из атрибута:', srcAttr, video);
+      
+      // Создаем source элемент
+      var source = document.createElement('source');
+      source.src = srcAttr;
+      source.type = 'video/mp4';
+      
+      // Добавляем source в video
+      video.appendChild(source);
+      
+      console.log('[snapSlider] Source создан и добавлен в видео', video);
+      return true;
+    } catch(e){ 
+      console.error('[snapSlider] Ошибка при создании source для видео', e);
+      return false;
+    }
+  }
+
   function loadVideoIfNeeded(video){
     if (!video) return;
     try {
       if (hasVideoSource(video)) {
-        console.log('[snapSlider] Видео уже имеет source, пропускаем load', video);
-        return;
+        console.log('[snapSlider] Видео уже имеет source, вызываем load()', video);
+        video.load();
+      } else {
+        console.log('[snapSlider] Видео не имеет source, пропускаем load', video);
       }
-      console.log('[snapSlider] Вызываем load() для видео', video);
-      video.load();
     } catch(e){ 
       console.error('[snapSlider] Ошибка при вызове load() для видео', e);
     }
@@ -169,13 +215,37 @@
       all: allVideos
     });
 
+    // 1.5. Создаем source элементы из атрибутов data-src и mob-data-src
+    console.log('[snapSlider] Создание source элементов для видео');
+    
+    // Для talking head используем mob-data-src
+    each(talkingHeadVideos, function(video){
+      var created = createSourceFromAttributes(video, true);
+      if (created) {
+        console.log('[snapSlider] Source создан для talking head видео', video);
+      }
+    });
+    
+    // Для остальных видео используем data-src
+    each(allVideos, function(video){
+      // Пропускаем talking head, так как они уже обработаны
+      var isTalking = false;
+      try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+      if (!isTalking) {
+        var created = createSourceFromAttributes(video, false);
+        if (created) {
+          console.log('[snapSlider] Source создан для видео', video);
+        }
+      }
+    });
+
     // 2. Проверяем наличие source и вызываем load если нужно
     each(allVideos, function(video){
-      if (!hasVideoSource(video)){
-        console.log('[snapSlider] Видео без source, вызываем load()', video);
+      if (hasVideoSource(video)){
+        console.log('[snapSlider] Видео имеет source, вызываем load()', video);
         loadVideoIfNeeded(video);
       } else {
-        console.log('[snapSlider] Видео уже имеет source', video);
+        console.log('[snapSlider] Видео не имеет source после создания', video);
       }
     });
 
@@ -275,7 +345,18 @@
     
     console.log('[snapSlider] Найдено видео в активном слайде:', activeSlideVideos.length);
 
-    // 1. Проверяем готовность видео
+    // 1. Создаем source элементы из атрибутов data-src для видео в активном слайде
+    console.log('[snapSlider] Создание source элементов для видео активного слайда');
+    each(activeSlideVideos, function(video){
+      var created = createSourceFromAttributes(video, false);
+      if (created) {
+        console.log('[snapSlider] Source создан для видео активного слайда', video);
+        // Вызываем load после создания source
+        loadVideoIfNeeded(video);
+      }
+    });
+
+    // 2. Проверяем готовность видео
     function checkAndPlay(){
       console.log('[snapSlider] Проверка готовности видео активного слайда');
       
