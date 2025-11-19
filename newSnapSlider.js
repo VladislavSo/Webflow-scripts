@@ -135,6 +135,26 @@
 
       console.log('[snapSlider] Создаем source для видео из атрибута:', srcAttr, video);
       
+      // Устанавливаем атрибуты для улучшения автозапуска ДО создания source
+      try {
+        if (!video.hasAttribute('playsinline')){
+          video.setAttribute('playsinline', '');
+        }
+        if (!video.hasAttribute('autoplay')){
+          video.setAttribute('autoplay', '');
+        }
+        if (!video.hasAttribute('preload')){
+          video.setAttribute('preload', 'auto');
+        }
+        // Устанавливаем muted для обхода блокировки автозапуска
+        if (!video.hasAttribute('muted')){
+          video.setAttribute('muted', '');
+          video.muted = true;
+        }
+      } catch(e){
+        console.warn('[snapSlider] Ошибка при установке атрибутов при создании source', e);
+      }
+      
       // Создаем source элемент
       var source = document.createElement('source');
       source.src = srcAttr;
@@ -217,7 +237,32 @@
     } catch(_){ return []; }
   }
 
-  // Функция для безопасного запуска видео с повторными попытками
+  // Функция для создания контекста пользовательского взаимодействия через Web Audio API
+  // Это может помочь обойти некоторые ограничения автозапуска
+  function createUserInteractionContext(){
+    try {
+      if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined'){
+        var AudioCtx = AudioContext || webkitAudioContext;
+        var ctx = new AudioCtx();
+        // Создаем короткий беззвучный буфер для "активации" контекста
+        var buffer = ctx.createBuffer(1, 1, 22050);
+        var source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start(0);
+        // Закрываем контекст после использования
+        setTimeout(function(){
+          try { ctx.close(); } catch(_){}
+        }, 100);
+        return true;
+      }
+    } catch(e){
+      // Игнорируем ошибки Web Audio API
+    }
+    return false;
+  }
+
+  // Функция для безопасного запуска видео с повторными попытками и несколькими стратегиями обхода NotAllowedError
   function safePlayVideo(video, retries, delay){
     if (!video) return;
     retries = retries || 3;
@@ -226,19 +271,54 @@
     try {
       console.log('[snapSlider] Попытка запуска видео', video);
       
-      // Устанавливаем атрибуты для улучшения совместимости с мобильными браузерами
+      // СТРАТЕГИЯ 1: Устанавливаем атрибуты для улучшения совместимости с мобильными браузерами
       try {
+        // playsinline - обязательно для iOS Safari
         if (!video.hasAttribute('playsinline')){
           video.setAttribute('playsinline', '');
         }
-        // Для iOS Safari может помочь установка muted перед play
-        // Но не меняем muted если оно уже установлено другим скриптом
-      } catch(_){}
+        
+        // autoplay - может помочь в некоторых браузерах
+        if (!video.hasAttribute('autoplay')){
+          video.setAttribute('autoplay', '');
+        }
+        
+        // preload="auto" - предзагрузка может улучшить шансы автозапуска
+        if (!video.hasAttribute('preload')){
+          video.setAttribute('preload', 'auto');
+        }
+        
+        // СТРАТЕГИЯ 2: Muted autoplay - самый надежный способ обхода блокировки
+        // Многие браузеры разрешают автозапуск muted видео
+        // Проверяем, не установлен ли уже muted другим скриптом
+        var currentMuted = video.muted;
+        var hasMutedAttr = video.hasAttribute('muted');
+        
+        // Если видео не имеет атрибута muted и не установлено muted программно,
+        // временно устанавливаем muted для обхода блокировки
+        // После успешного запуска можно будет включить звук (если нужно)
+        if (!hasMutedAttr && !currentMuted){
+          console.log('[snapSlider] Временно устанавливаем muted для обхода блокировки автозапуска', video);
+          video.muted = true;
+          video.setAttribute('muted', '');
+          // Сохраняем исходное состояние для возможного восстановления
+          try { video.__snapSliderOriginalMuted = false; } catch(_){}
+        }
+      } catch(e){
+        console.warn('[snapSlider] Ошибка при установке атрибутов видео', e);
+      }
+      
+      // СТРАТЕГИЯ 3: Создаем контекст пользовательского взаимодействия через Web Audio API
+      // Это может помочь обойти некоторые ограничения в некоторых браузерах
+      createUserInteractionContext();
       
       var p = video.play();
       if (p && typeof p.then === 'function'){
         p.then(function(){
           console.log('[snapSlider] Видео успешно запущено', video);
+          // Если видео было временно muted для обхода блокировки,
+          // можно попытаться включить звук (но это может не сработать на мобильных)
+          // Оставляем muted, так как это безопаснее для автозапуска
         }).catch(function(error){
           var errorName = error ? (error.name || '') : '';
           var isNotAllowed = errorName === 'NotAllowedError' || 
@@ -246,9 +326,26 @@
           
           if (isNotAllowed){
             // NotAllowedError означает, что браузер блокирует автозапуск
-            // Не повторяем попытки для этой ошибки - они бесполезны
+            // Пробуем альтернативные стратегии перед сдачей
+            
+            // СТРАТЕГИЯ 4: Если первая попытка с muted не сработала,
+            // пробуем еще раз с явным установлением muted перед play
+            if (retries > 0 && !video.__snapSliderTriedMutedStrategy){
+              try {
+                video.__snapSliderTriedMutedStrategy = true;
+                console.log('[snapSlider] Пробуем альтернативную стратегию: явное установление muted', video);
+                video.muted = true;
+                video.setAttribute('muted', '');
+                // Небольшая задержка перед повторной попыткой
+                setTimeout(function(){
+                  safePlayVideo(video, retries - 1, delay);
+                }, 50);
+                return;
+              } catch(_){}
+            }
+            
+            // Если все стратегии не сработали, помечаем видео как заблокированное
             console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', video);
-            // Помечаем видео, чтобы не пытаться запускать его снова автоматически
             try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
             return;
           }
@@ -270,6 +367,20 @@
                         (e && e.message && e.message.indexOf('not allowed') !== -1);
       
       if (isNotAllowed){
+        // Пробуем альтернативную стратегию перед сдачей
+        if (retries > 0 && !video.__snapSliderTriedMutedStrategy){
+          try {
+            video.__snapSliderTriedMutedStrategy = true;
+            console.log('[snapSlider] Пробуем альтернативную стратегию после исключения: явное установление muted', video);
+            video.muted = true;
+            video.setAttribute('muted', '');
+            setTimeout(function(){
+              safePlayVideo(video, retries - 1, delay);
+            }, 50);
+            return;
+          } catch(_){}
+        }
+        
         console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', video);
         try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
         return;
