@@ -331,6 +331,75 @@
     }
   }
 
+  // Создание source элементов для видео в соседних кейсах (index-1 и index+1)
+  function createSourceForAdjacentCases(activeCaseEl){
+    if (!activeCaseEl) return;
+    
+    try {
+      // Находим все кейсы
+      var scroller = (document && document.querySelector) ? document.querySelector('.main-section') : null;
+      if (!scroller) return;
+      var allCases = scroller.querySelectorAll ? scroller.querySelectorAll('.cases-grid__item, .case') : null;
+      if (!allCases || !allCases.length) return;
+      
+      // Преобразуем NodeList в массив для удобства работы
+      var casesArray = Array.prototype.slice.call(allCases);
+      
+      // Находим индекс активного кейса
+      var activeIndex = casesArray.indexOf(activeCaseEl);
+      if (activeIndex === -1) return;
+      
+      console.log('[snapSlider] Создание source элементов для соседних кейсов', {
+        activeIndex: activeIndex,
+        totalCases: casesArray.length
+      });
+      
+      // Обрабатываем соседние кейсы (index-1 и index+1)
+      var adjacentIndices = [activeIndex - 1, activeIndex + 1];
+      
+      each(adjacentIndices, function(adjIndex){
+        // Проверяем, что индекс валидный
+        if (adjIndex < 0 || adjIndex >= casesArray.length) return;
+        
+        var adjacentCase = casesArray[adjIndex];
+        if (!adjacentCase) return;
+        
+        console.log('[snapSlider] Обработка соседнего кейса (index ' + adjIndex + ')', adjacentCase);
+        
+        // Находим все видео в соседнем кейсе
+        var adjacentVideos = getAllCaseVideos(adjacentCase);
+        var adjacentTalkingHeadVideos = getTalkingHeadVideos(adjacentCase);
+        
+        // Создаем source для talking head видео (используем mob-data-src)
+        each(adjacentTalkingHeadVideos, function(video){
+          if (!video) return;
+          var created = createSourceFromAttributes(video, true);
+          if (created) {
+            console.log('[snapSlider] Source создан для talking head видео в соседнем кейсе (index ' + adjIndex + ')', video);
+            // Не вызываем load() для соседних кейсов - только создаем source для предзагрузки
+          }
+        });
+        
+        // Создаем source для остальных видео (используем data-src)
+        each(adjacentVideos, function(video){
+          if (!video) return;
+          // Пропускаем talking head, так как они уже обработаны
+          var isTalking = false;
+          try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+          if (!isTalking) {
+            var created = createSourceFromAttributes(video, false);
+            if (created) {
+              console.log('[snapSlider] Source создан для видео в соседнем кейсе (index ' + adjIndex + ')', video);
+              // Не вызываем load() для соседних кейсов - только создаем source для предзагрузки
+            }
+          }
+        });
+      });
+    } catch(e){
+      console.warn('[snapSlider] Ошибка при создании source для соседних кейсов:', e);
+    }
+  }
+
   // Обработка смены активного кейса
   function handleActiveCaseChange(newCaseEl){
     if (!newCaseEl) return;
@@ -378,6 +447,9 @@
         }
       }
     });
+    
+    // 1.6. Создаем source элементы для соседних кейсов (index-1 и index+1) для предзагрузки
+    createSourceForAdjacentCases(newCaseEl);
 
     // 3. Через 100мс проверяем готовность talking head и активного слайда
     setTimeout(function(){
