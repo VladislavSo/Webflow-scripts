@@ -78,9 +78,7 @@
     });
   }
 
-  // Сброс/загрузка видео не в зоне ответственности этого скрипта
-
-  // Вспомогательные функции для работы с видео
+  // Вспомогательные функции для работы с видео (создание source, загрузка, проверка готовности)
   function hasVideoSource(video){
     if (!video) return false;
     try {
@@ -353,11 +351,28 @@
   // Обработка смены активного слайда
   function handleActiveSlideChange(slideEl, caseEl){
     if (!slideEl || !caseEl) return;
+    
+    // Защита от повторной обработки одного и того же слайда
+    if (slideEl.__snapSliderProcessing) {
+      console.log('[snapSlider] Слайд уже обрабатывается, пропускаем', slideEl);
+      return;
+    }
+    
+    // Проверяем, что слайд действительно active
+    if (!slideEl.classList || !slideEl.classList.contains('active')) {
+      console.log('[snapSlider] Слайд не active, пропускаем обработку', slideEl);
+      return;
+    }
+    
     console.log('[snapSlider] Обработка смены активного слайда', slideEl);
+    
+    // Устанавливаем флаг обработки
+    slideEl.__snapSliderProcessing = true;
     
     var activeSlideVideos = qsa(slideEl, 'video');
     if (!activeSlideVideos || !activeSlideVideos.length){
       console.log('[snapSlider] В активном слайде нет видео');
+      slideEl.__snapSliderProcessing = false;
       return;
     }
     
@@ -402,10 +417,17 @@
             if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
           } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
         });
+        // Снимаем флаг после успешного запуска
+        try { slideEl.__snapSliderProcessing = false; } catch(_){}
       }
     }
 
     checkAndPlay();
+    
+    // Снимаем флаг через таймаут на случай, если проверка не прошла
+    setTimeout(function(){
+      try { slideEl.__snapSliderProcessing = false; } catch(_){}
+    }, 2000);
   }
 
   // Помощники прогресса
@@ -465,7 +487,7 @@
   }
 
   // Установить .active для слайда внутри wrapper по близости к центру wrapper
-  function setActiveSlideInWrapperByCenter(wrapperEl){
+  function setActiveSlideInWrapperByCenter(wrapperEl, skipIfAlreadyActive){
     if (!wrapperEl) return null;
     var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
     if (!slides || !slides.length) return null;
@@ -479,6 +501,10 @@
       if (d < bestDist){ bestDist = d; best = slides[i]; }
     }
     if (best){
+      // Если skipIfAlreadyActive=true и best уже active, не меняем
+      if (skipIfAlreadyActive && best.classList && best.classList.contains('active')){
+        return best;
+      }
       (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s){
         if (s === best) { try { s.classList.add('active'); } catch(_){ } }
         else { try { s.classList.remove('active'); } catch(_){ } }
@@ -1137,6 +1163,9 @@
         if (isRight) { nextIdx = (curIdx + 1) < slides.length ? (curIdx + 1) : 0; }
         else if (isLeft) { nextIdx = (curIdx - 1) >= 0 ? (curIdx - 1) : (slides.length - 1); }
 
+        // Проверяем, что слайд действительно изменился
+        if (nextIdx === curIdx) return;
+
         // Ставим active на целевой, снимаем с остальных
         (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s, i){
           if (i === nextIdx) { try { s.classList.add('active'); } catch(_){ } }
@@ -1146,17 +1175,20 @@
         // Прокручиваем к целевому и обновляем прогресс/воспроизведение
         try { scrollToSlide(wrapper, slides, nextIdx, { forceIgnoreUser: true }); } catch(_){ }
         try { updateWrapperPlayback(wrapper); } catch(_){ }
+        
         // Обрабатываем смену активного слайда (проверка готовности и воспроизведение)
+        // Вызываем только один раз для целевого слайда
         try { handleActiveSlideChange(slides[nextIdx], caseEl); } catch(e){ console.error('[snapSlider] Ошибка при обработке смены слайда (клик):', e); }
-        // Даем snap «досесть» и синхронизируем active и воспроизведение по центру
+        
+        // Даем snap «досесть» и синхронизируем active по центру (но не меняем если уже правильный)
         try {
           setTimeout(function(){
             try {
-              var actual = setActiveSlideInWrapperByCenter(wrapper);
-              updateWrapperPlayback(wrapper);
-              if (actual) { 
-                // Обрабатываем смену активного слайда после синхронизации
-                try { handleActiveSlideChange(actual, caseEl); } catch(e){ console.error('[snapSlider] Ошибка при обработке смены слайда (sync):', e); }
+              // Используем skipIfAlreadyActive=true, чтобы не переопределять active если он уже правильный
+              var actual = setActiveSlideInWrapperByCenter(wrapper, true);
+              // Обновляем playback только если active не изменился
+              if (actual && actual === slides[nextIdx]) {
+                updateWrapperPlayback(wrapper);
               }
             } catch(__){}
           }, 160);
