@@ -75,28 +75,97 @@
     try{ ev.preventDefault(); ev.stopPropagation(); }catch(_){ }
     var btn = ev.currentTarget;
     var caseEl = getCaseItem(btn);
+    var activeCase = caseEl && caseEl.classList.contains('active') ? caseEl : ($all('.cases-grid__item.active')[0] || null);
 
-    // переключаем глобальный флаг
-    window.CasesAudio.soundOn = !window.CasesAudio.soundOn;
+    if (!activeCase) return;
+
+    // Проверяем текущее состояние флага
+    var currentSoundOn = window.CasesAudio.soundOn;
+
+    if (currentSoundOn) {
+      // soundOn = true -> меняем на false
+      window.CasesAudio.soundOn = false;
+
+      // Находим talking head видео
+      var thVideo = activeCase.querySelector('.cases-grid__item__container__wrap__talking-head__video video');
+      
+      if (thVideo) {
+        // Есть talking head: добавляем muted
+        try {
+          thVideo.muted = true;
+          thVideo.setAttribute('muted', '');
+        } catch(_) {}
+      } else {
+        // Нет talking head: добавляем muted первому видео index 0 .story-track-wrapper__slide
+        try {
+          var storyWrapper = activeCase.querySelector('.story-slider .story-track-wrapper');
+          if (storyWrapper) {
+            var slides = storyWrapper.querySelectorAll('.story-track-wrapper__slide');
+            if (slides && slides.length > 0) {
+              var firstSlideVideos = slides[0].querySelectorAll('video');
+              if (firstSlideVideos && firstSlideVideos.length > 0) {
+                for (var i = 0; i < firstSlideVideos.length; i++) {
+                  try {
+                    firstSlideVideos[i].muted = true;
+                    firstSlideVideos[i].setAttribute('muted', '');
+                  } catch(_) {}
+                }
+              }
+            }
+          }
+        } catch(_) {}
+      }
+    } else {
+      // soundOn = false -> меняем на true
+      window.CasesAudio.soundOn = true;
+
+      // Находим talking head видео
+      var thVideo2 = activeCase.querySelector('.cases-grid__item__container__wrap__talking-head__video video');
+      
+      if (thVideo2) {
+        // Есть talking head: ставим на паузу, удаляем muted, сбрасываем currentTime, вызываем play
+        try {
+          thVideo2.pause();
+          thVideo2.muted = false;
+          thVideo2.removeAttribute('muted');
+          thVideo2.currentTime = 0;
+          thVideo2.play().catch(function(){});
+        } catch(_) {}
+      } else {
+        // Нет talking head: первое видео index 0 .story-track-wrapper__slide ставим на паузу, удаляем muted, сбрасываем currentTime, вызываем play
+        try {
+          var storyWrapper2 = activeCase.querySelector('.story-slider .story-track-wrapper');
+          if (storyWrapper2) {
+            var slides2 = storyWrapper2.querySelectorAll('.story-track-wrapper__slide');
+            if (slides2 && slides2.length > 0) {
+              var firstSlideVideos2 = slides2[0].querySelectorAll('video');
+              if (firstSlideVideos2 && firstSlideVideos2.length > 0) {
+                for (var j = 0; j < firstSlideVideos2.length; j++) {
+                  try {
+                    firstSlideVideos2[j].pause();
+                    firstSlideVideos2[j].muted = false;
+                    firstSlideVideos2[j].removeAttribute('muted');
+                    firstSlideVideos2[j].currentTime = 0;
+                    firstSlideVideos2[j].play().catch(function(){});
+                  } catch(_) {}
+                }
+              }
+            }
+          }
+        } catch(_) {}
+      }
+    }
 
     // синхронизируем все кнопки
     setButtonIconsStateForAll(window.CasesAudio.soundOn);
-
-    // применяем к ближайшему кейсу (если активен) и ко всем активным
-    // Если в кейсе есть talking-head видео — сбросить currentTime только им (одноразово)
-    if (caseEl){
-      try{
-        var thVideos = caseEl.querySelectorAll('.cases-grid__item__container__wrap__talking-head__video video');
-        thVideos = Array.prototype.slice.call(thVideos || []);
-        if (thVideos.length){
-          window.CasesAudio.resetOnlyTheseOnce = thVideos;
-        }
-      }catch(_){ }
+    
+    // Если есть функция applySoundSettingsToCase в mobVideoLazy.js, вызываем её для применения настроек ко всем видео
+    // Это обеспечит правильное применение muted ко всем остальным видео в кейсе
+    if (typeof window !== 'undefined' && window.applySoundSettingsToCase) {
+      try {
+        window.applySoundSettingsToCase(activeCase);
+      } catch(_) {}
     }
-    if (caseEl) applySoundStateToCase(caseEl);
-    applySoundStateToActiveCases();
-    // Очистить одноразовый список после применения ко всем активным
-    window.CasesAudio.resetOnlyTheseOnce = null;
   }
 
   function initButtons(){
@@ -109,20 +178,20 @@
   }
 
   function initMutationForCases(){
+    // Логика управления звуком при смене кейса теперь обрабатывается в mobVideoLazy.js
+    // Оставляем только базовую обработку для неактивных кейсов
     var items = $all('.cases-grid__item');
     var obs = new MutationObserver(function(mutations){
       mutations.forEach(function(m){
         var item = m.target;
         var wasActive = (m.oldValue || '').split(/\s+/).indexOf('active') !== -1;
         var isActive = item.classList.contains('active');
-        if (!wasActive && isActive){
-          // Слайд стал активным: если глобально включен звук, запускаем с начала; иначе оставляем muted
-          applySoundStateToCase(item);
-        } else if (wasActive && !isActive){
+        if (wasActive && !isActive){
           // Слайд потерял active: вернуть muted для всех видео в кейсе
           var videos = findCaseVideos(item);
           videos.forEach(function(v){ try { v.muted = true; } catch(_){ } });
         }
+        // Когда кейс становится активным, звуковые настройки применяются в mobVideoLazy.js
       });
     });
     items.forEach(function(item){
