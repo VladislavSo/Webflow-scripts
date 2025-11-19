@@ -1294,6 +1294,24 @@
             try {
               video.muted = !soundOn;
               console.log('[snapSlider] Установлен muted =', !soundOn, 'для видео', video, '(onSound =', soundOn + ')');
+              
+              // Сбрасываем currentTime = 0 для talking head при включении звука
+              if (soundOn && hasTalkingHead){
+                // Проверяем, что это talking head видео
+                var isTalkingHeadVideo = false;
+                try {
+                  isTalkingHeadVideo = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head'));
+                } catch(_){}
+                
+                if (isTalkingHeadVideo){
+                  try {
+                    video.currentTime = 0;
+                    console.log('[snapSlider] Сброшен currentTime = 0 для talking head видео при включении звука', video);
+                  } catch(e){
+                    console.warn('[snapSlider] Ошибка при сбросе currentTime для talking head:', e, video);
+                  }
+                }
+              }
             } catch(e){
               console.warn('[snapSlider] Ошибка при установке muted для видео:', e, video);
             }
