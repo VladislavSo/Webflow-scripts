@@ -47,7 +47,55 @@ document.addEventListener("DOMContentLoaded", () => {
   function getTalkingHeadVideos(item) {
     const head = item.querySelector('.cases-grid__item__container__wrap__talking-head');
     if (!head) return [];
-    return Array.from(head.querySelectorAll('video[mob-data-src]'));
+    return Array.from(head.querySelectorAll('video'));
+  }
+
+  // Получаем все видео в кейсе (story-track + talking-head)
+  function getAllCaseVideos(item) {
+    const storyVideos = getStoryTrackVideos(item, false);
+    const talkingHeadVideos = getTalkingHeadVideos(item);
+    return Array.from(new Set([...storyVideos, ...talkingHeadVideos]));
+  }
+
+  // Проверяем наличие talking head в кейсе
+  function hasTalkingHead(item) {
+    const head = item.querySelector('.cases-grid__item__container__wrap__talking-head video');
+    return !!head;
+  }
+
+  // Получаем видео из первого слайда (index 0)
+  function getFirstSlideVideos(item) {
+    return getSlideVideos(item, 0);
+  }
+
+  // Проверяем готовность видео к воспроизведению (есть source и readyState >= 3)
+  function isVideoReady(video) {
+    if (!video) return false;
+    // Проверяем наличие source элемента
+    const hasSource = video.querySelector('source') !== null || (video.src && video.src.length > 0);
+    if (!hasSource) return false;
+    // Проверяем readyState (HAVE_FUTURE_DATA = 3, HAVE_ENOUGH_DATA = 4)
+    return video.readyState >= 3;
+  }
+
+  // Проверяем готовность видео с повторными попытками
+  function waitForVideoReady(video, initialDelay = 100, retryDelay = 200) {
+    return new Promise((resolve) => {
+      const checkReady = () => {
+        if (isVideoReady(video)) {
+          resolve(true);
+          return;
+        }
+        // Если видео еще не готово, проверяем событие canplay
+        const onCanPlay = () => {
+          video.removeEventListener('canplay', onCanPlay);
+          resolve(true);
+        };
+        video.addEventListener('canplay', onCanPlay, { once: true });
+      };
+
+      setTimeout(checkReady, initialDelay);
+    });
   }
 
   // Получаем видео из конкретного слайда по индексу
@@ -228,6 +276,69 @@ document.addEventListener("DOMContentLoaded", () => {
     return Promise.all(waiters);
   }
 
+  // Применяем звуковые настройки к кейсу согласно флагу soundOn
+  function applySoundSettingsToCase(item) {
+    if (!item || !item.classList.contains('active')) return;
+    
+    const soundOn = window.CasesAudio && window.CasesAudio.soundOn;
+    const allVideos = getAllCaseVideos(item);
+    const hasTH = hasTalkingHead(item);
+    const talkingHeadVideos = hasTH ? getTalkingHeadVideos(item) : [];
+    const firstSlideVideos = getFirstSlideVideos(item);
+
+    if (!soundOn) {
+      // soundOn = false: добавляем muted всем видео
+      allVideos.forEach(video => {
+        try {
+          video.muted = true;
+          video.setAttribute('muted', '');
+        } catch(e) {}
+      });
+    } else {
+      // soundOn = true
+      if (hasTH) {
+        // Есть talking head: убираем muted только у talking head
+        talkingHeadVideos.forEach(video => {
+          try {
+            video.muted = false;
+            video.removeAttribute('muted');
+          } catch(e) {}
+        });
+        // Остальным видео добавляем muted
+        allVideos.forEach(video => {
+          if (!talkingHeadVideos.includes(video)) {
+            try {
+              video.muted = true;
+              video.setAttribute('muted', '');
+            } catch(e) {}
+          }
+        });
+      } else {
+        // Нет talking head: убираем muted у первого слайда (index 0)
+        firstSlideVideos.forEach(video => {
+          try {
+            video.muted = false;
+            video.removeAttribute('muted');
+          } catch(e) {}
+        });
+        // Остальным видео добавляем muted
+        allVideos.forEach(video => {
+          if (!firstSlideVideos.includes(video)) {
+            try {
+              video.muted = true;
+              video.setAttribute('muted', '');
+            } catch(e) {}
+          }
+        });
+      }
+    }
+  }
+
+  // Экспортируем функцию для использования в других скриптах
+  if (typeof window !== 'undefined') {
+    window.applySoundSettingsToCase = applySoundSettingsToCase;
+  }
+
   async function startPrioritySequence(activeIndex) {
     const seqId = ++prioritySequenceId;
     const activeItem = itemsArray[activeIndex];
@@ -235,41 +346,93 @@ document.addEventListener("DOMContentLoaded", () => {
 
     updateLoadingScope(activeIndex);
 
-    // 1) talking-head видео в cases-grid__item.active
-    const talkingHeadVideos = getTalkingHeadVideos(activeItem);
-    if (talkingHeadVideos.length > 0) {
-      await loadVideosList(talkingHeadVideos);
+    // 1) Находим все видео и talking head в кейсе
+    const allCaseVideos = getAllCaseVideos(activeItem);
+    
+    // 2) Загружаем все видео внутри кейса
+    if (allCaseVideos.length > 0) {
+      await loadVideosList(allCaseVideos);
       if (seqId !== prioritySequenceId) return;
     }
 
-    // 2) видео внутри первого story-track-wrapper__slide в cases-grid__item.active
-    const firstSlideVideos = getSlideVideos(activeItem, 0);
-    if (firstSlideVideos.length > 0) {
-      await loadVideosList(firstSlideVideos);
-      if (seqId !== prioritySequenceId) return;
-    }
+    // 3) Применяем звуковые настройки согласно флагу soundOn
+    applySoundSettingsToCase(activeItem);
 
-    // 3) talking-head видео в cases-grid__item.active + 1
+    // 4) Через 100мс проверяем готовность видео talking head и активного слайда
+    setTimeout(async () => {
+      if (seqId !== prioritySequenceId) return;
+
+      const talkingHeadVideos = getTalkingHeadVideos(activeItem);
+      const activeSlideVideos = getActiveSlideVideos(activeItem);
+      const videosToCheck = [...talkingHeadVideos, ...activeSlideVideos];
+
+      let allReady = true;
+      for (const video of videosToCheck) {
+        if (!isVideoReady(video)) {
+          allReady = false;
+          break;
+        }
+      }
+
+      if (!allReady) {
+        // Если не готовы, повторяем проверку через 200мс
+        setTimeout(async () => {
+          if (seqId !== prioritySequenceId) return;
+          for (const video of videosToCheck) {
+            await waitForVideoReady(video, 0, 200);
+          }
+          
+          // 5) Когда проверка пройдена, вызываем play
+          if (seqId === prioritySequenceId) {
+            talkingHeadVideos.forEach(video => {
+              try {
+                if (video.paused) {
+                  video.play().catch(() => {});
+                }
+              } catch(e) {}
+            });
+            activeSlideVideos.forEach(video => {
+              try {
+                if (video.paused) {
+                  video.play().catch(() => {});
+                }
+              } catch(e) {}
+            });
+          }
+        }, 200);
+      } else {
+        // Все готовы сразу - вызываем play
+        if (seqId === prioritySequenceId) {
+          talkingHeadVideos.forEach(video => {
+            try {
+              if (video.paused) {
+                video.play().catch(() => {});
+              }
+            } catch(e) {}
+          });
+          activeSlideVideos.forEach(video => {
+            try {
+              if (video.paused) {
+                video.play().catch(() => {});
+              }
+            } catch(e) {}
+          });
+        }
+      }
+    }, 100);
+
+    // Продолжаем загрузку следующего кейса в фоне
     if (nextItem) {
-      const nextTalkingHeadVideos = getTalkingHeadVideos(nextItem);
-      if (nextTalkingHeadVideos.length > 0) {
-        await loadVideosList(nextTalkingHeadVideos);
-        if (seqId !== prioritySequenceId) return;
-      }
-
-      // 4) видео внутри первого story-track-wrapper__slide в cases-grid__item.active + 1
-      const nextFirstSlideVideos = getSlideVideos(nextItem, 0);
-      if (nextFirstSlideVideos.length > 0) {
-        await loadVideosList(nextFirstSlideVideos);
-        if (seqId !== prioritySequenceId) return;
+      const nextCaseVideos = getAllCaseVideos(nextItem);
+      if (nextCaseVideos.length > 0) {
+        loadVideosList(nextCaseVideos).catch(() => {});
       }
     }
 
-    // 5) видео внутри второго story-track-wrapper__slide в cases-grid__item.active (если есть)
+    // Загружаем второй слайд текущего кейса в фоне
     const secondSlideVideos = getSlideVideos(activeItem, 1);
     if (secondSlideVideos.length > 0) {
-      await loadVideosList(secondSlideVideos);
-      if (seqId !== prioritySequenceId) return;
+      loadVideosList(secondSlideVideos).catch(() => {});
     }
   }
 
@@ -288,6 +451,45 @@ document.addEventListener("DOMContentLoaded", () => {
     if (nextSlideVideos.length > 0) {
       loadVideosList(nextSlideVideos);
     }
+  }
+
+  // Обработка смены активного слайда
+  async function handleActiveSlideChange(item) {
+    if (!item || !item.classList.contains('active')) return;
+
+    const activeSlideVideos = getActiveSlideVideos(item);
+    if (activeSlideVideos.length === 0) return;
+
+    // 1) Проверяем готовность видео с повторными попытками через 100мс
+    const checkAndPlay = async () => {
+      let allReady = true;
+      for (const video of activeSlideVideos) {
+        if (!isVideoReady(video)) {
+          allReady = false;
+          break;
+        }
+      }
+
+      if (!allReady) {
+        // Если не готовы, повторяем через 100мс
+        setTimeout(checkAndPlay, 100);
+        return;
+      }
+
+      // 2) Когда проверка пройдена, вызываем play
+      activeSlideVideos.forEach(video => {
+        try {
+          if (video.paused) {
+            video.play().catch(() => {});
+          }
+        } catch(e) {}
+      });
+    };
+
+    checkAndPlay();
+
+    // Загружаем следующий слайд в фоне
+    loadNextSlide(item);
   }
 
   function initVideoLazy() {
@@ -324,7 +526,7 @@ document.addEventListener("DOMContentLoaded", () => {
       
       const slideObserver = new MutationObserver(() => {
         if (item.classList.contains('active')) {
-          loadNextSlide(item);
+          handleActiveSlideChange(item);
         }
       });
       
