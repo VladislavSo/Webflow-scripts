@@ -230,31 +230,32 @@
       console.log('[snapSlider] Попытка запуска видео', video);
       
       // Устанавливаем атрибуты согласно политике WebKit для автозапуска
-      // Учитываем, что атрибуты могут быть уже установлены в HTML
       try {
         // playsinline обязателен для iOS Safari
-        var hasPlaysinline = video.hasAttribute('playsinline');
-        var hasWebkitPlaysinline = video.hasAttribute('webkit-playsinline');
-        
-        if (!hasPlaysinline){
+        if (!video.hasAttribute('playsinline')){
           video.setAttribute('playsinline', '');
           console.log('[snapSlider] Установлен атрибут playsinline для видео', video);
         }
         
         // webkit-playsinline для обратной совместимости со старыми версиями iOS
-        if (!hasWebkitPlaysinline){
+        if (!video.hasAttribute('webkit-playsinline')){
           video.setAttribute('webkit-playsinline', '');
           console.log('[snapSlider] Установлен атрибут webkit-playsinline для видео', video);
         }
         
         // Для автозапуска без пользовательского взаимодействия видео должно быть muted
+        // Проверяем, был ли звук явно включен пользователем через window.CasesAudio.soundOn
+        var soundWasEnabledByUser = typeof window !== 'undefined' && 
+                                     window.CasesAudio && 
+                                     window.CasesAudio.soundOn === true;
+        
         // Проверяем наличие атрибута muted в HTML (не только свойство muted)
         var hasMutedAttr = video.hasAttribute('muted');
         var wasExplicitlyUnmuted = video.__snapSliderWasExplicitlyUnmuted;
         
-        // Если атрибут muted уже установлен в HTML, не изменяем его
-        // Если атрибута нет и видео не было явно размучено, устанавливаем muted для автозапуска
-        if (!hasMutedAttr && !wasExplicitlyUnmuted && video.muted === false){
+        // Если звук был включен пользователем или видео было явно размучено, не меняем muted
+        // Если атрибута muted нет и звук не был включен пользователем, устанавливаем muted для автозапуска
+        if (!soundWasEnabledByUser && !wasExplicitlyUnmuted && !hasMutedAttr){
           video.muted = true;
           video.setAttribute('muted', '');
           console.log('[snapSlider] Установлен muted для автозапуска видео (политика WebKit)', video);
@@ -264,6 +265,9 @@
             video.muted = true;
             console.log('[snapSlider] Синхронизировано muted=true с атрибутом muted', video);
           }
+        } else if (soundWasEnabledByUser || wasExplicitlyUnmuted){
+          // Если звук был включен пользователем, не устанавливаем muted
+          console.log('[snapSlider] Звук был включен пользователем, не устанавливаем muted', video);
         }
       } catch(e){ 
         console.warn('[snapSlider] Ошибка при установке атрибутов для автозапуска:', e);
@@ -273,18 +277,10 @@
       if (p && typeof p.then === 'function'){
         p.then(function(){
           console.log('[snapSlider] Видео успешно запущено', video);
-          // Сбрасываем флаг блокировки, если видео успешно запустилось
-          try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
         }).catch(function(error){
           var errorName = error ? (error.name || '') : '';
-          var errorMessage = error ? (error.message || '') : '';
           var isNotAllowed = errorName === 'NotAllowedError' || 
-                            errorName === 'NotSupportedError' ||
-                            (errorMessage && (
-                              errorMessage.toLowerCase().indexOf('not allowed') !== -1 ||
-                              errorMessage.toLowerCase().indexOf('user denied') !== -1 ||
-                              errorMessage.toLowerCase().indexOf('permission') !== -1
-                            ));
+                            (error && error.message && error.message.indexOf('not allowed') !== -1);
           
           if (isNotAllowed){
             // NotAllowedError означает, что браузер блокирует автозапуск согласно политике автозапуска
@@ -293,28 +289,14 @@
             console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', {
               video: video,
               error: errorName,
-              message: errorMessage,
               policy: 'WebKit Autoplay Policy: видео может автозапускаться только если muted и имеет playsinline, либо после пользовательского взаимодействия'
             });
             // Помечаем видео, чтобы не пытаться запускать его снова автоматически
-            try { 
-              video.__snapSliderAutoplayBlocked = true;
-              // Сохраняем информацию об ошибке для отладки
-              video.__snapSliderAutoplayError = {
-                name: errorName,
-                message: errorMessage,
-                timestamp: Date.now()
-              };
-            } catch(_){}
+            try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
             return;
           }
           
-          console.warn('[snapSlider] Ошибка play видео (попытка ' + (4 - retries) + '):', {
-            error: error,
-            errorName: errorName,
-            errorMessage: errorMessage,
-            video: video
-          });
+          console.warn('[snapSlider] Ошибка play видео (попытка ' + (4 - retries) + '):', error, video);
           if (retries > 0){
             // Повторяем попытку через delay только для других ошибок
             setTimeout(function(){
@@ -324,46 +306,23 @@
             console.error('[snapSlider] Не удалось запустить видео после всех попыток', video);
           }
         });
-      } else {
-        // Если play() не вернул Promise (старые браузеры), считаем успешным
-        console.log('[snapSlider] Видео запущено (синхронный вызов)', video);
-        try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
       }
     } catch(e){
       var errorName = e ? (e.name || '') : '';
-      var errorMessage = e ? (e.message || '') : '';
       var isNotAllowed = errorName === 'NotAllowedError' || 
-                        errorName === 'NotSupportedError' ||
-                        (errorMessage && (
-                          errorMessage.toLowerCase().indexOf('not allowed') !== -1 ||
-                          errorMessage.toLowerCase().indexOf('user denied') !== -1 ||
-                          errorMessage.toLowerCase().indexOf('permission') !== -1
-                        ));
+                        (e && e.message && e.message.indexOf('not allowed') !== -1);
       
       if (isNotAllowed){
         console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', {
           video: video,
           error: errorName,
-          message: errorMessage,
           policy: 'WebKit Autoplay Policy: видео может автозапускаться только если muted и имеет playsinline, либо после пользовательского взаимодействия'
         });
-        try { 
-          video.__snapSliderAutoplayBlocked = true;
-          video.__snapSliderAutoplayError = {
-            name: errorName,
-            message: errorMessage,
-            timestamp: Date.now()
-          };
-        } catch(_){}
+        try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
         return;
       }
       
-      console.error('[snapSlider] Исключение при вызове play():', {
-        error: e,
-        errorName: errorName,
-        errorMessage: errorMessage,
-        video: video
-      });
+      console.error('[snapSlider] Исключение при вызове play():', e, video);
       if (retries > 0){
         setTimeout(function(){
           safePlayVideo(video, retries - 1, delay);
@@ -463,50 +422,62 @@
 
           if (allReadyRetry){
             console.log('[snapSlider] Все видео готовы, вызываем play()');
-            // 4. Когда проверка пройдена, вызываем play через safePlayVideo для правильной обработки NotAllowedError
+            // 4. Когда проверка пройдена, вызываем play
             each(talkingHeadVideos, function(video){
-              if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                console.log('[snapSlider] Запуск talking head видео', video);
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
             });
             each(activeSlideVideos, function(video){
-              if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                console.log('[snapSlider] Запуск видео активного слайда', video);
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
             });
           } else {
             console.log('[snapSlider] Видео все еще не готовы после повторной проверки');
             // Пытаемся запустить даже если не все готовы
             each(talkingHeadVideos, function(video){
-              if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                console.log('[snapSlider] Запуск talking head видео (не все готовы)', video);
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
             });
             each(activeSlideVideos, function(video){
-              if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                console.log('[snapSlider] Запуск видео активного слайда (не все готовы)', video);
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
             });
           }
         }, 200);
       } else {
         console.log('[snapSlider] Все видео готовы сразу, вызываем play()');
-        // 4. Когда проверка пройдена, вызываем play через safePlayVideo для правильной обработки NotAllowedError
+        // 4. Когда проверка пройдена, вызываем play
         each(talkingHeadVideos, function(video){
-          if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-            console.log('[snapSlider] Запуск talking head видео', video);
-            safePlayVideo(video, 3, 300);
-          }
+          try {
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+              var p = video.play();
+              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
+            }
+          } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
         });
         each(activeSlideVideos, function(video){
-          if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-            console.log('[snapSlider] Запуск видео активного слайда', video);
-            safePlayVideo(video, 3, 300);
-          }
+          try {
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+              var p = video.play();
+              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+            }
+          } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
         });
       }
     }, 100);
@@ -556,12 +527,14 @@
         setTimeout(checkAndPlay, 100);
       } else {
         console.log('[snapSlider] Все видео активного слайда готовы, вызываем play()');
-        // 2. Когда проверка пройдена, вызываем play через safePlayVideo для правильной обработки NotAllowedError
+        // 2. Когда проверка пройдена, вызываем play
         each(activeSlideVideos, function(video){
-          if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-            console.log('[snapSlider] Запуск видео активного слайда', video);
-            safePlayVideo(video, 3, 300);
-          }
+          try {
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+              var p = video.play();
+              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+            }
+          } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
         });
       }
     }
@@ -1055,12 +1028,12 @@
           var slideChanged = (bestSlide !== lastActiveSlide);
           
           if (slideChanged){
-            each(slides, function(slide){
-              if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
-              else { try { slide.classList.remove('active'); } catch(_){ } }
-            });
+          each(slides, function(slide){
+            if (slide === bestSlide){ try { slide.classList.add('active'); } catch(_){ } }
+            else { try { slide.classList.remove('active'); } catch(_){ } }
+          });
             lastActiveSlide = bestSlide;
-            updateWrapperPlayback(wrapperEl);
+          updateWrapperPlayback(wrapperEl);
             // Обрабатываем смену активного слайда только если он действительно изменился
             try { handleActiveSlideChange(bestSlide, caseEl); } catch(e){ console.error('[snapSlider] Ошибка при обработке смены слайда:', e); }
           } else {
@@ -1179,78 +1152,39 @@
       var activeCase = qs(document, '.cases-grid__item.active, .case.active');
       if (activeCase){
         var allVideos = getAllCaseVideos(activeCase);
-        var unblockedCount = 0;
-        var playedCount = 0;
-        
         each(allVideos, function(video){
           if (!video) return;
           
           // Снимаем блокировку, если она была установлена
           if (video.__snapSliderAutoplayBlocked){
-            console.log('[snapSlider] Снимаем блокировку автозапуска для видео', {
-              video: video,
-              previousError: video.__snapSliderAutoplayError
-            });
-            try { 
-              video.__snapSliderAutoplayBlocked = false;
-              // Очищаем информацию об ошибке, так как теперь можем попробовать снова
-              delete video.__snapSliderAutoplayError;
-              unblockedCount++;
-            } catch(_){}
+            console.log('[snapSlider] Снимаем блокировку автозапуска для видео', video);
+            try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
           }
           
           // Пытаемся запустить видео, если оно готово и на паузе
+          // После первого взаимодействия можно запускать видео (включая со звуком, если window.CasesAudio.soundOn === true)
           if (video.paused && isVideoReady(video)){
             console.log('[snapSlider] Попытка запуска видео после пользовательского взаимодействия', {
               video: video,
               muted: video.muted,
-              hasPlaysinline: video.hasAttribute('playsinline')
+              hasPlaysinline: video.hasAttribute('playsinline'),
+              soundOn: typeof window !== 'undefined' && window.CasesAudio && window.CasesAudio.soundOn
             });
             try {
               // После первого взаимодействия можно запускать видео (включая со звуком)
-              // Но не меняем muted автоматически - оставляем как есть
+              // Но не меняем muted автоматически - оставляем как есть (управляется через window.CasesAudio.soundOn)
               var p = video.play();
               if (p && typeof p.then === 'function'){
                 p.then(function(){
                   console.log('[snapSlider] Видео успешно запущено после пользовательского взаимодействия', video);
-                  playedCount++;
                 }).catch(function(e){
-                  var errorName = e ? (e.name || '') : '';
-                  var errorMessage = e ? (e.message || '') : '';
-                  console.error('[snapSlider] Ошибка play после взаимодействия:', {
-                    error: e,
-                    errorName: errorName,
-                    errorMessage: errorMessage,
-                    video: video
-                  });
-                  // Если даже после взаимодействия не удалось запустить, помечаем снова
-                  if (errorName === 'NotAllowedError' || errorName === 'NotSupportedError'){
-                    try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
-                  }
+                  console.error('[snapSlider] Ошибка play после взаимодействия:', e, video);
                 });
-              } else {
-                // Синхронный вызов (старые браузеры)
-                console.log('[snapSlider] Видео запущено после взаимодействия (синхронный вызов)', video);
-                playedCount++;
               }
             } catch(e){
-              var errorName = e ? (e.name || '') : '';
-              console.error('[snapSlider] Исключение при play после взаимодействия:', {
-                error: e,
-                errorName: errorName,
-                video: video
-              });
-              if (errorName === 'NotAllowedError' || errorName === 'NotSupportedError'){
-                try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
-              }
+              console.error('[snapSlider] Исключение при play после взаимодействия:', e, video);
             }
           }
-        });
-        
-        console.log('[snapSlider] Результат обработки первого взаимодействия:', {
-          totalVideos: allVideos.length,
-          unblocked: unblockedCount,
-          played: playedCount
         });
       }
     }
@@ -1392,24 +1326,12 @@
         // При клике по навигации снимаем блокировку автозапуска для видео в активном кейсе
         // Клик считается пользовательским взаимодействием, поэтому браузер разрешит автозапуск
         var allVideos = getAllCaseVideos(caseEl);
-        var unblockedCount = 0;
         each(allVideos, function(video){
           if (video && video.__snapSliderAutoplayBlocked){
-            console.log('[snapSlider] Снимаем блокировку автозапуска при клике по навигации (пользовательское взаимодействие)', {
-              video: video,
-              previousError: video.__snapSliderAutoplayError
-            });
-            try { 
-              video.__snapSliderAutoplayBlocked = false;
-              // Очищаем информацию об ошибке, так как теперь можем попробовать снова
-              delete video.__snapSliderAutoplayError;
-              unblockedCount++;
-            } catch(_){}
+            console.log('[snapSlider] Снимаем блокировку автозапуска при клике по навигации (пользовательское взаимодействие)', video);
+            try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
           }
         });
-        if (unblockedCount > 0){
-          console.log('[snapSlider] Разблокировано видео при клике по навигации:', unblockedCount);
-        }
         var wrapper = qs(caseEl, '.story-track-wrapper');
         if (!wrapper) return;
         var slides = qsa(wrapper, '.story-track-wrapper__slide');
@@ -1439,9 +1361,9 @@
 
   if (typeof document !== 'undefined'){
     function initAndStartVideos(){
-      initSnapSlider();
-      // Начальная синхронизация проигрывания для активного кейса
-      initializeActiveCasePlaybackOnce();
+        initSnapSlider();
+        // Начальная синхронизация проигрывания для активного кейса
+        initializeActiveCasePlaybackOnce();
       
       // Дополнительная попытка запуска видео после полной загрузки страницы
       // Это помогает на мобильных устройствах, где автозапуск может быть заблокирован
@@ -1469,7 +1391,7 @@
               });
             }
           }, 500);
-        }, { once: true });
+      }, { once: true });
       }
     }
     
