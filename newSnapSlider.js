@@ -217,6 +217,25 @@
     } catch(_){ return []; }
   }
 
+  // Получаем видео из первого слайда в кейсе
+  function getFirstSlideVideos(caseEl){
+    if (!caseEl) return [];
+    var videos = [];
+    try {
+      var wrappers = qsa(caseEl, '.story-track-wrapper');
+      each(wrappers, function(wrapper){
+        var slides = qsa(wrapper, '.story-track-wrapper__slide');
+        if (slides && slides.length > 0){
+          var firstSlide = slides[0];
+          var slideVideos = qsa(firstSlide, 'video');
+          each(slideVideos, function(v){ videos.push(v); });
+        }
+      });
+      // Убираем дубликаты
+      return Array.from(new Set(videos));
+    } catch(_){ return []; }
+  }
+
   // Функция для безопасного запуска видео с повторными попытками
   // Соответствует политике автозапуска WebKit/Safari:
   // - Видео может автозапускаться только если оно muted и имеет playsinline
@@ -1214,6 +1233,118 @@
 
     // Глобально включаем переключение active у .cases-grid__item по центру snap-скроллера
     setupCasesActiveOnScrollSnap();
+
+    // Управление звуком через .action-bar__mute-btn
+    (function(){
+      // Глобальный флаг onSound, по умолчанию false
+      var onSound = false;
+
+      // Функция для обновления иконок во всех .action-bar__mute-btn
+      function updateMuteButtonsIcons(soundOn){
+        var muteButtons = qsa(document, '.action-bar__mute-btn');
+        each(muteButtons, function(btn){
+          if (!btn) return;
+          var icons = qsa(btn, '.action-bar__mute-btn__icon');
+          if (icons && icons.length >= 2){
+            var firstIcon = icons[0];
+            var secondIcon = icons[1];
+            
+            if (soundOn){
+              // onSound = true: убираем active у первого, добавляем второму
+              try { firstIcon.classList.remove('active'); } catch(_){}
+              try { secondIcon.classList.add('active'); } catch(_){}
+            } else {
+              // onSound = false: добавляем active первому, убираем у второго
+              try { firstIcon.classList.add('active'); } catch(_){}
+              try { secondIcon.classList.remove('active'); } catch(_){}
+            }
+          }
+        });
+      }
+
+      // Функция для управления звуком видео в кейсах
+      function applySoundToVideos(soundOn){
+        var allCases = qsa(document, '.cases-grid__item, .case');
+        if (!allCases || !allCases.length) return;
+
+        each(allCases, function(caseEl){
+          if (!caseEl) return;
+
+          var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+          var hasTalkingHead = talkingHeadVideos && talkingHeadVideos.length > 0;
+          var muteButton = qs(caseEl, '.action-bar__mute-btn');
+          var hasMuteButton = !!muteButton;
+
+          var videosToControl = [];
+
+          // 1. Если есть talking head - то только у него
+          if (hasTalkingHead){
+            videosToControl = talkingHeadVideos;
+          }
+          // 2. Если talking head нет и есть .action-bar__mute-btn, то только у видео в первом слайде
+          else if (!hasTalkingHead && hasMuteButton){
+            videosToControl = getFirstSlideVideos(caseEl);
+          }
+          // 3. Если talking head нет и нет .action-bar__mute-btn, то пропускаем
+          // (videosToControl остается пустым)
+
+          // Применяем звук к найденным видео
+          each(videosToControl, function(video){
+            if (!video) return;
+            try {
+              video.muted = !soundOn;
+              console.log('[snapSlider] Установлен muted =', !soundOn, 'для видео', video, '(onSound =', soundOn + ')');
+            } catch(e){
+              console.warn('[snapSlider] Ошибка при установке muted для видео:', e, video);
+            }
+          });
+        });
+      }
+
+      // Обработчик клика по .action-bar__mute-btn
+      function handleMuteButtonClick(ev){
+        try {
+          ev.preventDefault();
+          ev.stopPropagation();
+        } catch(_){}
+
+        // Переключаем флаг
+        onSound = !onSound;
+        console.log('[snapSlider] Переключение звука: onSound =', onSound);
+
+        // Обновляем иконки во всех .action-bar__mute-btn
+        updateMuteButtonsIcons(onSound);
+
+        // Применяем звук к видео в кейсах
+        applySoundToVideos(onSound);
+      }
+
+      // Инициализация обработчиков для всех .action-bar__mute-btn
+      function initMuteButtons(){
+        var muteButtons = qsa(document, '.action-bar__mute-btn');
+        if (!muteButtons || !muteButtons.length) return;
+
+        console.log('[snapSlider] Инициализация обработчиков для .action-bar__mute-btn:', muteButtons.length);
+
+        each(muteButtons, function(btn){
+          if (!btn) return;
+          // Удаляем старый обработчик, если был
+          try { btn.removeEventListener('click', handleMuteButtonClick); } catch(_){}
+          // Добавляем новый обработчик
+          try { btn.addEventListener('click', handleMuteButtonClick); } catch(_){}
+        });
+
+        // Инициализируем иконки согласно начальному состоянию onSound = false
+        updateMuteButtonsIcons(false);
+      }
+
+      // Инициализируем при загрузке DOM
+      if (document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', initMuteButtons, { once: true });
+      } else {
+        initMuteButtons();
+      }
+    })();
 
     // Обработчик первого пользовательского взаимодействия для снятия блокировки автозапуска
     // После первого взаимодействия браузер разрешает запуск видео (включая со звуком)
