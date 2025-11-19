@@ -78,39 +78,31 @@
     });
   }
 
-  // Вспомогательные функции для работы с видео (создание source, загрузка, проверка готовности)
-  function hasVideoSource(video){
+  // Вспомогательные функции для работы с видео (установка src, проверка готовности)
+  function hasVideoSrc(video){
     if (!video) return false;
     try {
-      // Проверяем наличие source элемента или src атрибута
-      var hasSourceEl = video.querySelector && video.querySelector('source') !== null;
-      var hasSrc = !!(video.src && video.src.length > 0);
-      return hasSourceEl || hasSrc;
+      // Проверяем наличие src атрибута
+      return !!(video.src && video.src.length > 0);
     } catch(_){ return false; }
   }
 
   function isVideoReady(video){
     if (!video) return false;
     try {
-      if (!hasVideoSource(video)) return false;
+      if (!hasVideoSrc(video)) return false;
       // Проверяем readyState (HAVE_FUTURE_DATA = 3, HAVE_ENOUGH_DATA = 4)
       return video.readyState >= 3;
     } catch(_){ return false; }
   }
 
-  function createSourceFromAttributes(video, isTalkingHead){
+  // Устанавливает src из data-src или mob-data-src атрибута
+  function setVideoSrcFromDataAttr(video, isTalkingHead){
     if (!video) return false;
     try {
-      // Проверяем флаг, что source уже был создан
-      if (video.__snapSliderSourceCreated) {
-        console.log('[snapSlider] Source уже был создан ранее для этого видео, пропускаем', video);
-        return false;
-      }
-
-      // Если source уже есть в DOM, помечаем и пропускаем
-      if (hasVideoSource(video)) {
-        console.log('[snapSlider] Видео уже имеет source в DOM, помечаем как созданное', video);
-        video.__snapSliderSourceCreated = true;
+      // Если src уже установлен, пропускаем
+      if (hasVideoSrc(video)) {
+        console.log('[snapSlider] Видео уже имеет src, пропускаем', video);
         return false;
       }
 
@@ -133,66 +125,13 @@
         return false;
       }
 
-      console.log('[snapSlider] Создаем source для видео из атрибута:', srcAttr, video);
-      
-      // Устанавливаем атрибуты для улучшения автозапуска ДО создания source
-      try {
-        if (!video.hasAttribute('playsinline')){
-          video.setAttribute('playsinline', '');
-        }
-        if (!video.hasAttribute('autoplay')){
-          video.setAttribute('autoplay', '');
-        }
-        if (!video.hasAttribute('preload')){
-          video.setAttribute('preload', 'auto');
-        }
-        // Устанавливаем muted для обхода блокировки автозапуска
-        if (!video.hasAttribute('muted')){
-          video.setAttribute('muted', '');
-          video.muted = true;
-        }
-      } catch(e){
-        console.warn('[snapSlider] Ошибка при установке атрибутов при создании source', e);
-      }
-      
-      // Создаем source элемент
-      var source = document.createElement('source');
-      source.src = srcAttr;
-      source.type = 'video/mp4';
-      
-      // Добавляем source в video
-      video.appendChild(source);
-      
-      // Помечаем, что source был создан
-      video.__snapSliderSourceCreated = true;
-      
-      console.log('[snapSlider] Source создан и добавлен в видео', video);
+      console.log('[snapSlider] Устанавливаем src для видео из атрибута:', srcAttr, video);
+      video.src = srcAttr;
+      console.log('[snapSlider] src установлен для видео', video);
       return true;
     } catch(e){ 
-      console.error('[snapSlider] Ошибка при создании source для видео', e);
+      console.error('[snapSlider] Ошибка при установке src для видео', e);
       return false;
-    }
-  }
-
-  function loadVideoIfNeeded(video){
-    if (!video) return;
-    try {
-      // Проверяем флаг, что load уже был вызван
-      if (video.__snapSliderLoadCalled) {
-        console.log('[snapSlider] load() уже был вызван ранее для этого видео, пропускаем', video);
-        return;
-      }
-
-      if (hasVideoSource(video)) {
-        console.log('[snapSlider] Видео имеет source, вызываем load()', video);
-        video.load();
-        // Помечаем, что load был вызван
-        video.__snapSliderLoadCalled = true;
-      } else {
-        console.log('[snapSlider] Видео не имеет source, пропускаем load', video);
-      }
-    } catch(e){ 
-      console.error('[snapSlider] Ошибка при вызове load() для видео', e);
     }
   }
 
@@ -237,32 +176,7 @@
     } catch(_){ return []; }
   }
 
-  // Функция для создания контекста пользовательского взаимодействия через Web Audio API
-  // Это может помочь обойти некоторые ограничения автозапуска
-  function createUserInteractionContext(){
-    try {
-      if (typeof AudioContext !== 'undefined' || typeof webkitAudioContext !== 'undefined'){
-        var AudioCtx = AudioContext || webkitAudioContext;
-        var ctx = new AudioCtx();
-        // Создаем короткий беззвучный буфер для "активации" контекста
-        var buffer = ctx.createBuffer(1, 1, 22050);
-        var source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        source.start(0);
-        // Закрываем контекст после использования
-        setTimeout(function(){
-          try { ctx.close(); } catch(_){}
-        }, 100);
-        return true;
-      }
-    } catch(e){
-      // Игнорируем ошибки Web Audio API
-    }
-    return false;
-  }
-
-  // Функция для безопасного запуска видео с повторными попытками и несколькими стратегиями обхода NotAllowedError
+  // Функция для безопасного запуска видео с повторными попытками
   function safePlayVideo(video, retries, delay){
     if (!video) return;
     retries = retries || 3;
@@ -271,54 +185,19 @@
     try {
       console.log('[snapSlider] Попытка запуска видео', video);
       
-      // СТРАТЕГИЯ 1: Устанавливаем атрибуты для улучшения совместимости с мобильными браузерами
+      // Устанавливаем атрибуты для улучшения совместимости с мобильными браузерами
       try {
-        // playsinline - обязательно для iOS Safari
         if (!video.hasAttribute('playsinline')){
           video.setAttribute('playsinline', '');
         }
-        
-        // autoplay - может помочь в некоторых браузерах
-        if (!video.hasAttribute('autoplay')){
-          video.setAttribute('autoplay', '');
-        }
-        
-        // preload="auto" - предзагрузка может улучшить шансы автозапуска
-        if (!video.hasAttribute('preload')){
-          video.setAttribute('preload', 'auto');
-        }
-        
-        // СТРАТЕГИЯ 2: Muted autoplay - самый надежный способ обхода блокировки
-        // Многие браузеры разрешают автозапуск muted видео
-        // Проверяем, не установлен ли уже muted другим скриптом
-        var currentMuted = video.muted;
-        var hasMutedAttr = video.hasAttribute('muted');
-        
-        // Если видео не имеет атрибута muted и не установлено muted программно,
-        // временно устанавливаем muted для обхода блокировки
-        // После успешного запуска можно будет включить звук (если нужно)
-        if (!hasMutedAttr && !currentMuted){
-          console.log('[snapSlider] Временно устанавливаем muted для обхода блокировки автозапуска', video);
-          video.muted = true;
-          video.setAttribute('muted', '');
-          // Сохраняем исходное состояние для возможного восстановления
-          try { video.__snapSliderOriginalMuted = false; } catch(_){}
-        }
-      } catch(e){
-        console.warn('[snapSlider] Ошибка при установке атрибутов видео', e);
-      }
-      
-      // СТРАТЕГИЯ 3: Создаем контекст пользовательского взаимодействия через Web Audio API
-      // Это может помочь обойти некоторые ограничения в некоторых браузерах
-      createUserInteractionContext();
+        // Для iOS Safari может помочь установка muted перед play
+        // Но не меняем muted если оно уже установлено другим скриптом
+      } catch(_){}
       
       var p = video.play();
       if (p && typeof p.then === 'function'){
         p.then(function(){
           console.log('[snapSlider] Видео успешно запущено', video);
-          // Если видео было временно muted для обхода блокировки,
-          // можно попытаться включить звук (но это может не сработать на мобильных)
-          // Оставляем muted, так как это безопаснее для автозапуска
         }).catch(function(error){
           var errorName = error ? (error.name || '') : '';
           var isNotAllowed = errorName === 'NotAllowedError' || 
@@ -326,26 +205,9 @@
           
           if (isNotAllowed){
             // NotAllowedError означает, что браузер блокирует автозапуск
-            // Пробуем альтернативные стратегии перед сдачей
-            
-            // СТРАТЕГИЯ 4: Если первая попытка с muted не сработала,
-            // пробуем еще раз с явным установлением muted перед play
-            if (retries > 0 && !video.__snapSliderTriedMutedStrategy){
-              try {
-                video.__snapSliderTriedMutedStrategy = true;
-                console.log('[snapSlider] Пробуем альтернативную стратегию: явное установление muted', video);
-                video.muted = true;
-                video.setAttribute('muted', '');
-                // Небольшая задержка перед повторной попыткой
-                setTimeout(function(){
-                  safePlayVideo(video, retries - 1, delay);
-                }, 50);
-                return;
-              } catch(_){}
-            }
-            
-            // Если все стратегии не сработали, помечаем видео как заблокированное
+            // Не повторяем попытки для этой ошибки - они бесполезны
             console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', video);
+            // Помечаем видео, чтобы не пытаться запускать его снова автоматически
             try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
             return;
           }
@@ -367,20 +229,6 @@
                         (e && e.message && e.message.indexOf('not allowed') !== -1);
       
       if (isNotAllowed){
-        // Пробуем альтернативную стратегию перед сдачей
-        if (retries > 0 && !video.__snapSliderTriedMutedStrategy){
-          try {
-            video.__snapSliderTriedMutedStrategy = true;
-            console.log('[snapSlider] Пробуем альтернативную стратегию после исключения: явное установление muted', video);
-            video.muted = true;
-            video.setAttribute('muted', '');
-            setTimeout(function(){
-              safePlayVideo(video, retries - 1, delay);
-            }, 50);
-            return;
-          } catch(_){}
-        }
-        
         console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', video);
         try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
         return;
@@ -409,20 +257,12 @@
       all: allVideos
     });
 
-    // 1.5. Создаем source элементы из атрибутов data-src и mob-data-src
-    console.log('[snapSlider] Создание source элементов для видео');
+    // 2. Устанавливаем src из атрибутов data-src и mob-data-src
+    console.log('[snapSlider] Установка src для видео из атрибутов');
     
     // Для talking head используем mob-data-src
     each(talkingHeadVideos, function(video){
-      var created = createSourceFromAttributes(video, true);
-      if (created) {
-        console.log('[snapSlider] Source создан для talking head видео', video);
-        // Вызываем load сразу после создания source
-        loadVideoIfNeeded(video);
-      } else if (hasVideoSource(video)) {
-        // Если source уже был, вызываем load (с проверкой флага внутри)
-        loadVideoIfNeeded(video);
-      }
+      setVideoSrcFromDataAttr(video, true);
     });
     
     // Для остальных видео используем data-src
@@ -431,120 +271,36 @@
       var isTalking = false;
       try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
       if (!isTalking) {
-        var created = createSourceFromAttributes(video, false);
-        if (created) {
-          console.log('[snapSlider] Source создан для видео', video);
-          // Вызываем load сразу после создания source
-          loadVideoIfNeeded(video);
-        } else if (hasVideoSource(video)) {
-          // Если source уже был, вызываем load (с проверкой флага внутри)
-          loadVideoIfNeeded(video);
-        }
+        setVideoSrcFromDataAttr(video, false);
       }
     });
 
-    // 3. Через 100мс проверяем готовность talking head и активного слайда
-    setTimeout(function(){
-      console.log('[snapSlider] Проверка готовности видео через 100мс');
-      
-      var activeSlideVideos = getActiveSlideVideos(newCaseEl);
-      var videosToCheck = [];
-      
-      // Добавляем talking head видео
-      each(talkingHeadVideos, function(v){ videosToCheck.push(v); });
-      // Добавляем видео активного слайда
-      each(activeSlideVideos, function(v){ videosToCheck.push(v); });
-      
-      // Убираем дубликаты
-      videosToCheck = Array.from(new Set(videosToCheck));
-      
-      console.log('[snapSlider] Видео для проверки готовности:', {
-        talkingHead: talkingHeadVideos.length,
-        activeSlide: activeSlideVideos.length,
-        total: videosToCheck.length
-      });
+    // 3. Вызываем play() для talking head и активного слайда
+    var activeSlideVideos = getActiveSlideVideos(newCaseEl);
+    console.log('[snapSlider] Вызов play() для видео:', {
+      talkingHead: talkingHeadVideos.length,
+      activeSlide: activeSlideVideos.length
+    });
 
-      var allReady = true;
-      each(videosToCheck, function(video){
-        var ready = isVideoReady(video);
-        console.log('[snapSlider] Видео готово:', ready, video);
-        if (!ready) allReady = false;
-      });
-
-      if (!allReady){
-        console.log('[snapSlider] Не все видео готовы, повторяем проверку через 200мс');
-        // Повторяем проверку через 200мс
-        setTimeout(function(){
-          console.log('[snapSlider] Повторная проверка готовности видео через 200мс');
-          
-          var allReadyRetry = true;
-          each(videosToCheck, function(video){
-            var ready = isVideoReady(video);
-            console.log('[snapSlider] Видео готово (повторная проверка):', ready, video);
-            if (!ready) allReadyRetry = false;
-          });
-
-          if (allReadyRetry){
-            console.log('[snapSlider] Все видео готовы, вызываем play()');
-            // 4. Когда проверка пройдена, вызываем play
-            each(talkingHeadVideos, function(video){
-              try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                  var p = video.play();
-                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
-                }
-              } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
-            });
-            each(activeSlideVideos, function(video){
-              try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                  var p = video.play();
-                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
-                }
-              } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
-            });
-          } else {
-            console.log('[snapSlider] Видео все еще не готовы после повторной проверки');
-            // Пытаемся запустить даже если не все готовы
-            each(talkingHeadVideos, function(video){
-              try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                  var p = video.play();
-                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
-                }
-              } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
-            });
-            each(activeSlideVideos, function(video){
-              try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-                  var p = video.play();
-                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
-                }
-              } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
-            });
-          }
-        }, 200);
-      } else {
-        console.log('[snapSlider] Все видео готовы сразу, вызываем play()');
-        // 4. Когда проверка пройдена, вызываем play
-        each(talkingHeadVideos, function(video){
-          try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-              var p = video.play();
-              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
-            }
-          } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
-        });
-        each(activeSlideVideos, function(video){
-          try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-              var p = video.play();
-              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
-            }
-          } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
-        });
-      }
-    }, 100);
+    each(talkingHeadVideos, function(video){
+      try {
+        if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+          console.log('[snapSlider] Запуск talking head видео', video);
+          var p = video.play();
+          if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
+        }
+      } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
+    });
+    
+    each(activeSlideVideos, function(video){
+      try {
+        if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+          console.log('[snapSlider] Запуск видео активного слайда', video);
+          var p = video.play();
+          if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+        }
+      } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
+    });
   }
 
   // Обработка смены активного слайда
@@ -560,50 +316,23 @@
     
     console.log('[snapSlider] Найдено видео в активном слайде:', activeSlideVideos.length);
 
-    // 1. Создаем source элементы из атрибутов data-src для видео в активном слайде
-    console.log('[snapSlider] Создание source элементов для видео активного слайда');
+    // 1. Устанавливаем src из атрибутов data-src для видео в активном слайде
+    console.log('[snapSlider] Установка src для видео активного слайда');
     each(activeSlideVideos, function(video){
-      var created = createSourceFromAttributes(video, false);
-      if (created) {
-        console.log('[snapSlider] Source создан для видео активного слайда', video);
-        // Вызываем load после создания source
-        loadVideoIfNeeded(video);
-      } else if (hasVideoSource(video)) {
-        // Если source уже был, вызываем load (с проверкой флага внутри)
-        loadVideoIfNeeded(video);
-      }
+      setVideoSrcFromDataAttr(video, false);
     });
 
-    // 2. Проверяем готовность видео
-    function checkAndPlay(){
-      console.log('[snapSlider] Проверка готовности видео активного слайда');
-      
-      var allReady = true;
-      each(activeSlideVideos, function(video){
-        var ready = isVideoReady(video);
-        console.log('[snapSlider] Видео активного слайда готово:', ready, video);
-        if (!ready) allReady = false;
-      });
-
-      if (!allReady){
-        console.log('[snapSlider] Видео активного слайда не готовы, повторяем проверку через 100мс');
-        // Повторяем проверку через 100мс
-        setTimeout(checkAndPlay, 100);
-      } else {
-        console.log('[snapSlider] Все видео активного слайда готовы, вызываем play()');
-        // 2. Когда проверка пройдена, вызываем play
-        each(activeSlideVideos, function(video){
-          try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
-              var p = video.play();
-              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
-            }
-          } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
-        });
-      }
-    }
-
-    checkAndPlay();
+    // 2. Вызываем play() для видео активного слайда
+    console.log('[snapSlider] Вызов play() для видео активного слайда');
+    each(activeSlideVideos, function(video){
+      try {
+        if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+          console.log('[snapSlider] Запуск видео активного слайда', video);
+          var p = video.play();
+          if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+        }
+      } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
+    });
   }
 
   // Помощники прогресса
@@ -1143,6 +872,25 @@
         }
       });
 
+      // При загрузке DOM устанавливаем src для всех видео в активном кейсе (до завершения рендеринга)
+      console.log('[snapSlider] Установка src для всех видео в активном кейсе при загрузке DOM');
+      var allVideos = getAllCaseVideos(activeCase);
+      var talkingHeadVideos = getTalkingHeadVideos(activeCase);
+      
+      // Для talking head используем mob-data-src
+      each(talkingHeadVideos, function(video){
+        setVideoSrcFromDataAttr(video, true);
+      });
+      
+      // Для остальных видео используем data-src
+      each(allVideos, function(video){
+        var isTalking = false;
+        try { isTalking = !!(video.closest && video.closest('.cases-grid__item__container__wrap__talking-head__video')); } catch(__){}
+        if (!isTalking) {
+          setVideoSrcFromDataAttr(video, false);
+        }
+      });
+
       // Единоразово устанавливаем active для слайда по центру каждого wrapper при начальной инициализации
       // Дальше IntersectionObserver будет управлять active
       var wrappers = qsa(activeCase, '.story-track-wrapper');
@@ -1220,8 +968,8 @@
             console.log('[snapSlider] Снимаем блокировку автозапуска для видео', video);
             try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
             
-            // Пытаемся запустить видео, если оно готово и на паузе
-            if (video && video.paused && isVideoReady(video)){
+            // Пытаемся запустить видео, если оно имеет src и на паузе
+            if (video && video.paused && hasVideoSrc(video)){
               console.log('[snapSlider] Запуск видео после пользовательского взаимодействия', video);
               try {
                 var p = video.play();
@@ -1420,14 +1168,14 @@
               var activeSlideVideos = getActiveSlideVideos(activeCase);
               
               each(talkingHeadVideos, function(video){
-                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked){
+                if (video && video.paused && hasVideoSrc(video) && !video.__snapSliderAutoplayBlocked){
                   console.log('[snapSlider] Попытка запуска talking head после загрузки страницы', video);
                   safePlayVideo(video, 3, 300);
                 }
               });
               
               each(activeSlideVideos, function(video){
-                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked){
+                if (video && video.paused && hasVideoSrc(video) && !video.__snapSliderAutoplayBlocked){
                   console.log('[snapSlider] Попытка запуска видео активного слайда после загрузки страницы', video);
                   safePlayVideo(video, 3, 300);
                 }
