@@ -225,14 +225,37 @@
     
     try {
       console.log('[snapSlider] Попытка запуска видео', video);
+      
+      // Устанавливаем атрибуты для улучшения совместимости с мобильными браузерами
+      try {
+        if (!video.hasAttribute('playsinline')){
+          video.setAttribute('playsinline', '');
+        }
+        // Для iOS Safari может помочь установка muted перед play
+        // Но не меняем muted если оно уже установлено другим скриптом
+      } catch(_){}
+      
       var p = video.play();
       if (p && typeof p.then === 'function'){
         p.then(function(){
           console.log('[snapSlider] Видео успешно запущено', video);
         }).catch(function(error){
+          var errorName = error ? (error.name || '') : '';
+          var isNotAllowed = errorName === 'NotAllowedError' || 
+                            (error && error.message && error.message.indexOf('not allowed') !== -1);
+          
+          if (isNotAllowed){
+            // NotAllowedError означает, что браузер блокирует автозапуск
+            // Не повторяем попытки для этой ошибки - они бесполезны
+            console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', video);
+            // Помечаем видео, чтобы не пытаться запускать его снова автоматически
+            try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
+            return;
+          }
+          
           console.warn('[snapSlider] Ошибка play видео (попытка ' + (4 - retries) + '):', error, video);
           if (retries > 0){
-            // Повторяем попытку через delay
+            // Повторяем попытку через delay только для других ошибок
             setTimeout(function(){
               safePlayVideo(video, retries - 1, delay);
             }, delay);
@@ -242,6 +265,16 @@
         });
       }
     } catch(e){
+      var errorName = e ? (e.name || '') : '';
+      var isNotAllowed = errorName === 'NotAllowedError' || 
+                        (e && e.message && e.message.indexOf('not allowed') !== -1);
+      
+      if (isNotAllowed){
+        console.warn('[snapSlider] Браузер блокирует автозапуск видео (NotAllowedError). Видео запустится после пользовательского взаимодействия.', video);
+        try { video.__snapSliderAutoplayBlocked = true; } catch(_){}
+        return;
+      }
+      
       console.error('[snapSlider] Исключение при вызове play():', e, video);
       if (retries > 0){
         setTimeout(function(){
@@ -344,19 +377,27 @@
             console.log('[snapSlider] Все видео готовы, вызываем play()');
             // 4. Когда проверка пройдена, вызываем play с повторными попытками
             each(talkingHeadVideos, function(video){
-              safePlayVideo(video, 3, 300);
+              if (!video.__snapSliderAutoplayBlocked){
+                safePlayVideo(video, 3, 300);
+              }
             });
             each(activeSlideVideos, function(video){
-              safePlayVideo(video, 3, 300);
+              if (!video.__snapSliderAutoplayBlocked){
+                safePlayVideo(video, 3, 300);
+              }
             });
           } else {
             console.log('[snapSlider] Видео все еще не готовы после повторной проверки');
             // Пытаемся запустить даже если не все готовы (может сработать на мобильных)
             each(talkingHeadVideos, function(video){
-              safePlayVideo(video, 3, 300);
+              if (!video.__snapSliderAutoplayBlocked){
+                safePlayVideo(video, 3, 300);
+              }
             });
             each(activeSlideVideos, function(video){
-              safePlayVideo(video, 3, 300);
+              if (!video.__snapSliderAutoplayBlocked){
+                safePlayVideo(video, 3, 300);
+              }
             });
           }
         }, 200);
@@ -364,10 +405,14 @@
         console.log('[snapSlider] Все видео готовы сразу, вызываем play()');
         // 4. Когда проверка пройдена, вызываем play с повторными попытками
         each(talkingHeadVideos, function(video){
-          safePlayVideo(video, 3, 300);
+          if (!video.__snapSliderAutoplayBlocked){
+            safePlayVideo(video, 3, 300);
+          }
         });
         each(activeSlideVideos, function(video){
-          safePlayVideo(video, 3, 300);
+          if (!video.__snapSliderAutoplayBlocked){
+            safePlayVideo(video, 3, 300);
+          }
         });
       }
     }, 100);
@@ -419,7 +464,9 @@
         console.log('[snapSlider] Все видео активного слайда готовы, вызываем play()');
         // 2. Когда проверка пройдена, вызываем play с повторными попытками
         each(activeSlideVideos, function(video){
-          safePlayVideo(video, 3, 300);
+          if (!video.__snapSliderAutoplayBlocked){
+            safePlayVideo(video, 3, 300);
+          }
         });
       }
     }
@@ -1028,6 +1075,47 @@
     // Глобально включаем переключение active у .cases-grid__item по центру snap-скроллера
     setupCasesActiveOnScrollSnap();
 
+    // Обработчик первого пользовательского взаимодействия для снятия блокировки автозапуска
+    function onFirstUserInteraction(){
+      console.log('[snapSlider] Первое пользовательское взаимодействие, снимаем блокировку автозапуска');
+      
+      // Снимаем флаг блокировки со всех видео и пытаемся запустить
+      var activeCase = qs(document, '.cases-grid__item.active, .case.active');
+      if (activeCase){
+        var allVideos = getAllCaseVideos(activeCase);
+        each(allVideos, function(video){
+          if (video.__snapSliderAutoplayBlocked){
+            console.log('[snapSlider] Снимаем блокировку автозапуска для видео', video);
+            try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
+            
+            // Пытаемся запустить видео, если оно готово и на паузе
+            if (video && video.paused && isVideoReady(video)){
+              console.log('[snapSlider] Запуск видео после пользовательского взаимодействия', video);
+              safePlayVideo(video, 1, 0); // Одна попытка, без задержки
+            }
+          }
+        });
+      }
+    }
+
+    // Отслеживаем первое пользовательское взаимодействие
+    try {
+      var interactionHappened = false;
+      function markInteraction(){
+        if (interactionHappened) return;
+        interactionHappened = true;
+        onFirstUserInteraction();
+      }
+      document.addEventListener('touchstart', markInteraction, { once: true, passive: true });
+      document.addEventListener('click', markInteraction, { once: true, passive: true });
+      document.addEventListener('scroll', markInteraction, { once: true, passive: true });
+      var scroller = qs(document, '.main-section');
+      if (scroller){
+        scroller.addEventListener('touchstart', markInteraction, { once: true, passive: true });
+        scroller.addEventListener('scroll', markInteraction, { once: true, passive: true });
+      }
+    } catch(_){}
+
     // Делегирование кликов по зонам навигации слайдов внутри активного кейса
     try {
       document.addEventListener('click', function(ev){
@@ -1140,8 +1228,18 @@
         var isRight = target.closest ? target.closest('.story-tap-right') : null;
         if (!isLeft && !isRight) return;
         ev.preventDefault();
+        
         var caseEl = target.closest ? target.closest('.cases-grid__item, .case') : null;
         if (!caseEl || !caseEl.classList || !caseEl.classList.contains('active')) return; // работаем только в активном кейсе
+        
+        // При клике по навигации снимаем блокировку автозапуска для видео в активном кейсе
+        var allVideos = getAllCaseVideos(caseEl);
+        each(allVideos, function(video){
+          if (video && video.__snapSliderAutoplayBlocked){
+            console.log('[snapSlider] Снимаем блокировку автозапуска при клике по навигации', video);
+            try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
+          }
+        });
         var wrapper = qs(caseEl, '.story-track-wrapper');
         if (!wrapper) return;
         var slides = qsa(wrapper, '.story-track-wrapper__slide');
@@ -1170,16 +1268,45 @@
   }
 
   if (typeof document !== 'undefined'){
-    if (document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', function(){
-        initSnapSlider();
-        // Начальная синхронизация проигрывания для активного кейса
-        initializeActiveCasePlaybackOnce();
-      }, { once: true });
-    } else {
+    function initAndStartVideos(){
       initSnapSlider();
       // Начальная синхронизация проигрывания для активного кейса
       initializeActiveCasePlaybackOnce();
+      
+      // Дополнительная попытка запуска видео после полной загрузки страницы
+      // Это помогает на мобильных устройствах, где автозапуск может быть заблокирован
+      if (typeof window !== 'undefined'){
+        window.addEventListener('load', function(){
+          console.log('[snapSlider] Страница полностью загружена, пытаемся запустить видео');
+          setTimeout(function(){
+            var activeCase = qs(document, '.cases-grid__item.active, .case.active');
+            if (activeCase){
+              var talkingHeadVideos = getTalkingHeadVideos(activeCase);
+              var activeSlideVideos = getActiveSlideVideos(activeCase);
+              
+              each(talkingHeadVideos, function(video){
+                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked){
+                  console.log('[snapSlider] Попытка запуска talking head после загрузки страницы', video);
+                  safePlayVideo(video, 3, 300);
+                }
+              });
+              
+              each(activeSlideVideos, function(video){
+                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked){
+                  console.log('[snapSlider] Попытка запуска видео активного слайда после загрузки страницы', video);
+                  safePlayVideo(video, 3, 300);
+                }
+              });
+            }
+          }, 500);
+        }, { once: true });
+      }
+    }
+    
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', initAndStartVideos, { once: true });
+    } else {
+      initAndStartVideos();
     }
   }
 })();
