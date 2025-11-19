@@ -375,44 +375,62 @@
 
           if (allReadyRetry){
             console.log('[snapSlider] Все видео готовы, вызываем play()');
-            // 4. Когда проверка пройдена, вызываем play с повторными попытками
+            // 4. Когда проверка пройдена, вызываем play
             each(talkingHeadVideos, function(video){
-              if (!video.__snapSliderAutoplayBlocked){
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
             });
             each(activeSlideVideos, function(video){
-              if (!video.__snapSliderAutoplayBlocked){
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
             });
           } else {
             console.log('[snapSlider] Видео все еще не готовы после повторной проверки');
-            // Пытаемся запустить даже если не все готовы (может сработать на мобильных)
+            // Пытаемся запустить даже если не все готовы
             each(talkingHeadVideos, function(video){
-              if (!video.__snapSliderAutoplayBlocked){
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
             });
             each(activeSlideVideos, function(video){
-              if (!video.__snapSliderAutoplayBlocked){
-                safePlayVideo(video, 3, 300);
-              }
+              try {
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                  var p = video.play();
+                  if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+                }
+              } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
             });
           }
         }, 200);
       } else {
         console.log('[snapSlider] Все видео готовы сразу, вызываем play()');
-        // 4. Когда проверка пройдена, вызываем play с повторными попытками
+        // 4. Когда проверка пройдена, вызываем play
         each(talkingHeadVideos, function(video){
-          if (!video.__snapSliderAutoplayBlocked){
-            safePlayVideo(video, 3, 300);
-          }
+          try {
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+              var p = video.play();
+              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play talking head:', e); });
+            }
+          } catch(e){ console.error('[snapSlider] Ошибка play talking head:', e); }
         });
         each(activeSlideVideos, function(video){
-          if (!video.__snapSliderAutoplayBlocked){
-            safePlayVideo(video, 3, 300);
-          }
+          try {
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+              var p = video.play();
+              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+            }
+          } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
         });
       }
     }, 100);
@@ -462,11 +480,14 @@
         setTimeout(checkAndPlay, 100);
       } else {
         console.log('[snapSlider] Все видео активного слайда готовы, вызываем play()');
-        // 2. Когда проверка пройдена, вызываем play с повторными попытками
+        // 2. Когда проверка пройдена, вызываем play
         each(activeSlideVideos, function(video){
-          if (!video.__snapSliderAutoplayBlocked){
-            safePlayVideo(video, 3, 300);
-          }
+          try {
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+              var p = video.play();
+              if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
+            }
+          } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
         });
       }
     }
@@ -1091,7 +1112,10 @@
             // Пытаемся запустить видео, если оно готово и на паузе
             if (video && video.paused && isVideoReady(video)){
               console.log('[snapSlider] Запуск видео после пользовательского взаимодействия', video);
-              safePlayVideo(video, 1, 0); // Одна попытка, без задержки
+              try {
+                var p = video.play();
+                if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play после взаимодействия:', e); });
+              } catch(e){ console.error('[snapSlider] Ошибка play после взаимодействия:', e); }
             }
           }
         });
