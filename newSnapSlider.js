@@ -351,28 +351,11 @@
   // Обработка смены активного слайда
   function handleActiveSlideChange(slideEl, caseEl){
     if (!slideEl || !caseEl) return;
-    
-    // Защита от повторной обработки одного и того же слайда
-    if (slideEl.__snapSliderProcessing) {
-      console.log('[snapSlider] Слайд уже обрабатывается, пропускаем', slideEl);
-      return;
-    }
-    
-    // Проверяем, что слайд действительно active
-    if (!slideEl.classList || !slideEl.classList.contains('active')) {
-      console.log('[snapSlider] Слайд не active, пропускаем обработку', slideEl);
-      return;
-    }
-    
     console.log('[snapSlider] Обработка смены активного слайда', slideEl);
-    
-    // Устанавливаем флаг обработки
-    slideEl.__snapSliderProcessing = true;
     
     var activeSlideVideos = qsa(slideEl, 'video');
     if (!activeSlideVideos || !activeSlideVideos.length){
       console.log('[snapSlider] В активном слайде нет видео');
-      slideEl.__snapSliderProcessing = false;
       return;
     }
     
@@ -417,17 +400,10 @@
             if (p && p.catch) p.catch(function(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); });
           } catch(e){ console.error('[snapSlider] Ошибка play активного слайда:', e); }
         });
-        // Снимаем флаг после успешного запуска
-        try { slideEl.__snapSliderProcessing = false; } catch(_){}
       }
     }
 
     checkAndPlay();
-    
-    // Снимаем флаг через таймаут на случай, если проверка не прошла
-    setTimeout(function(){
-      try { slideEl.__snapSliderProcessing = false; } catch(_){}
-    }, 2000);
   }
 
   // Помощники прогресса
@@ -486,8 +462,8 @@
     try { if (grid){ if (gridEligible) grid.classList.add('state-view'); else grid.classList.remove('state-view'); } } catch(_){ }
   }
 
-  // Установить .active для слайда внутри wrapper по близости к центру wrapper
-  function setActiveSlideInWrapperByCenter(wrapperEl, skipIfAlreadyActive){
+  // Получить слайд внутри wrapper по близости к центру wrapper (без установки active - это делает только IntersectionObserver)
+  function getSlideByCenter(wrapperEl){
     if (!wrapperEl) return null;
     var slides = qsa(wrapperEl, '.story-track-wrapper__slide');
     if (!slides || !slides.length) return null;
@@ -499,16 +475,6 @@
       var ix = r.left + (r.width || 0) / 2;
       var d = Math.abs(ix - centerX);
       if (d < bestDist){ bestDist = d; best = slides[i]; }
-    }
-    if (best){
-      // Если skipIfAlreadyActive=true и best уже active, не меняем
-      if (skipIfAlreadyActive && best.classList && best.classList.contains('active')){
-        return best;
-      }
-      (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s){
-        if (s === best) { try { s.classList.add('active'); } catch(_){ } }
-        else { try { s.classList.remove('active'); } catch(_){ } }
-      });
     }
     return best;
   }
@@ -728,17 +694,8 @@
               var ct = Math.max(0, video.currentTime || 0);
               var p = dur > 0 ? Math.min(1, ct / dur) : 0;
               if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
-              // автопереход по 98%
-              try {
-                if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
-                  slide.__progressAdvancedOnce = true;
-                  var st = wrapperEl.__snapState || {};
-                  if (!st.isUserInteracting && !st.autoScrollLock){
-                    var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
-                    scrollToSlide(wrapperEl, slides, nextIndex);
-                  }
-                }
-              } catch(_){ }
+              // автопереход по 98% отключен - active определяет только IntersectionObserver
+              // Автопереход может конфликтовать с IntersectionObserver
               if (!video.paused && !video.ended){ video.__rafProgressId = requestAnimationFrame(rafFn); } else { video.__rafProgressId = null; }
             };
             video.__rafProgressId = requestAnimationFrame(rafFn);
@@ -749,17 +706,7 @@
             var ct = Math.max(0, video.currentTime || 0);
             var p = dur > 0 ? Math.min(1, ct / dur) : 0;
             if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
-            // Переход к следующему слайду на 98%, если видео зациклено (ended может не сработать)
-            try {
-              if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
-                slide.__progressAdvancedOnce = true;
-                var st = wrapperEl.__snapState || {};
-                if (!st.isUserInteracting && !st.autoScrollLock){
-                  var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
-                  scrollToSlide(wrapperEl, slides, nextIndex);
-                }
-              }
-            } catch(_){ }
+            // Автопереход по 98% отключен - active определяет только IntersectionObserver
             // Стартуем rAF-поток при первом обновлении времени
             startRafIfNeeded();
           };
@@ -772,13 +719,7 @@
           };
           video.__endedHandler = function(){
             if (fill) { try { fill.style.transform = 'scaleX(1)'; } catch(_){ } }
-            try {
-              var st = wrapperEl.__snapState || {};
-              if (!st.isUserInteracting && !st.autoScrollLock){
-                var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
-                scrollToSlide(wrapperEl, slides, nextIndex);
-              }
-            } catch(_){ }
+            // Автопереход по ended отключен - active определяет только IntersectionObserver
           };
           try { video.addEventListener('timeupdate', video.__progressHandler); } catch(_){ }
           try { video.addEventListener('loadedmetadata', video.__metaHandler, { once: true }); } catch(_){ }
@@ -877,11 +818,9 @@
           pauseAndResetVideosInElement(el);
         });
 
-        // Переопределяем active для слайда внутри каждого wrapper по центру
+        // Обновляем playback для каждого wrapper (active определит IntersectionObserver)
         var wrappersInCase = qsa(best, '.story-track-wrapper');
         each(wrappersInCase, function(w){
-          var activeSlide = null;
-          try { activeSlide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
           try { updateWrapperPlayback(w); } catch(_){ }
         });
 
@@ -970,11 +909,9 @@
         }
       });
 
-      // Для каждого wrapper внутри активного кейса — выбрать слайд по центру, обновить прогресс
+      // Для каждого wrapper внутри активного кейса — обновить прогресс (active определит IntersectionObserver)
       var wrappers = qsa(activeCase, '.story-track-wrapper');
       each(wrappers, function(w){
-        var slide = null;
-        try { slide = setActiveSlideInWrapperByCenter(w); } catch(_){ }
         try { updateWrapperPlayback(w); } catch(_){ }
       });
 
@@ -1152,47 +1089,25 @@
         if (!wrapper) return;
         var slides = qsa(wrapper, '.story-track-wrapper__slide');
         if (!slides || !slides.length) return;
-        // Убеждаемся, что есть активный слайд
+        
+        // Определяем текущий активный слайд (определен IntersectionObserver)
         var curIdx = getActiveSlideIndex(wrapper);
         if (curIdx === -1){
-          var ensured = setActiveSlideInWrapperByCenter(wrapper);
-          curIdx = ensured ? Array.prototype.indexOf.call(slides, ensured) : 0;
+          // Если нет активного, используем слайд по центру для расчета следующего
+          var centerSlide = getSlideByCenter(wrapper);
+          curIdx = centerSlide ? Array.prototype.indexOf.call(slides, centerSlide) : 0;
           if (curIdx < 0) curIdx = 0;
         }
+        
         var nextIdx = curIdx;
         if (isRight) { nextIdx = (curIdx + 1) < slides.length ? (curIdx + 1) : 0; }
         else if (isLeft) { nextIdx = (curIdx - 1) >= 0 ? (curIdx - 1) : (slides.length - 1); }
 
-        // Проверяем, что слайд действительно изменился
-        if (nextIdx === curIdx) return;
-
-        // Ставим active на целевой, снимаем с остальных
-        (slides.forEach ? slides.forEach : Array.prototype.forEach).call(slides, function(s, i){
-          if (i === nextIdx) { try { s.classList.add('active'); } catch(_){ } }
-          else { try { s.classList.remove('active'); } catch(_){ } }
-        });
-
-        // Прокручиваем к целевому и обновляем прогресс/воспроизведение
+        // НЕ устанавливаем active вручную - это сделает IntersectionObserver после прокрутки
+        // Просто прокручиваем к целевому слайду
         try { scrollToSlide(wrapper, slides, nextIdx, { forceIgnoreUser: true }); } catch(_){ }
+        // Обновляем playback (IntersectionObserver установит active и вызовет handleActiveSlideChange)
         try { updateWrapperPlayback(wrapper); } catch(_){ }
-        
-        // Обрабатываем смену активного слайда (проверка готовности и воспроизведение)
-        // Вызываем только один раз для целевого слайда
-        try { handleActiveSlideChange(slides[nextIdx], caseEl); } catch(e){ console.error('[snapSlider] Ошибка при обработке смены слайда (клик):', e); }
-        
-        // Даем snap «досесть» и синхронизируем active по центру (но не меняем если уже правильный)
-        try {
-          setTimeout(function(){
-            try {
-              // Используем skipIfAlreadyActive=true, чтобы не переопределять active если он уже правильный
-              var actual = setActiveSlideInWrapperByCenter(wrapper, true);
-              // Обновляем playback только если active не изменился
-              if (actual && actual === slides[nextIdx]) {
-                updateWrapperPlayback(wrapper);
-              }
-            } catch(__){}
-          }, 160);
-        } catch(__){}
       });
     } catch(_){ }
   }
