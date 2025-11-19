@@ -103,9 +103,16 @@
   function createSourceFromAttributes(video, isTalkingHead){
     if (!video) return false;
     try {
-      // Если source уже есть, не создаем новый
+      // Проверяем флаг, что source уже был создан
+      if (video.__snapSliderSourceCreated) {
+        console.log('[snapSlider] Source уже был создан ранее для этого видео, пропускаем', video);
+        return false;
+      }
+
+      // Если source уже есть в DOM, помечаем и пропускаем
       if (hasVideoSource(video)) {
-        console.log('[snapSlider] Видео уже имеет source, пропускаем создание', video);
+        console.log('[snapSlider] Видео уже имеет source в DOM, помечаем как созданное', video);
+        video.__snapSliderSourceCreated = true;
         return false;
       }
 
@@ -138,6 +145,9 @@
       // Добавляем source в video
       video.appendChild(source);
       
+      // Помечаем, что source был создан
+      video.__snapSliderSourceCreated = true;
+      
       console.log('[snapSlider] Source создан и добавлен в видео', video);
       return true;
     } catch(e){ 
@@ -149,9 +159,17 @@
   function loadVideoIfNeeded(video){
     if (!video) return;
     try {
+      // Проверяем флаг, что load уже был вызван
+      if (video.__snapSliderLoadCalled) {
+        console.log('[snapSlider] load() уже был вызван ранее для этого видео, пропускаем', video);
+        return;
+      }
+
       if (hasVideoSource(video)) {
-        console.log('[snapSlider] Видео уже имеет source, вызываем load()', video);
+        console.log('[snapSlider] Видео имеет source, вызываем load()', video);
         video.load();
+        // Помечаем, что load был вызван
+        video.__snapSliderLoadCalled = true;
       } else {
         console.log('[snapSlider] Видео не имеет source, пропускаем load', video);
       }
@@ -223,6 +241,11 @@
       var created = createSourceFromAttributes(video, true);
       if (created) {
         console.log('[snapSlider] Source создан для talking head видео', video);
+        // Вызываем load сразу после создания source
+        loadVideoIfNeeded(video);
+      } else if (hasVideoSource(video)) {
+        // Если source уже был, вызываем load (с проверкой флага внутри)
+        loadVideoIfNeeded(video);
       }
     });
     
@@ -235,17 +258,12 @@
         var created = createSourceFromAttributes(video, false);
         if (created) {
           console.log('[snapSlider] Source создан для видео', video);
+          // Вызываем load сразу после создания source
+          loadVideoIfNeeded(video);
+        } else if (hasVideoSource(video)) {
+          // Если source уже был, вызываем load (с проверкой флага внутри)
+          loadVideoIfNeeded(video);
         }
-      }
-    });
-
-    // 2. Проверяем наличие source и вызываем load если нужно
-    each(allVideos, function(video){
-      if (hasVideoSource(video)){
-        console.log('[snapSlider] Видео имеет source, вызываем load()', video);
-        loadVideoIfNeeded(video);
-      } else {
-        console.log('[snapSlider] Видео не имеет source после создания', video);
       }
     });
 
@@ -352,6 +370,9 @@
       if (created) {
         console.log('[snapSlider] Source создан для видео активного слайда', video);
         // Вызываем load после создания source
+        loadVideoIfNeeded(video);
+      } else if (hasVideoSource(video)) {
+        // Если source уже был, вызываем load (с проверкой флага внутри)
         loadVideoIfNeeded(video);
       }
     });
