@@ -6,6 +6,9 @@
   function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
   function each(list, cb){ if(!list) return; (list.forEach ? list.forEach(cb) : Array.prototype.forEach.call(list, cb)); }
 
+  // Глобальный флаг onSound для управления звуком видео (по умолчанию false)
+  var onSound = false;
+
   // Построение прогресса внутри .story-track-wrapper
   function buildProgress(containerEl, slidesCount){
     if (!containerEl || !slidesCount || slidesCount <= 0) return null;
@@ -432,6 +435,19 @@
       talkingHead: talkingHeadVideos.length,
       all: allVideos
     });
+
+    // 1.3. Сбрасываем currentTime = 0 для talking head при включенном звуке
+    if (onSound && talkingHeadVideos && talkingHeadVideos.length > 0){
+      each(talkingHeadVideos, function(video){
+        if (!video) return;
+        try {
+          video.currentTime = 0;
+          console.log('[snapSlider] Сброшен currentTime = 0 для talking head при смене активного кейса (звук включен)', video);
+        } catch(e){
+          console.warn('[snapSlider] Ошибка при сбросе currentTime для talking head при смене кейса:', e, video);
+        }
+      });
+    }
 
     // 1.5. Создаем source элементы из атрибутов data-src и mob-data-src
     console.log('[snapSlider] Создание source элементов для видео');
@@ -1236,8 +1252,7 @@
 
     // Управление звуком через .action-bar__mute-btn
     (function(){
-      // Глобальный флаг onSound, по умолчанию false
-      var onSound = false;
+      // Используем общий флаг onSound из области видимости IIFE
 
       // Функция для обновления иконок во всех .action-bar__mute-btn
       function updateMuteButtonsIcons(soundOn){
