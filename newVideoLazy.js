@@ -134,6 +134,48 @@
     } catch(_){ return []; }
   }
 
+  // Получаем видео для playband (исключая talking-head)
+  function getPlaybandVideos(caseEl){
+    if (!caseEl) return [];
+    var videos = [];
+    try {
+      var container = qs(caseEl, '.cases-grid__item__container');
+      if (!container) return [];
+      
+      var allVideos = qsa(container, 'video');
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      
+      each(allVideos, function(video){
+        // Проверяем, не является ли видео talking-head
+        var isTalking = false;
+        try {
+          isTalking = talkingHeadVideos.indexOf(video) !== -1;
+          if (!isTalking) {
+            // Дополнительная проверка через closest
+            var parent = video.parentElement;
+            while (parent && parent !== container) {
+              if (parent.classList && (
+                parent.classList.contains('talking-head') || 
+                parent.className.indexOf('talking-head') !== -1 ||
+                parent.className.indexOf('talking') !== -1
+              )) {
+                isTalking = true;
+                break;
+              }
+              parent = parent.parentElement;
+            }
+          }
+        } catch(_){}
+        
+        if (!isTalking) {
+          videos.push(video);
+        }
+      });
+      
+      return videos;
+    } catch(_){ return []; }
+  }
+
   // 5. Загрузка при смене активного кейса
   function handleActiveCaseChange(newCaseEl){
     if (!newCaseEl) return;
@@ -348,6 +390,121 @@
     }
   }
 
+  // Логика полосы play/pause (playband)
+  var playbandEl = null;
+  var playbandActiveItem = null;
+  var playbandVideos = [];
+  var playbandRafPending = false;
+
+  function ensurePlayband(){
+    if (playbandEl && document.body && document.body.contains(playbandEl)) return playbandEl;
+    try {
+      var el = document.createElement('div');
+      el.id = 'cases-playband-observer';
+      el.setAttribute('aria-hidden', 'true');
+      el.style.position = 'fixed';
+      el.style.left = '0';
+      el.style.right = '0';
+      el.style.height = '0.5625rem';
+      el.style.top = '27vh';
+      el.style.pointerEvents = 'none';
+      el.style.zIndex = '2147483647';
+      el.style.background = 'transparent';
+      if (document.body) {
+        document.body.appendChild(el);
+      }
+      return playbandEl = el;
+    } catch(_){ return null; }
+  }
+
+  function isOverlappingPlayband(element){
+    if (!playbandEl || !element) return false;
+    try {
+      var bandRect = playbandEl.getBoundingClientRect();
+      var rect = element.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && 
+             (rect.bottom > bandRect.top) && (rect.top < bandRect.bottom);
+    } catch(_){ return false; }
+  }
+
+  function updatePlaybandPlayback(){
+    if (!playbandActiveItem) return;
+    try {
+      var isActive = playbandActiveItem.classList && playbandActiveItem.classList.contains('active');
+      var anyPlayed = false;
+      
+      each(playbandVideos, function(video){
+        if (!video) return;
+        var shouldPlay = isActive && isOverlappingPlayband(video);
+        if (shouldPlay) {
+          if (video.paused && typeof video.play === 'function') {
+            var p = video.play();
+            if (p && p.catch) p.catch(function(){});
+            anyPlayed = true;
+          }
+        } else {
+          if (typeof video.pause === 'function') video.pause();
+        }
+      });
+      
+      if (!anyPlayed && isActive && playbandVideos.length > 0) {
+        var fallback = playbandVideos[0];
+        if (fallback && fallback.paused && typeof fallback.play === 'function') {
+          var p = fallback.play();
+          if (p && p.catch) p.catch(function(){});
+        }
+      }
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при обновлении playband playback:', e);
+    }
+  }
+
+  function onScrollOrResize(){
+    if (playbandRafPending) return;
+    playbandRafPending = true;
+    requestAnimationFrame(function(){
+      playbandRafPending = false;
+      updatePlaybandPlayback();
+    });
+  }
+
+  function attachPlaybandToItem(item){
+    if (!item) return;
+    try {
+      ensurePlayband();
+      if (playbandActiveItem && playbandActiveItem !== item) {
+        detachPlayband();
+      }
+      playbandActiveItem = item;
+      playbandVideos = getPlaybandVideos(item);
+      
+      if (window.addEventListener) {
+        window.addEventListener('scroll', onScrollOrResize, { passive: true });
+        window.addEventListener('resize', onScrollOrResize, { passive: true });
+      }
+      updatePlaybandPlayback();
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при привязке playband к кейсу:', e);
+    }
+  }
+
+  function detachPlayband(itemLosingActive){
+    if (!playbandActiveItem || (itemLosingActive && itemLosingActive !== playbandActiveItem)) return;
+    try {
+      if (window.removeEventListener) {
+        window.removeEventListener('scroll', onScrollOrResize);
+        window.removeEventListener('resize', onScrollOrResize);
+      }
+      each(playbandVideos, function(video){
+        if (video && typeof video.pause === 'function') video.pause();
+      });
+      playbandActiveItem = null;
+      playbandVideos = [];
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при отвязке playband:', e);
+    }
+  }
+
   // Определение активного кейса по MutationObserver на смену класса active
   function setupActiveCaseObserver(){
     if (typeof MutationObserver === 'undefined') {
@@ -363,11 +520,18 @@
       
       console.log('[videoLazy] Обнаружена смена активного кейса через MutationObserver', newActiveCase);
       
+      // Отвязываем playband от предыдущего кейса
+      if (lastActiveCase) {
+        detachPlayband(lastActiveCase);
+      }
+      
       lastActiveCase = newActiveCase;
       
       // Обрабатываем смену активного кейса
       try { 
         handleActiveCaseChange(newActiveCase); 
+        // Привязываем playband к новому активному кейсу
+        attachPlaybandToItem(newActiveCase);
       } catch(e){ 
         console.error('[videoLazy] Ошибка при обработке смены кейса:', e); 
       }
@@ -392,14 +556,25 @@
         
         if (!isCase) return;
         
-        // Проверяем, добавлен ли класс active
-        var hasActive = false;
+        // Получаем старое значение класса
+        var wasActive = false;
         try {
-          hasActive = target.classList && target.classList.contains('active');
+          var oldValue = mutation.oldValue || '';
+          wasActive = oldValue.split(/\s+/).indexOf('active') !== -1;
         } catch(_){}
         
-        if (hasActive){
+        // Проверяем текущее состояние
+        var isActive = false;
+        try {
+          isActive = target.classList && target.classList.contains('active');
+        } catch(_){}
+        
+        if (!wasActive && isActive){
+          // Класс active добавлен
           handleActiveCaseChangeWrapper(target);
+        } else if (wasActive && !isActive){
+          // Класс active удален
+          detachPlayband(target);
         }
       });
     });
@@ -418,7 +593,8 @@
       try {
         observer.observe(item, {
           attributes: true,
-          attributeFilter: ['class']
+          attributeFilter: ['class'],
+          attributeOldValue: true
         });
       } catch(e){
         console.warn('[videoLazy] Ошибка при настройке наблюдения за кейсом:', e, item);
@@ -431,6 +607,8 @@
     var initialActiveCase = qs(document, '.cases-grid__item.active, .case.active');
     if (initialActiveCase){
       handleActiveCaseChangeWrapper(initialActiveCase);
+      // Привязываем playband к начальному активному кейсу
+      attachPlaybandToItem(initialActiveCase);
     }
   }
 
@@ -444,7 +622,11 @@
     // Начальная обработка активного кейса, если он есть
     var activeCase = qs(document, '.cases-grid__item.active, .case.active');
     if (activeCase){
-      try { handleActiveCaseChange(activeCase); } catch(e){ 
+      try { 
+        handleActiveCaseChange(activeCase);
+        // Привязываем playband к начальному активному кейсу
+        attachPlaybandToItem(activeCase);
+      } catch(e){ 
         console.error('[videoLazy] Ошибка при начальной обработке кейса:', e); 
       }
     }
