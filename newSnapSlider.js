@@ -952,8 +952,17 @@
               var ct = Math.max(0, video.currentTime || 0);
               var p = dur > 0 ? Math.min(1, ct / dur) : 0;
               if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
-              // автопереход по 98% отключен - active определяет только IntersectionObserver
-              // Автопереход может конфликтовать с IntersectionObserver
+              // Автопереход по 98%: переключаемся на следующий слайд, если его нет - на первый, если всего 1 слайд - ничего не делаем
+              try {
+                if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
+                  slide.__progressAdvancedOnce = true;
+                  var st = wrapperEl.__snapState || {};
+                  if (!st.isUserInteracting && !st.autoScrollLock && slides.length > 1){
+                    var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
+                    scrollToSlide(wrapperEl, slides, nextIndex);
+                  }
+                }
+              } catch(_){ }
               if (!video.paused && !video.ended){ video.__rafProgressId = requestAnimationFrame(rafFn); } else { video.__rafProgressId = null; }
             };
             video.__rafProgressId = requestAnimationFrame(rafFn);
@@ -964,7 +973,17 @@
             var ct = Math.max(0, video.currentTime || 0);
             var p = dur > 0 ? Math.min(1, ct / dur) : 0;
             if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
-            // Автопереход по 98% отключен - active определяет только IntersectionObserver
+            // Автопереход по 98%: переключаемся на следующий слайд, если его нет - на первый, если всего 1 слайд - ничего не делаем
+            try {
+              if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
+                slide.__progressAdvancedOnce = true;
+                var st = wrapperEl.__snapState || {};
+                if (!st.isUserInteracting && !st.autoScrollLock && slides.length > 1){
+                  var nextIndex = (idx + 1) < slides.length ? (idx + 1) : 0;
+                  scrollToSlide(wrapperEl, slides, nextIndex);
+                }
+              }
+            } catch(_){ }
             // Стартуем rAF-поток при первом обновлении времени
             startRafIfNeeded();
           };
