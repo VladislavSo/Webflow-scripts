@@ -569,6 +569,42 @@
     }
   }
 
+  // Управление talking-head видео
+  function playTalkingHeadVideos(caseEl){
+    if (!caseEl) return;
+    try {
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      console.log('[videoLazy] Запуск talking-head видео в кейсе', talkingHeadVideos.length);
+      each(talkingHeadVideos, function(video){
+        if (!video) return;
+        if (video.paused && typeof video.play === 'function') {
+          var p = video.play();
+          if (p && p.catch) p.catch(function(e){
+            console.warn('[videoLazy] Ошибка при запуске talking-head видео:', e);
+          });
+        }
+      });
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при запуске talking-head видео:', e);
+    }
+  }
+
+  function pauseTalkingHeadVideos(caseEl){
+    if (!caseEl) return;
+    try {
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      console.log('[videoLazy] Остановка talking-head видео в кейсе', talkingHeadVideos.length);
+      each(talkingHeadVideos, function(video){
+        if (!video) return;
+        if (typeof video.pause === 'function') {
+          video.pause();
+        }
+      });
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при остановке talking-head видео:', e);
+    }
+  }
+
   // Определение активного кейса по MutationObserver на смену класса active
   function setupActiveCaseObserver(){
     if (typeof MutationObserver === 'undefined') {
@@ -596,6 +632,8 @@
         handleActiveCaseChange(newActiveCase); 
         // Привязываем playband к новому активному кейсу
         attachPlaybandToItem(newActiveCase);
+        // Запускаем talking-head видео
+        playTalkingHeadVideos(newActiveCase);
       } catch(e){ 
         console.error('[videoLazy] Ошибка при обработке смены кейса:', e); 
       }
@@ -634,10 +672,11 @@
         } catch(_){}
         
         if (!wasActive && isActive){
-          // Класс active добавлен
+          // Класс active добавлен - handleActiveCaseChangeWrapper запустит talking-head видео
           handleActiveCaseChangeWrapper(target);
         } else if (wasActive && !isActive){
           // Класс active удален
+          pauseTalkingHeadVideos(target);
           detachPlayband(target);
         }
       });
@@ -690,6 +729,8 @@
         handleActiveCaseChange(activeCase);
         // Привязываем playband к начальному активному кейсу
         attachPlaybandToItem(activeCase);
+        // Запускаем talking-head видео
+        playTalkingHeadVideos(activeCase);
       } catch(e){ 
         console.error('[videoLazy] Ошибка при начальной обработке кейса:', e); 
       }
