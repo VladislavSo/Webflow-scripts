@@ -427,31 +427,82 @@
     } catch(_){ return false; }
   }
 
+  // Находит ближайшее видео к playband
+  function findClosestVideoToPlayband(videos){
+    if (!playbandEl || !videos || !videos.length) return null;
+    try {
+      var bandRect = playbandEl.getBoundingClientRect();
+      var bandCenterY = bandRect.top + (bandRect.height / 2);
+      
+      var closestVideo = null;
+      var minDistance = Infinity;
+      
+      each(videos, function(video){
+        if (!video) return;
+        try {
+          var rect = video.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return;
+          
+          // Вычисляем центр видео по вертикали
+          var videoCenterY = rect.top + (rect.height / 2);
+          
+          // Вычисляем расстояние от центра playband до центра видео
+          var distance = Math.abs(videoCenterY - bandCenterY);
+          
+          if (distance < minDistance){
+            minDistance = distance;
+            closestVideo = video;
+          }
+        } catch(_){}
+      });
+      
+      return closestVideo;
+    } catch(_){ return null; }
+  }
+
   function updatePlaybandPlayback(){
     if (!playbandActiveItem) return;
     try {
       var isActive = playbandActiveItem.classList && playbandActiveItem.classList.contains('active');
-      var anyPlayed = false;
+      if (!isActive) {
+        // Если кейс не активен, ставим все на паузу
+        each(playbandVideos, function(video){
+          if (video && typeof video.pause === 'function') video.pause();
+        });
+        return;
+      }
+
+      var overlappingVideos = [];
+      var anyOverlapping = false;
       
+      // Сначала проверяем пересечения с playband
       each(playbandVideos, function(video){
         if (!video) return;
-        var shouldPlay = isActive && isOverlappingPlayband(video);
-        if (shouldPlay) {
+        var isOverlapping = isOverlappingPlayband(video);
+        
+        if (isOverlapping) {
+          anyOverlapping = true;
+          overlappingVideos.push(video);
+          // Запускаем пересекающиеся видео
           if (video.paused && typeof video.play === 'function') {
             var p = video.play();
             if (p && p.catch) p.catch(function(){});
-            anyPlayed = true;
           }
         } else {
+          // Ставим на паузу непересекающиеся видео
           if (typeof video.pause === 'function') video.pause();
         }
       });
       
-      if (!anyPlayed && isActive && playbandVideos.length > 0) {
-        var fallback = playbandVideos[0];
-        if (fallback && fallback.paused && typeof fallback.play === 'function') {
-          var p = fallback.play();
-          if (p && p.catch) p.catch(function(){});
+      // Если ни одно видео не пересекается с playband, находим ближайшее
+      if (!anyOverlapping && playbandVideos.length > 0) {
+        var closestVideo = findClosestVideoToPlayband(playbandVideos);
+        if (closestVideo) {
+          console.log('[videoLazy] Ни одно видео не пересекается с playband, запускаем ближайшее', closestVideo);
+          if (closestVideo.paused && typeof closestVideo.play === 'function') {
+            var p = closestVideo.play();
+            if (p && p.catch) p.catch(function(){});
+          }
         }
       }
     } catch(e){
