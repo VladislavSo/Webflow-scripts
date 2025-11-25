@@ -643,5 +643,22 @@
     } else {
       initAndStart();
     }
+
+    // После полной загрузки страницы единоразово вызываем play через playband
+    function enablePlaybandAfterLoad(){
+      if (playbandActiveItem && playbandVideos.length > 0){
+        console.log('[videoLazy] Единоразовый запуск видео через playband после загрузки страницы');
+        // Небольшая задержка для гарантии готовности видео
+        setTimeout(function(){
+          updatePlaybandPlayback();
+        }, 100);
+      }
+    }
+
+    if (document.readyState === 'complete'){
+      enablePlaybandAfterLoad();
+    } else if (typeof window !== 'undefined'){
+      window.addEventListener('load', enablePlaybandAfterLoad, { once: true });
+    }
   }
 })();
