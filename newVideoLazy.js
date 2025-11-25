@@ -176,42 +176,6 @@
     } catch(_){ return []; }
   }
 
-  // Функции для управления talking head видео
-  function playTalkingHeadVideos(caseEl){
-    if (!caseEl) return;
-    try {
-      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
-      each(talkingHeadVideos, function(video){
-        if (!video) return;
-        if (video.paused && typeof video.play === 'function') {
-          console.log('[videoLazy] Запуск talking head видео', video);
-          var p = video.play();
-          if (p && p.catch) p.catch(function(e){
-            console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
-          });
-        }
-      });
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
-    }
-  }
-
-  function pauseTalkingHeadVideos(caseEl){
-    if (!caseEl) return;
-    try {
-      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
-      each(talkingHeadVideos, function(video){
-        if (!video) return;
-        if (typeof video.pause === 'function') {
-          console.log('[videoLazy] Пауза talking head видео', video);
-          video.pause();
-        }
-      });
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при паузе talking head видео:', e);
-    }
-  }
-
   // 5. Загрузка при смене активного кейса
   function handleActiveCaseChange(newCaseEl){
     if (!newCaseEl) return;
@@ -329,17 +293,19 @@
             console.log('[videoLazy] Видео все еще не готовы после повторной проверки');
           } else {
             console.log('[videoLazy] Все видео готовы после повторной проверки');
+            // Запускаем talking head видео после готовности (независимо от playband)
+            playTalkingHeadVideos(newCaseEl);
           }
-          
-          // Запускаем talking head видео после проверки готовности
-          playTalkingHeadVideos(newCaseEl);
         }, 200);
       } else {
         console.log('[videoLazy] Все видео готовы сразу');
-        // Запускаем talking head видео после проверки готовности
+        // Запускаем talking head видео после готовности (независимо от playband)
         playTalkingHeadVideos(newCaseEl);
       }
     }, 100);
+    
+    // Запускаем talking head видео сразу (независимо от готовности и playband)
+    playTalkingHeadVideos(newCaseEl);
   }
 
   // 6. Предзагрузка соседних кейсов
@@ -501,14 +467,79 @@
     } catch(_){ return null; }
   }
 
+  // Проверяет, является ли видео talking head
+  function isTalkingHeadVideo(video, caseEl){
+    if (!video || !caseEl) return false;
+    try {
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      if (talkingHeadVideos.indexOf(video) !== -1) return true;
+      
+      // Дополнительная проверка через closest
+      var container = qs(caseEl, '.cases-grid__item__container');
+      if (container) {
+        var parent = video.parentElement;
+        while (parent && parent !== container) {
+          if (parent.classList && (
+            parent.classList.contains('talking-head') || 
+            parent.className.indexOf('talking-head') !== -1 ||
+            parent.className.indexOf('talking') !== -1
+          )) {
+            return true;
+          }
+          parent = parent.parentElement;
+        }
+      }
+      return false;
+    } catch(_){ return false; }
+  }
+
+  // Управление talking head видео (независимо от playband)
+  function playTalkingHeadVideos(caseEl){
+    if (!caseEl) return;
+    try {
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      each(talkingHeadVideos, function(video){
+        if (!video) return;
+        if (video.paused && typeof video.play === 'function') {
+          console.log('[videoLazy] Запуск talking head видео (независимо от playband)', video);
+          var p = video.play();
+          if (p && p.catch) p.catch(function(e){
+            console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
+          });
+        }
+      });
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
+    }
+  }
+
+  function pauseTalkingHeadVideos(caseEl){
+    if (!caseEl) return;
+    try {
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      each(talkingHeadVideos, function(video){
+        if (!video) return;
+        if (typeof video.pause === 'function') {
+          console.log('[videoLazy] Пауза talking head видео', video);
+          video.pause();
+        }
+      });
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при паузе talking head видео:', e);
+    }
+  }
+
   function updatePlaybandPlayback(){
     if (!playbandActiveItem) return;
     try {
       var isActive = playbandActiveItem.classList && playbandActiveItem.classList.contains('active');
       if (!isActive) {
-        // Если кейс не активен, ставим все на паузу
+        // Если кейс не активен, ставим все на паузу (кроме talking head)
         each(playbandVideos, function(video){
-          if (video && typeof video.pause === 'function') video.pause();
+          if (!video) return;
+          // Дополнительная проверка: пропускаем talking head
+          if (isTalkingHeadVideo(video, playbandActiveItem)) return;
+          if (typeof video.pause === 'function') video.pause();
         });
         return;
       }
@@ -519,6 +550,13 @@
       // Сначала проверяем пересечения с playband
       each(playbandVideos, function(video){
         if (!video) return;
+        
+        // Дополнительная защита: пропускаем talking head видео
+        if (isTalkingHeadVideo(video, playbandActiveItem)) {
+          console.log('[videoLazy] Пропускаем talking head видео в playband обработке', video);
+          return;
+        }
+        
         var isOverlapping = isOverlappingPlayband(video);
         
         if (isOverlapping) {
@@ -537,12 +575,23 @@
       
       // Если ни одно видео не пересекается с playband, находим ближайшее
       if (!anyOverlapping && playbandVideos.length > 0) {
-        var closestVideo = findClosestVideoToPlayband(playbandVideos);
-        if (closestVideo) {
-          console.log('[videoLazy] Ни одно видео не пересекается с playband, запускаем ближайшее', closestVideo);
-          if (closestVideo.paused && typeof closestVideo.play === 'function') {
-            var p = closestVideo.play();
-            if (p && p.catch) p.catch(function(){});
+        // Фильтруем talking head из списка для поиска ближайшего
+        var nonTalkingVideos = [];
+        each(playbandVideos, function(video){
+          if (!video) return;
+          if (!isTalkingHeadVideo(video, playbandActiveItem)) {
+            nonTalkingVideos.push(video);
+          }
+        });
+        
+        if (nonTalkingVideos.length > 0) {
+          var closestVideo = findClosestVideoToPlayband(nonTalkingVideos);
+          if (closestVideo) {
+            console.log('[videoLazy] Ни одно видео не пересекается с playband, запускаем ближайшее', closestVideo);
+            if (closestVideo.paused && typeof closestVideo.play === 'function') {
+              var p = closestVideo.play();
+              if (p && p.catch) p.catch(function(){});
+            }
           }
         }
       }
@@ -587,8 +636,12 @@
         window.removeEventListener('scroll', onScrollOrResize);
         window.removeEventListener('resize', onScrollOrResize);
       }
+      // Ставим на паузу все видео playband (talking head не затрагиваем, они управляются отдельно)
       each(playbandVideos, function(video){
-        if (video && typeof video.pause === 'function') video.pause();
+        if (!video) return;
+        // Пропускаем talking head - они управляются отдельно
+        if (isTalkingHeadVideo(video, playbandActiveItem)) return;
+        if (typeof video.pause === 'function') video.pause();
       });
       playbandActiveItem = null;
       playbandVideos = [];
