@@ -33,13 +33,11 @@
     try {
       // Проверяем флаг, что source уже был создан
       if (video.__videoLazySourceCreated) {
-        console.log('[videoLazy] Source уже был создан ранее для этого видео, пропускаем', video);
         return false;
       }
 
       // Если source уже есть в DOM, помечаем и пропускаем
       if (hasVideoSource(video)) {
-        console.log('[videoLazy] Видео уже имеет source в DOM, помечаем как созданное', video);
         video.__videoLazySourceCreated = true;
         return false;
       }
@@ -51,11 +49,8 @@
       }
 
       if (!srcAttr || !srcAttr.length) {
-        console.log('[videoLazy] Видео не имеет атрибута data-src', video);
         return false;
       }
-
-      console.log('[videoLazy] Создаем source для видео из атрибута:', srcAttr, video);
       
       // Создаем source элемент
       var source = document.createElement('source');
@@ -68,10 +63,8 @@
       // Помечаем, что source был создан
       video.__videoLazySourceCreated = true;
       
-      console.log('[videoLazy] Source создан и добавлен в видео', video);
       return true;
     } catch(e){ 
-      console.error('[videoLazy] Ошибка при создании source для видео', e);
       return false;
     }
   }
@@ -82,21 +75,15 @@
     try {
       // Проверяем флаг, что load уже был вызван
       if (video.__videoLazyLoadCalled) {
-        console.log('[videoLazy] load() уже был вызван ранее для этого видео, пропускаем', video);
         return;
       }
 
       if (hasVideoSource(video)) {
-        console.log('[videoLazy] Видео имеет source, вызываем load()', video);
         video.load();
         // Помечаем, что load был вызван
         video.__videoLazyLoadCalled = true;
-      } else {
-        console.log('[videoLazy] Видео не имеет source, пропускаем load', video);
       }
-    } catch(e){ 
-      console.error('[videoLazy] Ошибка при вызове load() для видео', e);
-    }
+    } catch(e){}
   }
 
   // 4. Получение видео
@@ -179,25 +166,17 @@
   // 5. Загрузка при смене активного кейса
   function handleActiveCaseChange(newCaseEl){
     if (!newCaseEl) return;
-    console.log('[videoLazy] Обработка смены активного кейса', newCaseEl);
     
     // Находим все видео и talking head в новом кейсе
     var allVideos = getAllCaseVideos(newCaseEl);
     var talkingHeadVideos = getTalkingHeadVideos(newCaseEl);
-    console.log('[videoLazy] Найдено видео в кейсе:', {
-      total: allVideos.length,
-      talkingHead: talkingHeadVideos.length,
-      all: allVideos
-    });
 
     // Создаем source элементы из атрибутов data-src
-    console.log('[videoLazy] Создание source элементов для видео');
     
     // Для talking head используем data-src
     each(talkingHeadVideos, function(video){
       var created = createSourceFromAttributes(video, true);
       if (created) {
-        console.log('[videoLazy] Source создан для talking head видео', video);
         // Вызываем load сразу после создания source
         loadVideoIfNeeded(video);
       } else if (hasVideoSource(video)) {
@@ -232,7 +211,6 @@
       if (!isTalking) {
         var created = createSourceFromAttributes(video, false);
         if (created) {
-          console.log('[videoLazy] Source создан для видео', video);
           // Вызываем load сразу после создания source
           loadVideoIfNeeded(video);
         } else if (hasVideoSource(video)) {
@@ -247,8 +225,6 @@
 
     // Через 100мс проверяем готовность
     setTimeout(function(){
-      console.log('[videoLazy] Проверка готовности видео через 100мс');
-      
       var videosToCheck = [];
       
       // Добавляем talking head видео
@@ -262,43 +238,28 @@
       
       // Убираем дубликаты
       videosToCheck = Array.from(new Set(videosToCheck));
-      
-      console.log('[videoLazy] Видео для проверки готовности:', {
-        talkingHead: talkingHeadVideos.length,
-        other: allVideos.length - talkingHeadVideos.length,
-        total: videosToCheck.length
-      });
 
       var allReady = true;
       each(videosToCheck, function(video){
         var ready = isVideoReady(video);
-        console.log('[videoLazy] Видео готово:', ready, video);
         if (!ready) allReady = false;
       });
 
       if (!allReady){
-        console.log('[videoLazy] Не все видео готовы, повторяем проверку через 200мс');
         // Повторяем проверку через 200мс
         setTimeout(function(){
-          console.log('[videoLazy] Повторная проверка готовности видео через 200мс');
-          
           var allReadyRetry = true;
           each(videosToCheck, function(video){
             var ready = isVideoReady(video);
-            console.log('[videoLazy] Видео готово (повторная проверка):', ready, video);
             if (!ready) allReadyRetry = false;
           });
 
-          if (!allReadyRetry){
-            console.log('[videoLazy] Видео все еще не готовы после повторной проверки');
-          } else {
-            console.log('[videoLazy] Все видео готовы после повторной проверки');
+          if (allReadyRetry){
             // Запускаем talking head видео после готовности (независимо от playband)
             playTalkingHeadVideos(newCaseEl);
           }
         }, 200);
       } else {
-        console.log('[videoLazy] Все видео готовы сразу');
         // Запускаем talking head видео после готовности (независимо от playband)
         playTalkingHeadVideos(newCaseEl);
       }
@@ -329,11 +290,6 @@
       var activeIndex = casesArray.indexOf(activeCaseEl);
       if (activeIndex === -1) return;
       
-      console.log('[videoLazy] Создание source элементов для соседних кейсов', {
-        activeIndex: activeIndex,
-        totalCases: casesArray.length
-      });
-      
       // Обрабатываем соседние кейсы (index-1 и index+1)
       var adjacentIndices = [activeIndex - 1, activeIndex + 1];
       
@@ -344,8 +300,6 @@
         var adjacentCase = casesArray[adjIndex];
         if (!adjacentCase) return;
         
-        console.log('[videoLazy] Обработка соседнего кейса (index ' + adjIndex + ')', adjacentCase);
-        
         // Находим все видео в соседнем кейсе
         var adjacentVideos = getAllCaseVideos(adjacentCase);
         var adjacentTalkingHeadVideos = getTalkingHeadVideos(adjacentCase);
@@ -353,11 +307,8 @@
         // Создаем source для talking head видео (используем data-src)
         each(adjacentTalkingHeadVideos, function(video){
           if (!video) return;
-          var created = createSourceFromAttributes(video, true);
-          if (created) {
-            console.log('[videoLazy] Source создан для talking head видео в соседнем кейсе (index ' + adjIndex + ')', video);
-            // Не вызываем load() для соседних кейсов - только создаем source для предзагрузки
-          }
+          createSourceFromAttributes(video, true);
+          // Не вызываем load() для соседних кейсов - только создаем source для предзагрузки
         });
         
         // Создаем source для остальных видео (используем data-src)
@@ -384,17 +335,12 @@
           } catch(__){}
           
           if (!isTalking) {
-            var created = createSourceFromAttributes(video, false);
-            if (created) {
-              console.log('[videoLazy] Source создан для видео в соседнем кейсе (index ' + adjIndex + ')', video);
-              // Не вызываем load() для соседних кейсов - только создаем source для предзагрузки
-            }
+            createSourceFromAttributes(video, false);
+            // Не вызываем load() для соседних кейсов - только создаем source для предзагрузки
           }
         });
       });
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при создании source для соседних кейсов:', e);
-    }
+    } catch(e){}
   }
 
   // Логика полосы play/pause (playband)
@@ -501,16 +447,11 @@
       each(talkingHeadVideos, function(video){
         if (!video) return;
         if (video.paused && typeof video.play === 'function') {
-          console.log('[videoLazy] Запуск talking head видео (независимо от playband)', video);
           var p = video.play();
-          if (p && p.catch) p.catch(function(e){
-            console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
-          });
+          if (p && p.catch) p.catch(function(){});
         }
       });
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
-    }
+    } catch(e){}
   }
 
   function pauseTalkingHeadVideos(caseEl){
@@ -520,13 +461,10 @@
       each(talkingHeadVideos, function(video){
         if (!video) return;
         if (typeof video.pause === 'function') {
-          console.log('[videoLazy] Пауза talking head видео', video);
           video.pause();
         }
       });
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при паузе talking head видео:', e);
-    }
+    } catch(e){}
   }
 
   function updatePlaybandPlayback(){
@@ -553,7 +491,6 @@
         
         // Дополнительная защита: пропускаем talking head видео
         if (isTalkingHeadVideo(video, playbandActiveItem)) {
-          console.log('[videoLazy] Пропускаем talking head видео в playband обработке', video);
           return;
         }
         
@@ -587,7 +524,6 @@
         if (nonTalkingVideos.length > 0) {
           var closestVideo = findClosestVideoToPlayband(nonTalkingVideos);
           if (closestVideo) {
-            console.log('[videoLazy] Ни одно видео не пересекается с playband, запускаем ближайшее', closestVideo);
             if (closestVideo.paused && typeof closestVideo.play === 'function') {
               var p = closestVideo.play();
               if (p && p.catch) p.catch(function(){});
@@ -595,9 +531,7 @@
           }
         }
       }
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при обновлении playband playback:', e);
-    }
+    } catch(e){}
   }
 
   function onScrollOrResize(){
@@ -624,9 +558,7 @@
         window.addEventListener('resize', onScrollOrResize, { passive: true });
       }
       updatePlaybandPlayback();
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при привязке playband к кейсу:', e);
-    }
+    } catch(e){}
   }
 
   function detachPlayband(itemLosingActive){
@@ -645,15 +577,12 @@
       });
       playbandActiveItem = null;
       playbandVideos = [];
-    } catch(e){
-      console.warn('[videoLazy] Ошибка при отвязке playband:', e);
-    }
+    } catch(e){}
   }
 
   // Определение активного кейса по MutationObserver на смену класса active
   function setupActiveCaseObserver(){
     if (typeof MutationObserver === 'undefined') {
-      console.warn('[videoLazy] MutationObserver не поддерживается');
       return;
     }
 
@@ -662,8 +591,6 @@
     // Функция обработки смены активного кейса
     function handleActiveCaseChangeWrapper(newActiveCase){
       if (!newActiveCase || newActiveCase === lastActiveCase) return;
-      
-      console.log('[videoLazy] Обнаружена смена активного кейса через MutationObserver', newActiveCase);
       
       // Отвязываем playband от предыдущего кейса и останавливаем talking head
       if (lastActiveCase) {
@@ -678,9 +605,7 @@
         handleActiveCaseChange(newActiveCase); 
         // Привязываем playband к новому активному кейсу
         attachPlaybandToItem(newActiveCase);
-      } catch(e){ 
-        console.error('[videoLazy] Ошибка при обработке смены кейса:', e); 
-      }
+      } catch(e){}
     }
 
     // Создаем MutationObserver для отслеживания изменений класса active
@@ -731,7 +656,6 @@
     var items = scroller.querySelectorAll ? scroller.querySelectorAll('.cases-grid__item, .case') : null;
     
     if (!items || !items.length) {
-      console.warn('[videoLazy] Не найдены элементы .cases-grid__item или .case');
       return;
     }
 
@@ -743,12 +667,8 @@
           attributeFilter: ['class'],
           attributeOldValue: true
         });
-      } catch(e){
-        console.warn('[videoLazy] Ошибка при настройке наблюдения за кейсом:', e, item);
-      }
+      } catch(e){}
     });
-
-    console.log('[videoLazy] MutationObserver настроен для отслеживания класса active у кейсов', items.length);
     
     // Начальная проверка активного кейса
     var initialActiveCase = qs(document, '.cases-grid__item.active, .case.active');
@@ -761,8 +681,6 @@
 
   // Инициализация
   function initVideoLazy(){
-    console.log('[videoLazy] Инициализация загрузки видео для десктопа');
-    
     // Настраиваем отслеживание активного кейса
     setupActiveCaseObserver();
     
@@ -773,9 +691,7 @@
         handleActiveCaseChange(activeCase);
         // Привязываем playband к начальному активному кейсу
         attachPlaybandToItem(activeCase);
-      } catch(e){ 
-        console.error('[videoLazy] Ошибка при начальной обработке кейса:', e); 
-      }
+      } catch(e){}
     }
   }
 
@@ -794,7 +710,6 @@
     // После полной загрузки страницы единоразово вызываем play через playband
     function enablePlaybandAfterLoad(){
       if (playbandActiveItem && playbandVideos.length > 0){
-        console.log('[videoLazy] Единоразовый запуск видео через playband после загрузки страницы');
         // Небольшая задержка для гарантии готовности видео
         setTimeout(function(){
           updatePlaybandPlayback();
