@@ -116,8 +116,9 @@
       // Talking-head находится в .cases-grid__item__container
       var container = qs(caseEl, '.cases-grid__item__container');
       if (!container) return [];
-      // Ищем talking-head видео (может быть разной глубины вложенности)
-      return qsa(container, '.talking-head video, [class*="talking-head"] video, video[class*="talking"]');
+      // Ищем talking-head видео по структуре: .cases-grid__item__container__wrap__talking-head__video video
+      // Также поддерживаем другие варианты для обратной совместимости
+      return qsa(container, '.cases-grid__item__container__wrap__talking-head__video video, .talking-head video, [class*="talking-head"] video, video[class*="talking"]');
     } catch(_){ return []; }
   }
 
@@ -141,13 +142,15 @@
             // Дополнительная проверка через closest
             var parent = video.parentElement;
             while (parent && parent !== container) {
-              if (parent.classList && (
-                parent.classList.contains('talking-head') || 
-                parent.className.indexOf('talking-head') !== -1 ||
-                parent.className.indexOf('talking') !== -1
-              )) {
-                isTalking = true;
-                break;
+              if (parent.classList) {
+                // Проверяем специфичный класс для talking-head структуры
+                if (parent.classList.contains('cases-grid__item__container__wrap__talking-head__video') ||
+                    parent.classList.contains('talking-head') || 
+                    parent.className.indexOf('talking-head') !== -1 ||
+                    parent.className.indexOf('talking') !== -1) {
+                  isTalking = true;
+                  break;
+                }
               }
               parent = parent.parentElement;
             }
@@ -195,13 +198,15 @@
         if (!isTalking) {
           var parent = video.parentElement;
           while (parent && parent !== newCaseEl) {
-            if (parent.classList && (
-              parent.classList.contains('talking-head') || 
-              parent.className.indexOf('talking-head') !== -1 ||
-              parent.className.indexOf('talking') !== -1
-            )) {
-              isTalking = true;
-              break;
+            if (parent.classList) {
+              // Проверяем специфичный класс для talking-head структуры
+              if (parent.classList.contains('cases-grid__item__container__wrap__talking-head__video') ||
+                  parent.classList.contains('talking-head') || 
+                  parent.className.indexOf('talking-head') !== -1 ||
+                  parent.className.indexOf('talking') !== -1) {
+                isTalking = true;
+                break;
+              }
             }
             parent = parent.parentElement;
           }
@@ -321,13 +326,15 @@
             if (!isTalking) {
               var parent = video.parentElement;
               while (parent && parent !== adjacentCase) {
-                if (parent.classList && (
-                  parent.classList.contains('talking-head') || 
-                  parent.className.indexOf('talking-head') !== -1 ||
-                  parent.className.indexOf('talking') !== -1
-                )) {
-                  isTalking = true;
-                  break;
+                if (parent.classList) {
+                  // Проверяем специфичный класс для talking-head структуры
+                  if (parent.classList.contains('cases-grid__item__container__wrap__talking-head__video') ||
+                      parent.classList.contains('talking-head') || 
+                      parent.className.indexOf('talking-head') !== -1 ||
+                      parent.className.indexOf('talking') !== -1) {
+                    isTalking = true;
+                    break;
+                  }
                 }
                 parent = parent.parentElement;
               }
@@ -425,12 +432,14 @@
       if (container) {
         var parent = video.parentElement;
         while (parent && parent !== container) {
-          if (parent.classList && (
-            parent.classList.contains('talking-head') || 
-            parent.className.indexOf('talking-head') !== -1 ||
-            parent.className.indexOf('talking') !== -1
-          )) {
-            return true;
+          if (parent.classList) {
+            // Проверяем специфичный класс для talking-head структуры
+            if (parent.classList.contains('cases-grid__item__container__wrap__talking-head__video') ||
+                parent.classList.contains('talking-head') || 
+                parent.className.indexOf('talking-head') !== -1 ||
+                parent.className.indexOf('talking') !== -1) {
+              return true;
+            }
           }
           parent = parent.parentElement;
         }
