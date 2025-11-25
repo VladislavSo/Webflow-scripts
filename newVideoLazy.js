@@ -176,6 +176,42 @@
     } catch(_){ return []; }
   }
 
+  // Функции для управления talking head видео
+  function playTalkingHeadVideos(caseEl){
+    if (!caseEl) return;
+    try {
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      each(talkingHeadVideos, function(video){
+        if (!video) return;
+        if (video.paused && typeof video.play === 'function') {
+          console.log('[videoLazy] Запуск talking head видео', video);
+          var p = video.play();
+          if (p && p.catch) p.catch(function(e){
+            console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
+          });
+        }
+      });
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при запуске talking head видео:', e);
+    }
+  }
+
+  function pauseTalkingHeadVideos(caseEl){
+    if (!caseEl) return;
+    try {
+      var talkingHeadVideos = getTalkingHeadVideos(caseEl);
+      each(talkingHeadVideos, function(video){
+        if (!video) return;
+        if (typeof video.pause === 'function') {
+          console.log('[videoLazy] Пауза talking head видео', video);
+          video.pause();
+        }
+      });
+    } catch(e){
+      console.warn('[videoLazy] Ошибка при паузе talking head видео:', e);
+    }
+  }
+
   // 5. Загрузка при смене активного кейса
   function handleActiveCaseChange(newCaseEl){
     if (!newCaseEl) return;
@@ -294,9 +330,14 @@
           } else {
             console.log('[videoLazy] Все видео готовы после повторной проверки');
           }
+          
+          // Запускаем talking head видео после проверки готовности
+          playTalkingHeadVideos(newCaseEl);
         }, 200);
       } else {
         console.log('[videoLazy] Все видео готовы сразу');
+        // Запускаем talking head видео после проверки готовности
+        playTalkingHeadVideos(newCaseEl);
       }
     }, 100);
   }
@@ -571,8 +612,9 @@
       
       console.log('[videoLazy] Обнаружена смена активного кейса через MutationObserver', newActiveCase);
       
-      // Отвязываем playband от предыдущего кейса
+      // Отвязываем playband от предыдущего кейса и останавливаем talking head
       if (lastActiveCase) {
+        pauseTalkingHeadVideos(lastActiveCase);
         detachPlayband(lastActiveCase);
       }
       
@@ -625,6 +667,7 @@
           handleActiveCaseChangeWrapper(target);
         } else if (wasActive && !isActive){
           // Класс active удален
+          pauseTalkingHeadVideos(target);
           detachPlayband(target);
         }
       });
