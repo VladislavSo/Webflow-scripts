@@ -1487,6 +1487,54 @@
                   var currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current');
                   if (!currentElOpen){ setStackMiniViewCurrent(brandKeyOpen); currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current'); }
                   if (currentElOpen){ clearStackCardStyles(); currentElOpen.classList.add(brandKeyOpen + '-card-style'); }
+                  
+                  // Скролл списка к элементу с классом -card-style (единожды при открытии)
+                  try {
+                    var listItems = qsa(listOpen, '.main-container__stack-wrap__wrapper__list__item');
+                    var cardStyleItem = null;
+                    var cardStyleIndex = -1;
+                    
+                    // Находим элемент с классом, заканчивающимся на -card-style
+                    each(listItems, function(item, idx){
+                      if (!item || !item.classList) return;
+                      var classList = item.classList;
+                      for (var i = 0; i < classList.length; i++){
+                        if (classList[i] && classList[i].indexOf('-card-style') !== -1){
+                          cardStyleItem = item;
+                          cardStyleIndex = idx;
+                          return;
+                        }
+                      }
+                    });
+                    
+                    if (cardStyleItem && cardStyleIndex >= 0 && listItems.length > 0){
+                      // Вычисляем высоту одного элемента
+                      var firstItem = listItems[0];
+                      var itemHeight = 0;
+                      try {
+                        var rect = firstItem.getBoundingClientRect();
+                        itemHeight = rect.height || 0;
+                      } catch(_){}
+                      
+                      // Применяем формулу: высота * (index - 1) + 6 * (index - 1)
+                      var scrollValue = itemHeight * (cardStyleIndex - 1) + 6 * (cardStyleIndex - 1);
+                      if (scrollValue < 0) scrollValue = 0;
+                      
+                      // Применяем скролл к списку
+                      try {
+                        listOpen.scrollTop = scrollValue;
+                        console.log('[snapSlider] Применен скролл списка при открытии стека:', {
+                          cardStyleIndex: cardStyleIndex,
+                          itemHeight: itemHeight,
+                          scrollValue: scrollValue
+                        });
+                      } catch(e){
+                        console.warn('[snapSlider] Ошибка при применении скролла списка:', e);
+                      }
+                    }
+                  } catch(e){
+                    console.warn('[snapSlider] Ошибка при вычислении скролла списка:', e);
+                  }
                 }
               } catch(_){ }
               try { updateStackOpacityByCurrent(); } catch(_){ }
