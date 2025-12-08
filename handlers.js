@@ -26,6 +26,10 @@
   function bindCardClicks(ns) {
    ns.collections.cards.forEach((card) => {
      card.addEventListener('click', () => {
+       if (Array.from(card.classList).some(cls => cls.endsWith('-card-style'))) {
+         return;
+       }
+       
        const brand = card.getAttribute('brand-data') || card.getAttribute('data-brand') || '';
        const prefix = (brand.split('-')[0] || '').trim();
        if (!prefix) return;
