@@ -100,6 +100,3 @@
   ns.layout = ns.layout || {};
   ns.layout.updateCasesContainerPaddingTop = updateCasesContainerPaddingTop;
 })(window.StackUI);
-
-
-
