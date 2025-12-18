@@ -1,7 +1,5 @@
-// Режим ручного восстановления позиции скролла — как можно раньше
 try { if ("scrollRestoration" in history) { history.scrollRestoration = "manual"; } } catch (_) {}
 
-// При возврате из bfcache и на показ страницы — закрепляем top=0
 window.addEventListener("pageshow", () => {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   document.documentElement.scrollTop = 0;
@@ -9,7 +7,6 @@ window.addEventListener("pageshow", () => {
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Всегда стартуем со скроллом в самый верх
   try { if ("scrollRestoration" in history) { history.scrollRestoration = "manual"; } } catch (_) {}
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   document.documentElement.scrollTop = 0;
@@ -22,26 +19,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (!preloader || !logotype || !progressBar || !progressFill) return;
 
-  // Блокируем скролл по умолчанию
   document.body.style.overflow = "hidden";
 
-  // Появление логотипа и прогресс-бара
   requestAnimationFrame(() => {
     logotype.style.transform = "translateY(0)";
     logotype.style.opacity = "1";
     progressBar.style.opacity = "1";
   });
 
-  // Запуск анимации "загрузки" до 80% за 5с
   progressFill.style.transition = "width 5s linear";
   progressFill.style.width = "80%";
 
-  // Когда DOM загружен — ускоряем до 100%
   window.addEventListener("load", () => {
     progressFill.style.transition = "width 0.5s ease";
     progressFill.style.width = "100%";
 
-    // После окончания анимации скрываем элементы
     progressFill.addEventListener("transitionend", () => {
       progressBar.style.transition = "opacity 0.3s ease";
       logotype.style.transition = "opacity 0.3s ease";
@@ -54,8 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setTimeout(() => {
           preloader.style.display = "none";
-          document.body.style.overflow = ""; // Разблокируем скролл
-          // Дополнительно закрепим положение в самом верху после скрытия прелоадера
+          document.body.style.overflow = "";
           window.scrollTo({ top: 0, left: 0, behavior: "auto" });
           document.documentElement.scrollTop = 0;
           document.body.scrollTop = 0;
