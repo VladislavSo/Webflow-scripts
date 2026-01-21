@@ -357,6 +357,7 @@
     createSourceForAdjacentCases(newCaseEl);
 
     setTimeout(function(){
+      if (!isCaseActiveAndEligible(newCaseEl)) return;
       var activeSlideVideos = getActiveSlideVideos(newCaseEl);
       var videosToCheck = [];
       
@@ -373,6 +374,7 @@
 
       if (!allReady){
         setTimeout(function(){
+          if (!isCaseActiveAndEligible(newCaseEl)) return;
           var allReadyRetry = true;
           each(videosToCheck, function(video){
             var ready = isVideoReady(video);
@@ -382,7 +384,7 @@
           if (allReadyRetry){
             each(talkingHeadVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -390,7 +392,7 @@
             });
             each(activeSlideVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -399,7 +401,7 @@
           } else {
             each(talkingHeadVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -407,7 +409,7 @@
             });
             each(activeSlideVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -418,7 +420,7 @@
       } else {
         each(talkingHeadVideos, function(video){
           try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
               var p = video.play();
               if (p && p.catch) p.catch(function(e){});
             }
@@ -426,7 +428,7 @@
         });
         each(activeSlideVideos, function(video){
           try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
               var p = video.play();
               if (p && p.catch) p.catch(function(e){});
             }
@@ -454,6 +456,7 @@
     });
 
     function checkAndPlay(){
+      if (!isCaseActiveAndEligible(caseEl)) return;
       var allReady = true;
       each(activeSlideVideos, function(video){
         var ready = isVideoReady(video);
@@ -465,7 +468,7 @@
       } else {
         each(activeSlideVideos, function(video){
           try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function'){
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(caseEl)){
               var p = video.play();
               if (p && p.catch) p.catch(function(e){});
             }
@@ -519,6 +522,13 @@
 
   function isMainContainerEligible(){
     return isEligibleBySelector('.main-container');
+  }
+
+  function isCaseActiveAndEligible(caseEl){
+    try {
+      if (!caseEl || !caseEl.classList || !caseEl.classList.contains('active')) return false;
+      return isMainContainerEligible();
+    } catch(_){ return false; }
   }
 
   function setCasesGridInProgress(_ignored){
@@ -760,7 +770,7 @@
               var p = dur > 0 ? Math.min(1, ct / dur) : 0;
               if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
               try {
-                if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
+                if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce && caseIsActive && isCaseActiveAndEligible(caseEl)){
                   slide.__progressAdvancedOnce = true;
                   var st = wrapperEl.__snapState || {};
                   if (!st.isUserInteracting && !st.autoScrollLock && slides.length > 1){
@@ -780,7 +790,7 @@
             var p = dur > 0 ? Math.min(1, ct / dur) : 0;
             if (fill) { try { fill.style.transform = 'scaleX(' + p + ')'; } catch(_){ } }
             try {
-              if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce){
+              if (p >= PROGRESS_ADVANCE_THRESHOLD && !slide.__progressAdvancedOnce && caseIsActive && isCaseActiveAndEligible(caseEl)){
                 slide.__progressAdvancedOnce = true;
                 var st = wrapperEl.__snapState || {};
                 if (!st.isUserInteracting && !st.autoScrollLock && slides.length > 1){
