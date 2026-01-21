@@ -35,7 +35,7 @@
     var videos = qsa(slideEl, '.slide-inner__video-block video, video');
     if (!videos || !videos.length) return;
     each(videos, function(video){
-      try { if (video && typeof video.play === 'function') { var p = video.play(); if (p && p.catch) p.catch(function(){}); } } catch(_){ }
+      try { if (video && typeof video.play === 'function' && isVideoInActiveContext(video)) { var p = video.play(); if (p && p.catch) p.catch(function(){}); } } catch(_){ }
     });
   }
 
@@ -208,6 +208,7 @@
     delay = delay || 300;
     
     try {
+      if (!isVideoInActiveContext(video)) return;
       try {
         if (!video.hasAttribute('playsinline')){
           video.setAttribute('playsinline', '');
@@ -384,7 +385,7 @@
           if (allReadyRetry){
             each(talkingHeadVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isVideoInActiveContext(video)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -392,7 +393,7 @@
             });
             each(activeSlideVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isVideoInActiveContext(video)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -401,7 +402,7 @@
           } else {
             each(talkingHeadVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isVideoInActiveContext(video)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -409,7 +410,7 @@
             });
             each(activeSlideVideos, function(video){
               try {
-                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
+                if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isVideoInActiveContext(video)){
                   var p = video.play();
                   if (p && p.catch) p.catch(function(e){});
                 }
@@ -420,7 +421,7 @@
       } else {
         each(talkingHeadVideos, function(video){
           try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isVideoInActiveContext(video)){
               var p = video.play();
               if (p && p.catch) p.catch(function(e){});
             }
@@ -428,7 +429,7 @@
         });
         each(activeSlideVideos, function(video){
           try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(newCaseEl)){
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isVideoInActiveContext(video)){
               var p = video.play();
               if (p && p.catch) p.catch(function(e){});
             }
@@ -468,7 +469,7 @@
       } else {
         each(activeSlideVideos, function(video){
           try {
-            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isCaseActiveAndEligible(caseEl)){
+            if (video && !video.__snapSliderAutoplayBlocked && typeof video.play === 'function' && isVideoInActiveContext(video)){
               var p = video.play();
               if (p && p.catch) p.catch(function(e){});
             }
@@ -528,6 +529,17 @@
     try {
       if (!caseEl || !caseEl.classList || !caseEl.classList.contains('active')) return false;
       return isMainContainerEligible();
+    } catch(_){ return false; }
+  }
+
+  function isVideoInActiveContext(video){
+    if (!video) return false;
+    try {
+      var caseEl = video.closest ? video.closest('.cases-grid__item, .case') : null;
+      if (!isCaseActiveAndEligible(caseEl)) return false;
+      var slideEl = video.closest ? video.closest('.story-track-wrapper__slide') : null;
+      if (slideEl && !(slideEl.classList && slideEl.classList.contains('active'))) return false;
+      return true;
     } catch(_){ return false; }
   }
 
@@ -597,7 +609,7 @@
   function getStackContainer(){ return qs(document, '.main-container__stack-wrap'); }
 
   function getTalkingHeadVideo(root){ return qs(root, '.cases-grid__item__container__wrap__talking-head__video video'); }
-  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
+  function playTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v && isVideoInActiveContext(v)){ try { var p=v.play(); if (p&&p.catch) p.catch(function(){}); } catch(_){ } } }
   function pauseTalkingHead(root){ var v = getTalkingHeadVideo(root); if (v){ try { v.pause(); } catch(_){ } } }
 
   function ensureTalkingHeadAutoPlay(caseEl){
@@ -1156,7 +1168,7 @@
             try { video.__snapSliderAutoplayBlocked = false; } catch(_){}
           }
           
-          if (video.paused && isVideoReady(video)){
+          if (video.paused && isVideoReady(video) && isVideoInActiveContext(video)){
             try {
               var p = video.play();
               if (p && typeof p.then === 'function'){
@@ -1369,13 +1381,13 @@
               var activeSlideVideos = getActiveSlideVideos(activeCase);
               
               each(talkingHeadVideos, function(video){
-                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked){
+                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked && isVideoInActiveContext(video)){
                   safePlayVideo(video, 3, 300);
                 }
               });
               
               each(activeSlideVideos, function(video){
-                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked){
+                if (video && video.paused && isVideoReady(video) && !video.__snapSliderAutoplayBlocked && isVideoInActiveContext(video)){
                   safePlayVideo(video, 3, 300);
                 }
               });
