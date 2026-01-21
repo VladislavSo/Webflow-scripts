@@ -1207,6 +1207,12 @@
         var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
         var collectionItem = target.closest ? target.closest('.collection-item') : null;
         if (stackItem || collectionItem){
+          if (stackItem){
+            try {
+              ev.preventDefault();
+              ev.stopPropagation();
+            } catch(_){}
+          }
           var container = getStackContainer();
           if (container){
             var isOpen = container.classList.contains('open-stack');
@@ -1271,7 +1277,7 @@
             if (isCurrent){
               try {
                 var link = stackItem.querySelector ? stackItem.querySelector('a[href]') : null;
-                if (link && link.href){ link.click ? link.click() : (window.location.href = link.href); }
+                if (link && link.href){ window.open(link.href, '_blank', 'noopener'); }
               } catch(_){ }
               return;
             }
