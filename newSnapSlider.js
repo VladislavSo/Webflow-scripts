@@ -1205,6 +1205,19 @@
         var target = ev.target;
         if (!target) return;
         var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
+        if (stackItem) {
+          var containerCheck = getStackContainer();
+          if (containerCheck && !containerCheck.classList.contains('open-stack')) {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+          }
+        }
+      }, true);
+
+      document.addEventListener('click', function(ev){
+        var target = ev.target;
+        if (!target) return;
+        var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
         var collectionItem = target.closest ? target.closest('.collection-item') : null;
         if (stackItem || collectionItem){
           if (stackItem){
