@@ -1228,145 +1228,131 @@
     } catch(_){}
 
     try {
+      function doOpenStack(container){
+        console.log('[SnapSlider][doOpenStack] opening stack');
+        var header = document.getElementById('header');
+        if (header) header.style.zIndex = '9';
+        container.classList.add('open-stack');
+        try {
+          var activeCaseEl = qs(document, '.cases-grid__item.active, .case.active');
+          var brandKeyOpen = extractBrandKeyFromCase(activeCaseEl);
+          var listOpen = getStackList();
+          if (brandKeyOpen && listOpen){
+            var currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current');
+            if (!currentElOpen){ setStackMiniViewCurrent(brandKeyOpen); currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current'); }
+            if (currentElOpen){ clearStackCardStyles(); currentElOpen.classList.add(brandKeyOpen + '-card-style'); }
+            try {
+              var listItems = qsa(listOpen, '.main-container__stack-wrap__wrapper__list__item');
+              var cardStyleItem = null;
+              var cardStyleIndex = -1;
+              each(listItems, function(item, idx){
+                if (!item || !item.classList) return;
+                var classList = item.classList;
+                for (var i = 0; i < classList.length; i++){
+                  if (classList[i] && classList[i].indexOf('-card-style') !== -1){
+                    cardStyleItem = item;
+                    cardStyleIndex = idx;
+                    return;
+                  }
+                }
+              });
+              if (cardStyleItem && cardStyleIndex >= 0 && listItems.length > 0){
+                var firstItem = listItems[0];
+                var itemHeight = 0;
+                try { var rect = firstItem.getBoundingClientRect(); itemHeight = rect.height || 0; } catch(_){}
+                var scrollValue = itemHeight * (cardStyleIndex - 1) + 6 * (cardStyleIndex - 1);
+                if (scrollValue < 0) scrollValue = 0;
+                try { listOpen.scrollTop = scrollValue; } catch(e){}
+              }
+            } catch(e){}
+          }
+        } catch(_){ }
+        try { updateStackOpacityByCurrent(); } catch(_){ }
+        try {
+          var collectionWrappers = qsa(document, '.collection-wrapper');
+          each(collectionWrappers, function(el){ try { el.style.opacity = '0'; } catch(_){ } });
+        } catch(_){ }
+      }
+
+      // CAPTURE: перехватывает клик раньше Webflow-обработчиков на дочерних элементах.
+      // Когда стек закрыт — полностью останавливает событие и открывает стек сами.
+      // Когда стек открыт — пропускает событие дальше (BUBBLE-обработчик разберётся).
       document.addEventListener('click', function(ev){
         var target = ev.target;
         if (!target) return;
         var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
-        if (stackItem) {
-          var containerCheck = getStackContainer();
-          var openStackCheck = containerCheck ? containerCheck.classList.contains('open-stack') : 'NO_CONTAINER';
-          console.log('[SnapSlider][CAPTURE] stackItem click. container:', containerCheck, '| open-stack:', openStackCheck, '| target:', target);
-          if (containerCheck && !containerCheck.classList.contains('open-stack')) {
-            console.log('[SnapSlider][CAPTURE] stack is CLOSED → calling ev.preventDefault() in capture phase');
-            ev.preventDefault();
-          } else {
-            console.log('[SnapSlider][CAPTURE] stack is OPEN or container missing → NOT calling preventDefault in capture phase');
-          }
+        if (!stackItem) return;
+        var container = getStackContainer();
+        if (!container) return;
+        var isOpen = container.classList.contains('open-stack');
+        console.log('[SnapSlider][CAPTURE] stackItem click. isOpen:', isOpen, '| target:', target);
+        if (!isOpen){
+          console.log('[SnapSlider][CAPTURE] stack CLOSED → stopImmediatePropagation + preventDefault + doOpenStack');
+          try { ev.stopImmediatePropagation(); } catch(_){}
+          try { ev.preventDefault(); } catch(_){}
+          doOpenStack(container);
         }
       }, true);
 
+      // BUBBLE: обрабатывает клики когда стек уже открыт (CAPTURE сюда не дошёл бы).
       document.addEventListener('click', function(ev){
         var target = ev.target;
         if (!target) return;
         var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
         var collectionItem = target.closest ? target.closest('.collection-item') : null;
-        console.log('[SnapSlider][BUBBLE] click. stackItem:', stackItem, '| collectionItem:', collectionItem, '| target:', target);
         if (stackItem || collectionItem){
           if (stackItem){
-            try {
-              console.log('[SnapSlider][BUBBLE] stackItem found → calling ev.preventDefault() + ev.stopPropagation()');
-              ev.preventDefault();
-              ev.stopPropagation();
-            } catch(_){}
+            try { ev.preventDefault(); ev.stopPropagation(); } catch(_){}
           }
           var container = getStackContainer();
-          console.log('[SnapSlider][BUBBLE] container (.main-container__stack-wrap):', container);
-          if (!container) { console.warn('[SnapSlider][BUBBLE] ⚠ container is NULL — getStackContainer() вернул null, блок пропущен'); }
-          if (container){
-            var isOpen = container.classList.contains('open-stack');
-            console.log('[SnapSlider][BUBBLE] isOpen (has class open-stack):', isOpen, '| container.classList:', container.className);
-            if (!isOpen){
-              console.log('[SnapSlider][BUBBLE] → BRANCH: stack is CLOSED → opening stack now');
-              const header = document.getElementById('header');
-              header.style.zIndex = '9';
-              container.classList.add('open-stack');
-              try {
-                var activeCaseEl = qs(document, '.cases-grid__item.active, .case.active');
-                var brandKeyOpen = extractBrandKeyFromCase(activeCaseEl);
-                var listOpen = getStackList();
-                if (brandKeyOpen && listOpen){
-                  var currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current');
-                  if (!currentElOpen){ setStackMiniViewCurrent(brandKeyOpen); currentElOpen = qs(listOpen, '.main-container__stack-wrap__wrapper__list__item.current'); }
-                  if (currentElOpen){ clearStackCardStyles(); currentElOpen.classList.add(brandKeyOpen + '-card-style'); }
-                  
-                  try {
-                    var listItems = qsa(listOpen, '.main-container__stack-wrap__wrapper__list__item');
-                    var cardStyleItem = null;
-                    var cardStyleIndex = -1;
-                    
-                    each(listItems, function(item, idx){
-                      if (!item || !item.classList) return;
-                      var classList = item.classList;
-                      for (var i = 0; i < classList.length; i++){
-                        if (classList[i] && classList[i].indexOf('-card-style') !== -1){
-                          cardStyleItem = item;
-                          cardStyleIndex = idx;
-                          return;
-                        }
-                      }
-                    });
-                    
-                    if (cardStyleItem && cardStyleIndex >= 0 && listItems.length > 0){
-                      var firstItem = listItems[0];
-                      var itemHeight = 0;
-                      try {
-                        var rect = firstItem.getBoundingClientRect();
-                        itemHeight = rect.height || 0;
-                      } catch(_){}
-                      
-                      var scrollValue = itemHeight * (cardStyleIndex - 1) + 6 * (cardStyleIndex - 1);
-                      if (scrollValue < 0) scrollValue = 0;
-                      
-                      try {
-                        listOpen.scrollTop = scrollValue;
-                      } catch(e){
-                      }
-                    }
-                  } catch(e){
-                  }
-                }
-              } catch(_){ }
-              try { updateStackOpacityByCurrent(); } catch(_){ }
-              try {
-                var collectionWrappers = qsa(document, '.collection-wrapper');
-                each(collectionWrappers, function(el){ try { el.style.opacity = '0'; } catch(_){ } });
-              } catch(_){ }
-              console.log('[SnapSlider][BUBBLE] → stack opened, returning early');
-              return;
-            }
-            console.log('[SnapSlider][BUBBLE] → BRANCH: stack is OPEN');
-            var isCurrent = stackItem ? (stackItem.classList && stackItem.classList.contains('current')) : false;
-            console.log('[SnapSlider][BUBBLE] stackItem.classList:', stackItem ? stackItem.className : 'N/A', '| isCurrent:', isCurrent);
-            if (isCurrent){
-              try {
-                var link = stackItem.querySelector ? stackItem.querySelector('a[href]') : null;
-                console.log('[SnapSlider][BUBBLE] → BRANCH: isCurrent=true → opening link:', link ? link.href : 'NO LINK FOUND');
-                if (link && link.href){ window.open(link.href, '_blank', 'noopener'); }
-              } catch(_){ }
-              return;
-            }
-            console.log('[SnapSlider][BUBBLE] → BRANCH: isCurrent=false → closing stack and scrolling to case');
+          if (!container) return;
+          var isOpen = container.classList.contains('open-stack');
+          console.log('[SnapSlider][BUBBLE] stack OPEN. stackItem:', stackItem, '| isOpen:', isOpen);
+          if (!isOpen){
+            // стек закрыт, но CAPTURE не остановил (например, collectionItem без stackItem)
+            doOpenStack(container);
+            return;
+          }
+          var isCurrent = stackItem ? (stackItem.classList && stackItem.classList.contains('current')) : false;
+          console.log('[SnapSlider][BUBBLE] isCurrent:', isCurrent, '| stackItem.className:', stackItem ? stackItem.className : 'N/A');
+          if (isCurrent){
             try {
-              const header = document.getElementById('header');
-              header.style.zIndex = '14';
-              container.classList.remove('open-stack');
-              clearStackCardStyles();
-              updateStackOpacityByCurrent();
-              var brandKeyItem = extractBrandKeyFromStackItem(stackItem);
-              scrollToCaseByBrand(brandKeyItem, { instant: true });
-              if (brandKeyItem){
-                try {
-                  var caseElTarget = document.getElementById(brandKeyItem + '-case') || qs(document, '#' + brandKeyItem + '-case');
-                  if (caseElTarget){
-                    var scroller2 = qs(document, '.main-section');
-                    var cases = scroller2 ? qsa(scroller2, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
-                    each(cases, function(el){ if (el === caseElTarget) { try { el.classList.add('active'); playTalkingHead(el); } catch(__){} } else { try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} } });
-                  }
-                  var listAll = getStackList();
-                  if (listAll){
-                    var targetItem = qs(listAll, '[brand-data="' + brandKeyItem + '-mini-view"]') || (listAll.querySelector ? listAll.querySelector('[brand-data$="-mini-view"][brand-data^="' + brandKeyItem + '"]') : null);
-                    if (targetItem){
-                      var currents = qsa(listAll, '.current');
-                      each(currents, function(el){ try { el.classList.remove('current'); } catch(__){} });
-                      try { targetItem.classList.add('current'); } catch(__){}
-                    }
-                  }
-                  updateStackOpacityByCurrent();
-                } catch(__){}
-              }
+              var link = stackItem.querySelector ? stackItem.querySelector('a[href]') : null;
+              console.log('[SnapSlider][BUBBLE] isCurrent=true → opening link:', link ? link.href : 'NO LINK');
+              if (link && link.href){ window.open(link.href, '_blank', 'noopener'); }
             } catch(_){ }
             return;
           }
+          console.log('[SnapSlider][BUBBLE] isCurrent=false → closing stack, scrolling to brand');
+          try {
+            var header = document.getElementById('header');
+            if (header) header.style.zIndex = '14';
+            container.classList.remove('open-stack');
+            clearStackCardStyles();
+            updateStackOpacityByCurrent();
+            var brandKeyItem = extractBrandKeyFromStackItem(stackItem);
+            scrollToCaseByBrand(brandKeyItem, { instant: true });
+            if (brandKeyItem){
+              try {
+                var caseElTarget = document.getElementById(brandKeyItem + '-case') || qs(document, '#' + brandKeyItem + '-case');
+                if (caseElTarget){
+                  var scroller2 = qs(document, '.main-section');
+                  var cases = scroller2 ? qsa(scroller2, '.cases-grid__item, .case') : qsa(document, '.cases-grid__item, .case');
+                  each(cases, function(el){ if (el === caseElTarget) { try { el.classList.add('active'); playTalkingHead(el); } catch(__){} } else { try { el.classList.remove('active'); pauseTalkingHead(el); } catch(__){} } });
+                }
+                var listAll = getStackList();
+                if (listAll){
+                  var targetItem = qs(listAll, '[brand-data="' + brandKeyItem + '-mini-view"]') || (listAll.querySelector ? listAll.querySelector('[brand-data$="-mini-view"][brand-data^="' + brandKeyItem + '"]') : null);
+                  if (targetItem){
+                    var currents = qsa(listAll, '.current');
+                    each(currents, function(el){ try { el.classList.remove('current'); } catch(__){} });
+                    try { targetItem.classList.add('current'); } catch(__){}
+                  }
+                }
+                updateStackOpacityByCurrent();
+              } catch(__){}
+            }
+          } catch(_){ }
           return;
         }
 
