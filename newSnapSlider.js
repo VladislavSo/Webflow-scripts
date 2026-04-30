@@ -1207,8 +1207,13 @@
         var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
         if (stackItem) {
           var containerCheck = getStackContainer();
+          var openStackCheck = containerCheck ? containerCheck.classList.contains('open-stack') : 'NO_CONTAINER';
+          console.log('[SnapSlider][CAPTURE] stackItem click. container:', containerCheck, '| open-stack:', openStackCheck, '| target:', target);
           if (containerCheck && !containerCheck.classList.contains('open-stack')) {
+            console.log('[SnapSlider][CAPTURE] stack is CLOSED → calling ev.preventDefault() in capture phase');
             ev.preventDefault();
+          } else {
+            console.log('[SnapSlider][CAPTURE] stack is OPEN or container missing → NOT calling preventDefault in capture phase');
           }
         }
       }, true);
@@ -1218,17 +1223,23 @@
         if (!target) return;
         var stackItem = target.closest ? target.closest('.main-container__stack-wrap__wrapper__list__item') : null;
         var collectionItem = target.closest ? target.closest('.collection-item') : null;
+        console.log('[SnapSlider][BUBBLE] click. stackItem:', stackItem, '| collectionItem:', collectionItem, '| target:', target);
         if (stackItem || collectionItem){
           if (stackItem){
             try {
+              console.log('[SnapSlider][BUBBLE] stackItem found → calling ev.preventDefault() + ev.stopPropagation()');
               ev.preventDefault();
               ev.stopPropagation();
             } catch(_){}
           }
           var container = getStackContainer();
+          console.log('[SnapSlider][BUBBLE] container (.main-container__stack-wrap):', container);
+          if (!container) { console.warn('[SnapSlider][BUBBLE] ⚠ container is NULL — getStackContainer() вернул null, блок пропущен'); }
           if (container){
             var isOpen = container.classList.contains('open-stack');
+            console.log('[SnapSlider][BUBBLE] isOpen (has class open-stack):', isOpen, '| container.classList:', container.className);
             if (!isOpen){
+              console.log('[SnapSlider][BUBBLE] → BRANCH: stack is CLOSED → opening stack now');
               const header = document.getElementById('header');
               header.style.zIndex = '9';
               container.classList.add('open-stack');
@@ -1283,16 +1294,21 @@
                 var collectionWrappers = qsa(document, '.collection-wrapper');
                 each(collectionWrappers, function(el){ try { el.style.opacity = '0'; } catch(_){ } });
               } catch(_){ }
+              console.log('[SnapSlider][BUBBLE] → stack opened, returning early');
               return;
             }
-            var isCurrent = stackItem.classList && stackItem.classList.contains('current');
+            console.log('[SnapSlider][BUBBLE] → BRANCH: stack is OPEN');
+            var isCurrent = stackItem ? (stackItem.classList && stackItem.classList.contains('current')) : false;
+            console.log('[SnapSlider][BUBBLE] stackItem.classList:', stackItem ? stackItem.className : 'N/A', '| isCurrent:', isCurrent);
             if (isCurrent){
               try {
                 var link = stackItem.querySelector ? stackItem.querySelector('a[href]') : null;
+                console.log('[SnapSlider][BUBBLE] → BRANCH: isCurrent=true → opening link:', link ? link.href : 'NO LINK FOUND');
                 if (link && link.href){ window.open(link.href, '_blank', 'noopener'); }
               } catch(_){ }
               return;
             }
+            console.log('[SnapSlider][BUBBLE] → BRANCH: isCurrent=false → closing stack and scrolling to case');
             try {
               const header = document.getElementById('header');
               header.style.zIndex = '14';
