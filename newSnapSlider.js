@@ -1,5 +1,32 @@
 (function(){
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
+
+  // --- DEBUG: перехват window.open ---
+  (function(){
+    var _origOpen = window.open.bind(window);
+    window.open = function(url, target, features){
+      console.warn('[SnapSlider][window.open] CALLED url:', url, '| target:', target, '| stack trace:', new Error().stack);
+      return _origOpen(url, target, features);
+    };
+  })();
+
+  // --- DEBUG: перехват клика по <a> внутри stack-item (capturing) ---
+  document.addEventListener('click', function(ev){
+    var anchor = ev.target ? (ev.target.closest ? ev.target.closest('a') : null) : null;
+    if (!anchor) return;
+    var insideStackItem = anchor.closest ? anchor.closest('.main-container__stack-wrap__wrapper__list__item') : null;
+    if (!insideStackItem) return;
+    console.warn(
+      '[SnapSlider][ANCHOR-CAPTURE] клик по <a> внутри stack-item!',
+      '| href:', anchor.href,
+      '| defaultPrevented:', ev.defaultPrevented,
+      '| cancelable:', ev.cancelable,
+      '| anchor:', anchor,
+      '| stackItem:', insideStackItem,
+      '| stack trace:', new Error().stack
+    );
+  }, true);
+
   var PROGRESS_ADVANCE_THRESHOLD = 0.98;
   function qs(root, sel){ return (root||document).querySelector ? (root||document).querySelector(sel) : null; }
   function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
