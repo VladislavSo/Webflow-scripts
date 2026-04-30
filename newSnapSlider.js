@@ -1,32 +1,5 @@
 (function(){
   if (!window.matchMedia || !window.matchMedia('(max-width: 479px)').matches) return;
-
-  // --- DEBUG: перехват window.open ---
-  (function(){
-    var _origOpen = window.open.bind(window);
-    window.open = function(url, target, features){
-      console.warn('[SnapSlider][window.open] CALLED url:', url, '| target:', target, '| stack trace:', new Error().stack);
-      return _origOpen(url, target, features);
-    };
-  })();
-
-  // --- DEBUG: перехват клика по <a> внутри stack-item (capturing) ---
-  document.addEventListener('click', function(ev){
-    var anchor = ev.target ? (ev.target.closest ? ev.target.closest('a') : null) : null;
-    if (!anchor) return;
-    var insideStackItem = anchor.closest ? anchor.closest('.main-container__stack-wrap__wrapper__list__item') : null;
-    if (!insideStackItem) return;
-    console.warn(
-      '[SnapSlider][ANCHOR-CAPTURE] клик по <a> внутри stack-item!',
-      '| href:', anchor.href,
-      '| defaultPrevented:', ev.defaultPrevented,
-      '| cancelable:', ev.cancelable,
-      '| anchor:', anchor,
-      '| stackItem:', insideStackItem,
-      '| stack trace:', new Error().stack
-    );
-  }, true);
-
   var PROGRESS_ADVANCE_THRESHOLD = 0.98;
   function qs(root, sel){ return (root||document).querySelector ? (root||document).querySelector(sel) : null; }
   function qsa(root, sel){ return (root||document).querySelectorAll ? (root||document).querySelectorAll(sel) : []; }
@@ -1229,7 +1202,6 @@
 
     try {
       function doOpenStack(container){
-        console.log('[SnapSlider][doOpenStack] opening stack');
         var header = document.getElementById('header');
         if (header) header.style.zIndex = '9';
         container.classList.add('open-stack');
@@ -1284,10 +1256,7 @@
         if (!stackItem) return;
         var container = getStackContainer();
         if (!container) return;
-        var isOpen = container.classList.contains('open-stack');
-        console.log('[SnapSlider][CAPTURE] stackItem click. isOpen:', isOpen, '| target:', target);
-        if (!isOpen){
-          console.log('[SnapSlider][CAPTURE] stack CLOSED → stopImmediatePropagation + preventDefault + doOpenStack');
+        if (!container.classList.contains('open-stack')){
           try { ev.stopImmediatePropagation(); } catch(_){}
           try { ev.preventDefault(); } catch(_){}
           doOpenStack(container);
@@ -1306,24 +1275,19 @@
           }
           var container = getStackContainer();
           if (!container) return;
-          var isOpen = container.classList.contains('open-stack');
-          console.log('[SnapSlider][BUBBLE] stack OPEN. stackItem:', stackItem, '| isOpen:', isOpen);
-          if (!isOpen){
+          if (!container.classList.contains('open-stack')){
             // стек закрыт, но CAPTURE не остановил (например, collectionItem без stackItem)
             doOpenStack(container);
             return;
           }
           var isCurrent = stackItem ? (stackItem.classList && stackItem.classList.contains('current')) : false;
-          console.log('[SnapSlider][BUBBLE] isCurrent:', isCurrent, '| stackItem.className:', stackItem ? stackItem.className : 'N/A');
           if (isCurrent){
             try {
               var link = stackItem.querySelector ? stackItem.querySelector('a[href]') : null;
-              console.log('[SnapSlider][BUBBLE] isCurrent=true → opening link:', link ? link.href : 'NO LINK');
               if (link && link.href){ window.open(link.href, '_blank', 'noopener'); }
             } catch(_){ }
             return;
           }
-          console.log('[SnapSlider][BUBBLE] isCurrent=false → closing stack, scrolling to brand');
           try {
             var header = document.getElementById('header');
             if (header) header.style.zIndex = '14';
