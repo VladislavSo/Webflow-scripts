@@ -1209,7 +1209,6 @@
           var containerCheck = getStackContainer();
           if (containerCheck && !containerCheck.classList.contains('open-stack')) {
             ev.preventDefault();
-            ev.stopImmediatePropagation();
           }
         }
       }, true);
